@@ -19,33 +19,33 @@ export default function Home() {
             <div className="inline-block">
               <span className="inline-flex items-center rounded-full bg-acc-dim border border-acc-line px-3 py-1 text-sm font-medium text-acc">
                 <span className="mr-2 h-2 w-2 bg-acc rounded-full animate-pulse"></span>
-                Phase 0: Foundation
+                Phase 1: Schema &amp; RLS complete
               </span>
             </div>
 
             {/* Info Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Tech Stack */}
+              {/* Done */}
               <div className="bg-panel-2 rounded border border-line p-4 lift">
                 <h3 className="text-sm font-semibold text-fg-2 uppercase tracking-wide mb-3">
-                  Tech Stack
+                  Done
                 </h3>
                 <ul className="space-y-2">
                   <li className="flex items-center text-sm text-fg-3">
                     <span className="mr-2 text-acc">✓</span>
-                    Next.js 14 + TypeScript
+                    Next.js 14 + TypeScript + Tailwind
                   </li>
                   <li className="flex items-center text-sm text-fg-3">
                     <span className="mr-2 text-acc">✓</span>
-                    Tailwind CSS
+                    Schema, hierarchy &amp; closure table
                   </li>
                   <li className="flex items-center text-sm text-fg-3">
                     <span className="mr-2 text-acc">✓</span>
-                    Supabase (PostgreSQL)
+                    RLS policies + aggregate RPCs
                   </li>
                   <li className="flex items-center text-sm text-fg-3">
                     <span className="mr-2 text-acc">✓</span>
-                    Vitest + Playwright
+                    daily_metrics read model + dirty queue
                   </li>
                 </ul>
               </div>
@@ -53,24 +53,24 @@ export default function Home() {
               {/* Next Steps */}
               <div className="bg-panel-2 rounded border border-line p-4 lift">
                 <h3 className="text-sm font-semibold text-fg-2 uppercase tracking-wide mb-3">
-                  Next: Phase 1
+                  Next: Phase 2
                 </h3>
                 <ul className="space-y-2">
                   <li className="flex items-center text-sm text-fg-3">
                     <span className="mr-2">→</span>
-                    Database Schema
+                    Login, invite &amp; onboarding
                   </li>
                   <li className="flex items-center text-sm text-fg-3">
                     <span className="mr-2">→</span>
-                    RLS Policies
+                    MFA, profile &amp; settings
                   </li>
                   <li className="flex items-center text-sm text-fg-3">
                     <span className="mr-2">→</span>
-                    Hierarchy & Closure
+                    App shell &amp; route guards
                   </li>
                   <li className="flex items-center text-sm text-fg-3">
                     <span className="mr-2">→</span>
-                    pgTAP Tests
+                    Team invites &amp; member management
                   </li>
                 </ul>
               </div>

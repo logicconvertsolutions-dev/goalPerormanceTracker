@@ -72,9 +72,6 @@ const config = {
         'heading-tight': '-0.025em',
         mono: '-0.045em',
       },
-      animation: {
-        ...animate,
-      },
     },
   },
   plugins: [animate],

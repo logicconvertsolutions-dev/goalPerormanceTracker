@@ -1,0 +1,7 @@
+node_modules/
+.next/
+dist/
+coverage/
+*.lock
+supabase/.temp/
+types/database.ts
