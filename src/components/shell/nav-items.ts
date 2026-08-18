@@ -6,6 +6,7 @@ export interface NavItem {
 export const PRIMARY_NAV: NavItem[] = [
   { href: '/today', label: 'Today' },
   { href: '/log', label: 'Log' },
+  { href: '/contacts', label: 'Contacts' },
   { href: '/dashboard', label: 'Me' },
 ];
 

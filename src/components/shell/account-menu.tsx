@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useTransition } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +29,8 @@ export function AccountMenu({
   fullName: string;
   isAdmin: boolean;
 }) {
+  const [, startTransition] = useTransition();
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="rounded-full focus-visible:outline-none">
@@ -53,12 +56,8 @@ export function AccountMenu({
           </>
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <form action={signOutAction} className="w-full">
-            <button type="submit" className="w-full text-left">
-              Sign out
-            </button>
-          </form>
+        <DropdownMenuItem onSelect={() => startTransition(() => signOutAction())}>
+          Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

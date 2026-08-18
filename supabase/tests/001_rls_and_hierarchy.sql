@@ -18,7 +18,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 create schema if not exists tests;
 
-select plan(50);
+select plan(68);
 
 -- ---------------------------------------------------------------------
 -- Seed
@@ -140,6 +140,122 @@ select is((select count(*) from public.sales where agent_id = '00000000-0000-000
 select is((select count(*) from public.recruiting_logs)::int, 1, 'assoc_1 selects own recruiting_logs: 1 row');
 select is((select count(*) from public.recruiting_logs where agent_id = '00000000-0000-0000-0000-0000000000a4')::int, 0,
   'assoc_1 selecting assoc_2 recruiting_logs: 0 rows');
+
+-- ============================================================
+-- P2.5: contacts and follow-ups (docs/05-testing.md "Contacts and
+-- follow-ups" integration section, adapted to run as pgTAP against RLS).
+-- ============================================================
+
+-- Unique per agent on lower(full_name): "bharadwaj" then "Bharadwaj" reuses
+-- one contact rather than creating a second.
+select tests.authenticate_as('00000000-0000-0000-0000-0000000000a2'); -- assoc_1
+select lives_ok(
+  $$insert into public.contacts (agent_id, org_id, full_name)
+    values ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-00000000ee01','bharadwaj')$$,
+  'assoc_1 can insert a new contact "bharadwaj"'
+);
+select throws_ok(
+  $$insert into public.contacts (agent_id, org_id, full_name)
+    values ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-00000000ee01','Bharadwaj')$$,
+  'inserting "Bharadwaj" for the same agent violates the lower(full_name) unique index'
+);
+select is(
+  (select count(*)::int from public.contacts
+   where agent_id = '00000000-0000-0000-0000-0000000000a2' and lower(full_name) = 'bharadwaj'),
+  1, 'exactly one contact row exists for assoc_1 named (any case of) bharadwaj'
+);
+
+-- Two agents may each have a contact with the same name; neither sees the other's.
+select tests.authenticate_as('00000000-0000-0000-0000-0000000000a4'); -- assoc_2
+select lives_ok(
+  $$insert into public.contacts (agent_id, org_id, full_name)
+    values ('00000000-0000-0000-0000-0000000000a4','00000000-0000-0000-0000-00000000ee01','Bharadwaj')$$,
+  'assoc_2 can independently have their own contact named Bharadwaj'
+);
+select is(
+  (select count(*)::int from public.contacts where agent_id = '00000000-0000-0000-0000-0000000000a2'),
+  0, 'assoc_2 selecting assoc_1''s contacts: 0 rows'
+);
+
+select tests.authenticate_as('00000000-0000-0000-0000-0000000000a1'); -- smd_x
+select is(
+  (select count(*)::int from public.contacts), 0,
+  'smd_x (upline) selecting any contacts: 0 rows — no upline policy exists on this table'
+);
+
+-- /today query shape: my_followups returns only rows due for the calling
+-- agent, where follow_up_on <= today and follow_up_done_at is null.
+select tests.authenticate_as('00000000-0000-0000-0000-0000000000a2'); -- assoc_1
+select lives_ok(
+  $$insert into public.call_logs (agent_id, contact_id, source, outcome, follow_up_on)
+    select '00000000-0000-0000-0000-0000000000a2', id, 'warm_market', 'connected', current_date - 1
+    from public.contacts
+    where agent_id = '00000000-0000-0000-0000-0000000000a2' and lower(full_name) = 'bharadwaj'$$,
+  'assoc_1 logs a call with an overdue follow-up'
+);
+select lives_ok(
+  $$insert into public.call_logs (agent_id, contact_id, source, outcome, follow_up_on)
+    select '00000000-0000-0000-0000-0000000000a2', id, 'warm_market', 'connected', current_date + 30
+    from public.contacts
+    where agent_id = '00000000-0000-0000-0000-0000000000a2' and lower(full_name) = 'bharadwaj'$$,
+  'assoc_1 logs a second call with a not-yet-due follow-up'
+);
+select is(
+  (select count(*)::int from public.my_followups()),
+  1, 'my_followups returns exactly the one due-or-overdue row, not the future one'
+);
+select ok(
+  (select days_late > 0 from public.my_followups() limit 1),
+  'the returned follow-up is reported as overdue (days_late > 0)'
+);
+
+select tests.authenticate_as('00000000-0000-0000-0000-0000000000a4'); -- assoc_2
+select is(
+  (select count(*)::int from public.my_followups()), 0,
+  'my_followups for assoc_2 (no follow-ups of their own) returns 0 rows'
+);
+
+-- Snooze moves the date; mark-done sets follow_up_done_at and removes it
+-- from the queue.
+select tests.authenticate_as('00000000-0000-0000-0000-0000000000a2');
+select lives_ok(
+  $$update public.call_logs set follow_up_on = follow_up_on + 7
+    where agent_id = '00000000-0000-0000-0000-0000000000a2' and follow_up_on = current_date - 1$$,
+  'snooze: moving follow_up_on forward 7 days succeeds'
+);
+select is(
+  (select count(*)::int from public.my_followups()), 0,
+  'after snoozing past today, my_followups returns 0 rows'
+);
+select lives_ok(
+  $$update public.call_logs set follow_up_done_at = now()
+    where agent_id = '00000000-0000-0000-0000-0000000000a2' and follow_up_on = current_date + 30$$,
+  'mark-done: setting follow_up_done_at on the future row succeeds'
+);
+select is(
+  (select count(*)::int from public.call_logs
+   where agent_id = '00000000-0000-0000-0000-0000000000a2' and follow_up_done_at is not null),
+  1, 'exactly one call_logs row is marked done for assoc_1'
+);
+
+-- Deleting a contact cascades its calls (and would cascade appointments/sales
+-- the same way via the same on delete cascade FK).
+select is(
+  (select count(*)::int from public.call_logs cl
+   join public.contacts ct on ct.id = cl.contact_id
+   where ct.agent_id = '00000000-0000-0000-0000-0000000000a2' and lower(ct.full_name) = 'bharadwaj'),
+  2, 'sanity: bharadwaj has 2 call_logs rows before delete'
+);
+select lives_ok(
+  $$delete from public.contacts
+    where agent_id = '00000000-0000-0000-0000-0000000000a2' and lower(full_name) = 'bharadwaj'$$,
+  'assoc_1 deletes their bharadwaj contact'
+);
+select is(
+  (select count(*)::int from public.call_logs where agent_id = '00000000-0000-0000-0000-0000000000a2'
+   and contact_id not in (select id from public.contacts)),
+  0, 'deleting a contact cascades: no orphaned call_logs rows remain'
+);
 
 -- ============================================================
 -- Hierarchy and RPC tests
