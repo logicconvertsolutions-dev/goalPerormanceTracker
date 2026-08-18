@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { Toaster } from '@/components/ui/sonner';
 
 export const metadata: Metadata = {
   title: 'Performance Tracker',
@@ -21,6 +22,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="bg-bg text-fg font-ui antialiased">
         {children}
+        <Toaster />
       </body>
     </html>
   );
