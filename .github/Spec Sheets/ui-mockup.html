@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>WFG Team Tracker — UI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#08090A; --bg-2:#0E0F11; --panel:#141518; --panel-2:#1A1B1F;
+  --hover:#1F2024; --sunken:#0B0C0D;
+  --line:rgba(255,255,255,.065); --line-2:rgba(255,255,255,.11);
+  --line-3:rgba(255,255,255,.18);
+  --fg:#EDEEF0; --fg-2:#9CA0A8; --fg-3:#666A73; --fg-4:#4A4D55;
+  --acc:#3D9AFF; --acc-2:#7FBBFF; --acc-dim:rgba(61,154,255,.13);
+  --acc-line:rgba(61,154,255,.32);
+  --ok:#3FB950; --warn:#D29922; --bad:#F85149;
+  --warn-dim:rgba(210,153,34,.13); --bad-dim:rgba(248,81,73,.13);
+  --r:8px; --r-sm:6px; --r-lg:12px;
+  --ui:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --lift:inset 0 1px 0 rgba(255,255,255,.04);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:var(--ui);background:var(--bg);color:var(--fg);font-size:13px;
+     line-height:1.5;-webkit-font-smoothing:antialiased;letter-spacing:-.006em}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.03em;font-weight:500}
+:focus-visible{outline:none;box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--acc);border-radius:4px}
+::selection{background:var(--acc-dim);color:var(--acc-2)}
+
+.wrap{display:flex;min-height:100vh}
+.rail{width:212px;flex:0 0 212px;background:var(--bg-2);border-right:1px solid var(--line);
+      padding:14px 10px;position:sticky;top:0;height:100vh;overflow:auto}
+.brand{display:flex;align-items:center;gap:9px;padding:4px 8px 2px}
+.mark{width:20px;height:20px;border-radius:6px;flex:0 0 20px;
+      background:linear-gradient(150deg,var(--acc),#1E5FBF);box-shadow:var(--lift)}
+.brand b{font-size:13px;font-weight:600;letter-spacing:-.02em}
+.sub{font-size:11px;color:var(--fg-3);padding:2px 8px 14px}
+.grp{font-size:10px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;
+     color:var(--fg-4);padding:15px 8px 5px}
+.nav{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:none;
+     border:0;color:var(--fg-2);font-family:var(--ui);font-size:13px;font-weight:400;
+     padding:6px 8px;border-radius:var(--r-sm);cursor:pointer;letter-spacing:-.006em}
+.nav:hover{background:var(--hover);color:var(--fg)}
+.nav[aria-current="true"]{background:var(--panel-2);color:var(--fg);font-weight:500;box-shadow:var(--lift)}
+.nav .dot{width:5px;height:5px;border-radius:50%;background:var(--fg-4);flex:0 0 5px}
+.nav[aria-current="true"] .dot{background:var(--acc);box-shadow:0 0 8px var(--acc)}
+
+.main{flex:1;min-width:0}
+.topbar{height:48px;border-bottom:1px solid var(--line);display:flex;align-items:center;
+        gap:12px;padding:0 22px;position:sticky;top:0;background:rgba(8,9,10,.82);
+        backdrop-filter:blur(12px);z-index:5}
+.crumb{font-size:12px;color:var(--fg-3)}
+.crumb b{color:var(--fg);font-weight:500}
+.kbar{margin-left:auto;display:flex;align-items:center;gap:8px;background:var(--panel);
+      border:1px solid var(--line);border-radius:var(--r-sm);padding:5px 9px;
+      font-size:12px;color:var(--fg-3);min-width:190px}
+kbd{font-family:var(--mono);font-size:10px;background:var(--panel-2);border:1px solid var(--line-2);
+    border-radius:4px;padding:1px 5px;color:var(--fg-2);margin-left:auto}
+.body{padding:24px 22px 72px}
+.screen{display:none;max-width:1080px}
+.screen.on{display:block}
+h2{font-size:19px;font-weight:600;letter-spacing:-.025em;margin-bottom:3px}
+.lede{font-size:13px;color:var(--fg-2);margin-bottom:20px;max-width:66ch}
+.note{font-size:12px;color:var(--fg-2);background:var(--bg-2);border:1px solid var(--line);
+      border-left:2px solid var(--acc);border-radius:var(--r-sm);padding:11px 14px;
+      margin-top:20px;max-width:76ch;line-height:1.6}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--lift)}
+.pad{padding:16px}
+.btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;
+     border-radius:var(--r-sm);font:500 12.5px var(--ui);letter-spacing:-.006em;
+     border:1px solid var(--line-2);background:var(--panel);color:var(--fg);cursor:pointer;
+     box-shadow:var(--lift);white-space:nowrap}
+.btn:hover{background:var(--hover);border-color:var(--line-3)}
+.btn.pri{background:var(--acc);border-color:transparent;color:#04121F;font-weight:600}
+.btn.pri:hover{background:var(--acc-2)}
+.bar-row{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.seg{display:inline-flex;background:var(--panel);border:1px solid var(--line);
+     border-radius:var(--r-sm);padding:2px;gap:2px;box-shadow:var(--lift)}
+.seg button{font:500 12px var(--ui);height:24px;padding:0 10px;border:0;background:none;
+            color:var(--fg-3);cursor:pointer;border-radius:4px;letter-spacing:-.006em}
+.seg button:hover{color:var(--fg)}
+.seg button[aria-pressed="true"]{background:var(--panel-2);color:var(--fg);box-shadow:var(--lift)}
+.pill{display:inline-flex;align-items:center;gap:7px;background:var(--panel);
+      border:1px solid var(--line);border-radius:var(--r-sm);height:30px;padding:0 10px;
+      font-size:12px;color:var(--fg-2);box-shadow:var(--lift)}
+.pill b{color:var(--fg);font-weight:500}
+.pill .x{color:var(--fg-4);font-size:11px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:-8px 0 16px}
+.chip{background:var(--acc-dim);color:var(--acc-2);font-size:11px;font-weight:500;
+      border:1px solid var(--acc-line);border-radius:999px;padding:3px 9px}
+.chip.clear{background:none;color:var(--fg-3);border:1px dashed var(--line-2)}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:9px;margin-bottom:9px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+     padding:13px 14px;box-shadow:var(--lift)}
+.kpi .lab{font-size:11px;color:var(--fg-3)}
+.kpi .val{font-family:var(--mono);font-size:25px;font-weight:500;letter-spacing:-.045em;
+          margin-top:7px;line-height:1}
+.kpi .sec{font-size:11px;color:var(--fg-3);margin-top:5px}
+.trk{height:3px;background:rgba(255,255,255,.07);border-radius:2px;margin-top:10px;overflow:hidden}
+.trk i{display:block;height:100%;border-radius:2px}
+.f-ok{background:var(--ok)} .f-warn{background:var(--warn)} .f-bad{background:var(--bad)}
+.v-ok{color:var(--ok)} .v-warn{color:var(--warn)} .v-bad{color:var(--bad)}
+
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+@media(max-width:840px){.duo{grid-template-columns:1fr}}
+.ct{font-size:11px;font-weight:500;color:var(--fg-3);letter-spacing:.04em;
+    text-transform:uppercase;margin-bottom:16px}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:10px;font-weight:500;letter-spacing:.07em;text-transform:uppercase;
+   color:var(--fg-4);padding:9px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+tbody tr:hover td{background:var(--panel-2)}
+tbody tr:last-child td{border-bottom:0}
+th.rt,td.rt{text-align:right}
+.tot td{background:var(--bg-2);color:var(--fg-2);border-top:1px solid var(--line-2)}
+.tot:hover td{background:var(--bg-2)}
+.tag{font-size:10.5px;font-weight:500;padding:2px 8px;border-radius:999px;white-space:nowrap;
+     border:1px solid var(--line-2);color:var(--fg-2);background:var(--panel-2)}
+.tag.acc{background:var(--acc-dim);color:var(--acc-2);border-color:var(--acc-line)}
+.tag.warn{background:var(--warn-dim);color:var(--warn);border-color:rgba(210,153,34,.3)}
+.mini{width:60px;height:3px;background:rgba(255,255,255,.07);border-radius:2px;
+      display:inline-block;vertical-align:middle;margin-left:10px;overflow:hidden}
+.mini i{display:block;height:100%;border-radius:2px}
+.who{display:flex;align-items:center;gap:9px}
+.av{width:24px;height:24px;border-radius:50%;background:var(--panel-2);color:var(--fg-2);
+    font-size:9.5px;font-weight:600;display:grid;place-items:center;flex:0 0 24px;
+    border:1px solid var(--line-2);letter-spacing:.02em}
+
+.mtx-wrap{overflow-x:auto;padding:2px}
+.mtx{border-collapse:separate;border-spacing:4px}
+.mtx th{border:0;padding:0 4px 4px;font-size:9px;color:var(--fg-4);text-align:center}
+.mtx td{border:0;padding:0;background:none!important}
+.mtx tr:hover td{background:none}
+.mtx .who-c{font-size:12px;color:var(--fg-2);padding-right:12px;white-space:nowrap;text-align:left}
+.cel{width:40px;height:32px;border-radius:var(--r-sm);display:grid;place-items:center;
+     font-family:var(--mono);font-size:12px;position:relative;border:1px solid transparent}
+.cel.z{background:var(--sunken);border-color:var(--line);color:var(--fg-4)}
+.cel.fut{background:none;border:1px dashed var(--line);color:var(--fg-4)}
+.cel.lo{background:rgba(61,154,255,.10);border-color:rgba(61,154,255,.18);color:#8FC2FF}
+.cel.mid{background:rgba(61,154,255,.24);border-color:rgba(61,154,255,.36);color:#CFE4FF}
+.cel.hi{background:var(--acc);color:#04121F;font-weight:600;box-shadow:0 0 14px rgba(61,154,255,.42)}
+.cel.hi::after{content:'';position:absolute;bottom:3px;width:3px;height:3px;border-radius:50%;
+               background:rgba(4,18,31,.55)}
+.legend{display:flex;gap:16px;font-size:11px;color:var(--fg-3);margin-top:18px;flex-wrap:wrap}
+.legend span{display:flex;align-items:center;gap:7px}
+.sw{width:12px;height:12px;border-radius:4px;display:inline-block;border:1px solid var(--line)}
+
+.q-h{font-size:10px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;
+     color:var(--fg-4);padding:14px 16px 8px}
+.q-row{display:flex;align-items:center;gap:12px;padding:12px 16px;
+       border-top:1px solid var(--line);cursor:pointer}
+.q-row:hover{background:var(--panel-2)}
+.q-row .nm{font-size:13.5px;font-weight:500}
+.q-row .said{font-size:12px;color:var(--fg-3);margin-top:2px}
+.q-row .meta{margin-left:auto;text-align:right;font-size:11px;color:var(--fg-4);white-space:nowrap}
+.q-row.od .nm{color:#FFB3AE}
+.tick{width:6px;height:6px;border-radius:50%;flex:0 0 6px;background:var(--acc);
+      box-shadow:0 0 8px var(--acc)}
+.tick.od{background:var(--bad);box-shadow:0 0 8px var(--bad)}
+
+.phone-row{display:flex;gap:34px;align-items:flex-start;flex-wrap:wrap}
+.phone{width:314px;flex:0 0 314px;background:#000;border-radius:38px;padding:7px;
+       border:1px solid var(--line-2);box-shadow:0 24px 60px rgba(0,0,0,.7)}
+.pscr{background:var(--bg);border-radius:32px;overflow:hidden;height:628px;
+      display:flex;flex-direction:column}
+.ptop{padding:18px 20px 16px;border-bottom:1px solid var(--line);background:var(--bg-2)}
+.ptop .cnt{font-family:var(--mono);font-size:30px;font-weight:500;letter-spacing:-.05em;line-height:1}
+.ptop .cnt small{font-size:15px;color:var(--fg-3);font-weight:400;letter-spacing:-.02em}
+.ptop .strk{font-size:11.5px;color:var(--acc-2);margin-top:7px;display:flex;align-items:center;gap:6px}
+.pbody{flex:1;padding:16px;overflow:auto}
+.fl{font-size:10px;font-weight:500;color:var(--fg-4);letter-spacing:.08em;
+    text-transform:uppercase;margin:0 0 8px}
+.inp{background:var(--panel);border:1px solid var(--line-2);border-radius:var(--r);
+     padding:11px 12px;font-size:14.5px;margin-bottom:18px;box-shadow:var(--lift)}
+.inp.gh{color:var(--fg-4)}
+.cg{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px}
+.cx{font-size:12.5px;height:32px;padding:0 12px;border-radius:999px;background:var(--panel);
+    border:1px solid var(--line-2);color:var(--fg-2);display:inline-flex;align-items:center;
+    box-shadow:var(--lift)}
+.cx.sel{background:var(--panel-2);color:var(--fg);border-color:var(--line-3);font-weight:500}
+.cx.act{background:var(--acc);color:#04121F;border-color:transparent;font-weight:600}
+.pfoot{padding:12px 16px 22px;background:linear-gradient(transparent,var(--bg) 30%)}
+.save{background:var(--acc);color:#04121F;font-weight:600;font-size:15px;text-align:center;
+      padding:15px;border-radius:var(--r-lg);letter-spacing:-.01em;
+      box-shadow:0 6px 22px rgba(61,154,255,.28)}
+.toast{background:var(--panel-2);border:1px solid var(--line-2);color:var(--fg-2);font-size:12px;
+       padding:10px 13px;border-radius:var(--r-sm);display:flex;justify-content:space-between;
+       align-items:center;margin-bottom:14px;box-shadow:var(--lift)}
+.toast b{color:var(--fg);font-weight:500}
+.toast u{color:var(--acc-2);text-decoration:none;font-weight:500}
+.aside{max-width:320px;font-size:13px;color:var(--fg-2);line-height:1.65}
+.aside h4{font-size:10px;font-weight:500;color:var(--fg);text-transform:uppercase;
+          letter-spacing:.08em;margin:22px 0 7px}
+.aside h4:first-child{margin-top:0}
+.aside li{margin-left:16px;margin-bottom:5px}
+
+.fn div{margin-bottom:6px}
+.fbar{height:32px;border-radius:var(--r-sm);background:var(--acc);color:#04121F;font-size:12px;
+      font-weight:600;display:flex;align-items:center;padding:0 13px;font-family:var(--mono);
+      letter-spacing:-.02em}
+.fbar.d{background:rgba(61,154,255,.2);color:var(--acc-2)}
+.fbar.o{background:var(--panel-2);color:var(--fg-4);border:1px solid var(--line)}
+.fpc{font-size:11px;color:var(--fg-3);padding:2px 0 4px 13px}
+
+@media(max-width:760px){
+  .wrap{flex-direction:column}
+  .rail{width:100%;height:auto;position:static;display:flex;gap:5px;overflow-x:auto;
+        padding:9px;border-right:0;border-bottom:1px solid var(--line)}
+  .brand,.sub,.grp{display:none}
+  .nav{white-space:nowrap;width:auto}
+  .topbar{padding:0 14px}.kbar{display:none}
+  .body{padding:16px 14px 56px}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="rail">
+  <div class="brand"><span class="mark"></span><b>Team Tracker</b></div>
+  <div class="sub">UI mockup · static data</div>
+  <div class="grp">Associate</div>
+  <button class="nav" data-s="today" aria-current="true"><span class="dot"></span>Today</button>
+  <button class="nav" data-s="log"><span class="dot"></span>Quick log</button>
+  <button class="nav" data-s="dash"><span class="dot"></span>My numbers</button>
+  <button class="nav" data-s="sales"><span class="dot"></span>Sales</button>
+  <div class="grp">SMD</div>
+  <button class="nav" data-s="team"><span class="dot"></span>Roster</button>
+  <button class="nav" data-s="daily"><span class="dot"></span>Activity matrix</button>
+  <button class="nav" data-s="agent"><span class="dot"></span>One agent</button>
+  <button class="nav" data-s="targets"><span class="dot"></span>Targets</button>
+</nav>
+
+<div class="main">
+<div class="topbar">
+  <span class="crumb" id="crumb"><b>Today</b></span>
+  <div class="kbar">Jump to contact… <kbd>⌘K</kbd></div>
+</div>
+<div class="body">
+
+<section class="screen on" id="today">
+  <h2>Today</h2>
+  <p class="lede">The default landing screen. Four callbacks due, two overdue — pulled from follow-up dates set while logging the original call. This is why an associate opens the app; the metrics are a by-product.</p>
+  <div class="bar-row">
+    <span class="pill"><b class="num">4</b> due</span>
+    <span class="pill"><b class="num v-bad">2</b> overdue</span>
+    <span class="pill"><b class="num">7</b> / 15 calls today</span>
+    <span class="pill">3-day streak</span>
+    <button class="btn pri" style="margin-left:auto">Log a call</button>
+  </div>
+  <div class="card">
+    <div class="q-h" style="color:var(--bad)">Overdue</div>
+    <div class="q-row od"><span class="tick od"></span>
+      <div><div class="nm">Bharadwaj</div>
+        <div class="said">“Call back” — no date set, connected 12 Aug</div></div>
+      <div class="meta">2 days late<br>3rd call</div></div>
+    <div class="q-row od"><span class="tick od"></span>
+      <div><div class="nm">Prathysuha</div>
+        <div class="said">“Call back Monday, to book an appointment”</div></div>
+      <div class="meta">1 day late<br>2nd call</div></div>
+    <div class="q-h">Due today</div>
+    <div class="q-row"><span class="tick"></span>
+      <div><div class="nm">Abhilash Pulimamidi</div>
+        <div class="said">“Call back Tuesday, to book an appointment”</div></div>
+      <div class="meta">Due today<br>2nd call</div></div>
+    <div class="q-row"><span class="tick"></span>
+      <div><div class="nm">Ganga</div>
+        <div class="said">No answer — retry after a week</div></div>
+      <div class="meta">Due today<br>1st call</div></div>
+    <div class="q-row"><span class="tick" style="background:var(--fg-4);box-shadow:none"></span>
+      <div><div class="nm" style="color:var(--fg-2)">Pranay Kohad</div>
+        <div class="said">“Recently moved to the US, settling — call back in a month”</div></div>
+      <div class="meta">In 21 days<br>1st call</div></div>
+  </div>
+  <p class="note">Tapping a row opens the log form pre-filled with that contact and their history. Swipe for <b>Snooze 1 day · Snooze 1 week · Mark done</b>. Five of the seven notes in the source spreadsheet said some version of “call back” — that column was the real product hiding inside a tracker.</p>
+</section>
+
+<section class="screen" id="log">
+  <h2>Quick log</h2>
+  <p class="lede">Five taps, one screen, no page transition. If logging a call takes longer than dialling it, nobody logs anything and every screen behind this one shows zero.</p>
+  <div class="phone-row">
+    <div class="phone"><div class="pscr">
+      <div class="ptop">
+        <div class="cnt">7 <small>/ 15 today</small></div>
+        <div class="strk"><span class="tick"></span>3-day streak · 43 to go this week</div>
+      </div>
+      <div class="pbody">
+        <div class="toast"><span>Logged <b>Alekhya</b> — appointment set</span><u>Undo</u></div>
+        <p class="fl">Who did you call?</p>
+        <div class="inp">Venkat Teja</div>
+        <p class="fl">Source</p>
+        <div class="cg"><span class="cx">Warm market</span><span class="cx">Referral</span>
+          <span class="cx sel">Friend</span><span class="cx">Cold</span>
+          <span class="cx">Social</span><span class="cx">Other</span></div>
+        <p class="fl">How did it go?</p>
+        <div class="cg"><span class="cx">Connected</span><span class="cx">Voicemail</span>
+          <span class="cx">No answer</span><span class="cx act">Appointment set</span>
+          <span class="cx">Not interested</span></div>
+        <p class="fl">Appointment</p>
+        <div class="inp">Fri 14 Aug · 6:30 PM</div>
+        <p class="fl">Call back on</p>
+        <div class="cg"><span class="cx">Tomorrow</span><span class="cx">Monday</span>
+          <span class="cx">Next week</span><span class="cx">1 month</span>
+          <span class="cx">Pick a date</span></div>
+        <div class="inp gh">Add a note (optional)</div>
+      </div>
+      <div class="pfoot"><div class="save">Save call</div></div>
+    </div></div>
+    <div class="aside">
+      <h4>Why this shape</h4>
+      Name, source, outcome, save. Source stays selected between calls because agents work in batches down a list.
+      <h4>Call back on</h4>
+      The field the product turns on. One tap, and the contact resurfaces on <b>Today</b> when it matters. Without it this is a spreadsheet with a login page.
+      <h4>Appointment set</h4>
+      Reveals the date inline and writes the appointment row in the same save. Two records, one action — otherwise the funnel's last stage reads zero forever.
+      <h4>Details that decide adoption</h4>
+      <ul>
+        <li>Date chip reads <i>Today</i> — tap to back-date. Agents batch-log at 8 PM.</li>
+        <li>Optimistic save with Undo, no spinner</li>
+        <li>Offline queue, flushes on reconnect</li>
+        <li>Installs as a PWA, opens beside the dialer</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="dash">
+  <h2>My numbers</h2>
+  <p class="lede">Every metric from the workbook's Dashboard tab, same formulas. Week of Mon 10 Aug.</p>
+  <div class="bar-row">
+    <div class="seg"><button aria-pressed="true">This week</button><button>Last week</button>
+      <button>This month</button><button>Last 30 days</button><button>Custom</button></div>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="lab">Calls made</div><div class="val v-bad">7</div>
+      <div class="sec">of 50 · 14%</div><div class="trk"><i class="f-bad" style="width:14%"></i></div></div>
+    <div class="kpi"><div class="lab">Appointments held</div><div class="val v-bad">0</div>
+      <div class="sec">of 3 · 0%</div><div class="trk"><i class="f-bad" style="width:2%"></i></div></div>
+    <div class="kpi"><div class="lab">Premium</div><div class="val v-bad">$0</div>
+      <div class="sec">of $188 · 0%</div><div class="trk"><i class="f-bad" style="width:2%"></i></div></div>
+    <div class="kpi"><div class="lab">Calling streak</div><div class="val">3</div>
+      <div class="sec">days at 15+ calls</div></div>
+    <div class="kpi"><div class="lab">MD deadline</div><div class="val v-warn">2</div>
+      <div class="sec">days left · 15 Aug</div></div>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="lab">Dial-to-connect</div><div class="val">57%</div>
+      <div class="sec">4 of 7 reached</div></div>
+    <div class="kpi"><div class="lab">No-show rate</div><div class="val">0%</div>
+      <div class="sec">none held yet</div></div>
+    <div class="kpi"><div class="lab">Referrals given</div><div class="val">0</div>
+      <div class="sec">▼ 2 vs last week</div></div>
+    <div class="kpi"><div class="lab">Recruiting talks</div><div class="val">0</div>
+      <div class="sec">0 this month</div></div>
+    <div class="kpi"><div class="lab">Open pipeline</div><div class="val">$0</div>
+      <div class="sec">2 appointments booked</div></div>
+  </div>
+  <div class="duo">
+    <div class="card pad">
+      <div class="ct">Call outcomes</div>
+      <div style="display:flex;align-items:center;gap:26px">
+        <svg width="128" height="128" viewBox="0 0 42 42">
+          <circle cx="21" cy="21" r="15.9" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="5"/>
+          <circle cx="21" cy="21" r="15.9" fill="none" stroke="#3D9AFF" stroke-width="5"
+                  stroke-dasharray="57.1 42.9" stroke-dashoffset="25"/>
+          <circle cx="21" cy="21" r="15.9" fill="none" stroke="#7FBBFF" stroke-width="5"
+                  stroke-dasharray="28.6 71.4" stroke-dashoffset="-32.1"/>
+          <circle cx="21" cy="21" r="15.9" fill="none" stroke="#4A4D55" stroke-width="5"
+                  stroke-dasharray="14.3 85.7" stroke-dashoffset="-60.7"/>
+          <text x="21" y="20.4" text-anchor="middle" font-size="7.5" font-weight="500"
+                font-family="JetBrains Mono" fill="#EDEEF0">7</text>
+          <text x="21" y="25.6" text-anchor="middle" font-size="2.8" fill="#666A73"
+                font-family="Inter">CALLS</text>
+        </svg>
+        <table style="font-size:12px">
+          <tr><td style="padding:4px 0;border:0"><span class="sw" style="background:#3D9AFF;border:0"></span></td>
+              <td style="padding:4px 9px;border:0">Connected</td><td class="num rt" style="padding:4px 0;border:0">4</td></tr>
+          <tr><td style="padding:4px 0;border:0"><span class="sw" style="background:#7FBBFF;border:0"></span></td>
+              <td style="padding:4px 9px;border:0">Appointment set</td><td class="num rt" style="padding:4px 0;border:0">2</td></tr>
+          <tr><td style="padding:4px 0;border:0"><span class="sw" style="background:#4A4D55;border:0"></span></td>
+              <td style="padding:4px 9px;border:0">No answer</td><td class="num rt" style="padding:4px 0;border:0">1</td></tr>
+          <tr><td style="padding:4px 0;border:0"><span class="sw"></span></td>
+              <td style="padding:4px 9px;border:0;color:var(--fg-3)">Voicemail</td>
+              <td class="num rt" style="padding:4px 0;border:0;color:var(--fg-3)">0</td></tr>
+          <tr><td style="padding:4px 0;border:0"><span class="sw"></span></td>
+              <td style="padding:4px 9px;border:0;color:var(--fg-3)">Not interested</td>
+              <td class="num rt" style="padding:4px 0;border:0;color:var(--fg-3)">0</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="card pad">
+      <div class="ct">Where calls came from</div>
+      <table style="font-size:12px">
+        <tr><td style="width:94px;padding:6px 0;border:0">Friend</td>
+            <td style="padding:6px 0;border:0"><div class="mini" style="width:190px;margin:0"><i style="width:100%;background:#3D9AFF"></i></div></td>
+            <td class="num rt" style="padding:6px 0;border:0">4</td></tr>
+        <tr><td style="padding:6px 0;border:0">Referral</td>
+            <td style="padding:6px 0;border:0"><div class="mini" style="width:190px;margin:0"><i style="width:75%;background:#3D9AFF"></i></div></td>
+            <td class="num rt" style="padding:6px 0;border:0">3</td></tr>
+        <tr><td style="padding:6px 0;border:0;color:var(--fg-3)">Warm market</td>
+            <td style="padding:6px 0;border:0"><div class="mini" style="width:190px;margin:0"></div></td>
+            <td class="num rt" style="padding:6px 0;border:0;color:var(--fg-3)">0</td></tr>
+        <tr><td style="padding:6px 0;border:0;color:var(--fg-3)">Cold</td>
+            <td style="padding:6px 0;border:0"><div class="mini" style="width:190px;margin:0"></div></td>
+            <td class="num rt" style="padding:6px 0;border:0;color:var(--fg-3)">0</td></tr>
+        <tr><td style="padding:6px 0;border:0;color:var(--fg-3)">Social</td>
+            <td style="padding:6px 0;border:0"><div class="mini" style="width:190px;margin:0"></div></td>
+            <td class="num rt" style="padding:6px 0;border:0;color:var(--fg-3)">0</td></tr>
+        <tr><td style="padding:6px 0;border:0;color:var(--fg-3)">Other</td>
+            <td style="padding:6px 0;border:0"><div class="mini" style="width:190px;margin:0"></div></td>
+            <td class="num rt" style="padding:6px 0;border:0;color:var(--fg-3)">0</td></tr>
+      </table>
+      <p style="font-size:11.5px;color:var(--fg-3);margin-top:14px">Ranked, not a pie — six near-equal slices are unreadable, and the question is which source is actually producing.</p>
+    </div>
+    <div class="card pad">
+      <div class="ct">8 weeks · calls vs target</div>
+      <svg width="100%" height="152" viewBox="0 0 380 152" preserveAspectRatio="none">
+        <line x1="0" y1="32" x2="380" y2="32" stroke="#3D9AFF" stroke-width="1"
+              stroke-dasharray="3 4" opacity=".55"/>
+        <text x="340" y="27" font-size="9" fill="#3D9AFF" font-family="Inter" opacity=".8">target 50</text>
+        <g fill="rgba(255,255,255,.08)">
+          <rect x="8" y="116" width="30" height="3" rx="1.5"/><rect x="55" y="116" width="30" height="3" rx="1.5"/>
+          <rect x="102" y="116" width="30" height="3" rx="1.5"/><rect x="149" y="116" width="30" height="3" rx="1.5"/>
+          <rect x="196" y="116" width="30" height="3" rx="1.5"/><rect x="243" y="116" width="30" height="3" rx="1.5"/>
+          <rect x="290" y="116" width="30" height="3" rx="1.5"/>
+        </g>
+        <rect x="337" y="107" width="30" height="12" rx="3" fill="#F85149"/>
+        <text x="352" y="101" text-anchor="middle" font-size="10" font-family="JetBrains Mono"
+              font-weight="500" fill="#EDEEF0">7</text>
+        <g font-size="8.5" fill="#4A4D55" font-family="Inter" text-anchor="middle">
+          <text x="23" y="134">22 Jun</text><text x="70" y="134">29 Jun</text><text x="117" y="134">6 Jul</text>
+          <text x="164" y="134">13 Jul</text><text x="211" y="134">20 Jul</text><text x="258" y="134">27 Jul</text>
+          <text x="305" y="134">3 Aug</text><text x="352" y="134" fill="#9CA0A8">10 Aug</text>
+        </g>
+      </svg>
+      <p style="font-size:11.5px;color:var(--fg-3)">Seven weeks of nothing, then seven calls. The trend is the honest part of this screen.</p>
+    </div>
+    <div class="card pad">
+      <div class="ct">Conversion funnel</div>
+      <div class="fn">
+        <div><div class="fbar" style="width:100%">7 &nbsp;calls made</div></div>
+        <div class="fpc">↓ <b style="color:var(--fg-2)">29%</b> booked</div>
+        <div><div class="fbar d" style="width:52%">2 &nbsp;appointments set</div></div>
+        <div class="fpc">↓ <b style="color:var(--bad)">0%</b> held</div>
+        <div><div class="fbar o" style="width:18%">0 &nbsp;held</div></div>
+        <div class="fpc">↓ 0% closed</div>
+        <div><div class="fbar o" style="width:18%">0 &nbsp;sales</div></div>
+      </div>
+      <p style="font-size:11.5px;color:var(--fg-3);margin-top:14px">The percentages are the point. <span class="num">7 → 2 → 0 → 0</span> says nothing; 29% booked and 0% held says the week broke at the appointment, not the dial.</p>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="sales">
+  <h2>Sales</h2>
+  <p class="lede">Every list screen shares one filter bar, and filter state lives in the URL — a view is a link you can send.</p>
+  <div class="bar-row">
+    <div class="seg"><button>This week</button><button>This month</button>
+      <button aria-pressed="true">Custom</button></div>
+    <span class="pill"><b>1 Jun – 13 Aug</b> <span class="x">▾</span></span>
+    <span class="pill">Product <b>Term, UL</b> <span class="x">▾</span></span>
+    <span class="pill">Sort <b>Premium ↓</b> <span class="x">▾</span></span>
+    <button class="btn" style="margin-left:auto">Export CSV</button>
+  </div>
+  <div class="chips"><span class="chip">1 Jun – 13 Aug ✕</span><span class="chip">Term ✕</span>
+    <span class="chip">UL ✕</span><span class="chip clear">Clear all</span></div>
+  <div class="kpis" style="grid-template-columns:repeat(4,1fr)">
+    <div class="kpi"><div class="lab">Sales</div><div class="val">4</div><div class="sec">in range</div></div>
+    <div class="kpi"><div class="lab">Total premium</div><div class="val">$1,412</div><div class="sec">monthly</div></div>
+    <div class="kpi"><div class="lab">Average</div><div class="val">$353</div><div class="sec">per sale</div></div>
+    <div class="kpi"><div class="lab">Largest</div><div class="val">$620</div><div class="sec">Universal Life</div></div>
+  </div>
+  <div class="card" style="margin-top:12px;overflow:hidden">
+    <table><thead><tr><th>Date</th><th>Client</th><th>Product</th><th class="rt">Premium</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="num">22 Jul</td><td>R. Sharma</td><td><span class="tag acc">Universal Life</span></td>
+            <td class="num rt">$620</td><td style="color:var(--fg-3)">Family of four, 20-year horizon</td></tr>
+        <tr><td class="num">30 Jun</td><td>J. Osei</td><td><span class="tag">Term 20</span></td>
+            <td class="num rt">$342</td><td style="color:var(--fg-3)">Referred by R. Sharma</td></tr>
+        <tr><td class="num">13 Jun</td><td>M. Lam</td><td><span class="tag">Term 10</span></td>
+            <td class="num rt">$268</td><td style="color:var(--fg-3)">—</td></tr>
+        <tr><td class="num">4 Jun</td><td>A. Dube</td><td><span class="tag">Term 20</span></td>
+            <td class="num rt">$182</td><td style="color:var(--fg-3)">Upgrade at renewal</td></tr>
+        <tr class="tot"><td colspan="3">4 sales in the filtered range</td><td class="num rt">$1,412</td><td></td></tr>
+      </tbody></table>
+  </div>
+  <p class="note">Totals reflect the filter, not all time. A totals row that ignores the filter is worse than no totals row.</p>
+</section>
+
+<section class="screen" id="team">
+  <h2>Roster</h2>
+  <p class="lede">Sorted worst-first. This is a call list, not a leaderboard — the person at the top is who you ring this morning.</p>
+  <div class="bar-row">
+    <div class="seg"><button aria-pressed="true">This week</button><button>Last week</button>
+      <button>This month</button><button>Custom</button></div>
+    <span class="pill">All <b>8</b> agents <span class="x">▾</span></span>
+    <div class="seg"><button aria-pressed="true">Summary</button><button>Matrix</button></div>
+    <button class="btn" style="margin-left:auto">Export CSV</button>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="lab">Team calls</div><div class="val v-warn">223</div>
+      <div class="sec">of 400 · 56%</div><div class="trk"><i class="f-warn" style="width:56%"></i></div></div>
+    <div class="kpi"><div class="lab">Appointments held</div><div class="val v-bad">9</div>
+      <div class="sec">of 24 · 38%</div><div class="trk"><i class="f-bad" style="width:38%"></i></div></div>
+    <div class="kpi"><div class="lab">Premium</div><div class="val v-bad">$640</div>
+      <div class="sec">of $1,504 · 43%</div><div class="trk"><i class="f-bad" style="width:43%"></i></div></div>
+    <div class="kpi"><div class="lab">On target</div><div class="val">1<span style="color:var(--fg-4)"> / 8</span></div>
+      <div class="sec">agents at 100%</div></div>
+    <div class="kpi"><div class="lab">Quiet 7+ days</div><div class="val v-bad">1</div>
+      <div class="sec" style="color:var(--acc-2)">Tap to filter →</div></div>
+  </div>
+  <div class="card" style="margin-top:12px;overflow:auto">
+    <table><thead><tr><th>Agent</th><th>Calls</th><th class="rt">Set</th><th class="rt">Held</th>
+      <th class="rt">Premium</th><th class="rt">Streak</th><th>Last logged</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><div class="who"><span class="av" style="color:var(--bad);border-color:rgba(248,81,73,.4)">WC</span>
+            <span>Wei Chen <span class="tag warn">quiet 9d</span></span></div></td>
+          <td><span class="num">4</span><span style="color:var(--fg-4)"> / 50</span>
+            <span class="mini"><i class="f-bad" style="width:8%"></i></span></td>
+          <td class="num rt">0</td><td class="num rt">0</td><td class="num rt">$0</td>
+          <td class="num rt">0</td><td style="color:var(--bad)">4 Aug</td>
+          <td class="rt"><button class="btn">Nudge</button></td></tr>
+        <tr><td><div class="who"><span class="av">DR</span><span>Deepak Reddy</span></div></td>
+          <td><span class="num">7</span><span style="color:var(--fg-4)"> / 50</span>
+            <span class="mini"><i class="f-bad" style="width:14%"></i></span></td>
+          <td class="num rt">2</td><td class="num rt">0</td><td class="num rt">$0</td>
+          <td class="num rt">3</td><td style="color:var(--fg-3)">Today 4:12 PM</td><td></td></tr>
+        <tr><td><div class="who"><span class="av">PN</span><span>Priya Nair</span></div></td>
+          <td><span class="num">12</span><span style="color:var(--fg-4)"> / 50</span>
+            <span class="mini"><i class="f-bad" style="width:24%"></i></span></td>
+          <td class="num rt">1</td><td class="num rt">1</td><td class="num rt">$0</td>
+          <td class="num rt">1</td><td style="color:var(--fg-3)">Today 11:40 AM</td><td></td></tr>
+        <tr><td><div class="who"><span class="av">RB</span><span>Rahul Bose</span></div></td>
+          <td><span class="num">26</span><span style="color:var(--fg-4)"> / 50</span>
+            <span class="mini"><i class="f-bad" style="width:52%"></i></span></td>
+          <td class="num rt">3</td><td class="num rt">1</td><td class="num rt">$0</td>
+          <td class="num rt">2</td><td style="color:var(--fg-3)">Yesterday</td><td></td></tr>
+        <tr><td><div class="who"><span class="av">TA</span><span>Tom Alvarez</span></div></td>
+          <td><span class="num">33</span><span style="color:var(--fg-4)"> / 50</span>
+            <span class="mini"><i class="f-warn" style="width:66%"></i></span></td>
+          <td class="num rt">5</td><td class="num rt">2</td><td class="num rt">$182</td>
+          <td class="num rt">4</td><td style="color:var(--fg-3)">Today 9:02 AM</td><td></td></tr>
+        <tr><td><div class="who"><span class="av">SR</span><span>Sanjay Rao
+            <span class="tag">target 40</span></span></div></td>
+          <td><span class="num">41</span><span style="color:var(--fg-4)"> / 40</span>
+            <span class="mini"><i class="f-ok" style="width:100%"></i></span></td>
+          <td class="num rt">6</td><td class="num rt">2</td><td class="num rt">$268</td>
+          <td class="num rt">5</td><td style="color:var(--fg-3)">Today 2:35 PM</td><td></td></tr>
+        <tr><td><div class="who"><span class="av">GO</span><span>Grace Okafor</span></div></td>
+          <td><span class="num">48</span><span style="color:var(--fg-4)"> / 50</span>
+            <span class="mini"><i class="f-ok" style="width:96%"></i></span></td>
+          <td class="num rt">7</td><td class="num rt">2</td><td class="num rt">$190</td>
+          <td class="num rt">5</td><td style="color:var(--fg-3)">Today 3:18 PM</td><td></td></tr>
+        <tr><td><div class="who"><span class="av" style="color:var(--ok);border-color:rgba(63,185,80,.4)">MI</span>
+            <span>Meera Iyer</span></div></td>
+          <td><span class="num">52</span><span style="color:var(--fg-4)"> / 50</span>
+            <span class="mini"><i class="f-ok" style="width:100%"></i></span></td>
+          <td class="num rt">8</td><td class="num rt">3</td><td class="num rt">$0</td>
+          <td class="num rt">5</td><td style="color:var(--fg-3)">Today 1:05 PM</td><td></td></tr>
+        <tr class="tot"><td>Week of 10 Aug</td><td><span class="num">223</span><span style="color:var(--fg-4)"> / 400</span></td>
+          <td class="num rt">32</td><td class="num rt">11</td><td class="num rt">$640</td>
+          <td class="rt">—</td><td>—</td><td></td></tr>
+      </tbody></table>
+  </div>
+  <p class="note">Absolute counts sit beside the target (<span class="num">41 / 40</span>), never a bare percentage — the raw number is what a coaching call uses. Sanjay's badge flags an overridden target so the SMD remembers his denominator differs. <b>No prospect name appears on this screen</b>, by design and by database policy.</p>
+</section>
+
+<section class="screen" id="daily">
+  <h2>Activity matrix</h2>
+  <p class="lede">Calls per agent per day. Reads like an attendance sheet, because that is the Monday-morning question — who actually worked.</p>
+  <div class="bar-row">
+    <div class="seg"><button aria-pressed="true">This week</button><button>Last week</button><button>Custom</button></div>
+    <span class="pill">All <b>8</b> agents <span class="x">▾</span></span>
+    <div class="seg"><button>Summary</button><button aria-pressed="true">Matrix</button></div>
+  </div>
+  <div class="card pad mtx-wrap">
+    <table class="mtx">
+      <thead><tr><th></th><th>MON 10</th><th>TUE 11</th><th>WED 12</th><th>THU 13</th>
+        <th>FRI 14</th><th>SAT 15</th><th>SUN 16</th><th style="padding-left:14px">WK</th></tr></thead>
+      <tbody>
+        <tr><td class="who-c">Wei Chen</td>
+          <td><div class="cel z">0</div></td><td><div class="cel z">0</div></td>
+          <td><div class="cel lo">4</div></td><td><div class="cel z">0</div></td>
+          <td><div class="cel fut"></div></td><td><div class="cel fut"></div></td><td><div class="cel fut"></div></td>
+          <td class="num v-bad" style="padding-left:14px">4</td></tr>
+        <tr><td class="who-c">Deepak Reddy</td>
+          <td><div class="cel z">0</div></td><td><div class="cel z">0</div></td>
+          <td><div class="cel z">0</div></td><td><div class="cel lo">7</div></td>
+          <td><div class="cel fut"></div></td><td><div class="cel fut"></div></td><td><div class="cel fut"></div></td>
+          <td class="num v-bad" style="padding-left:14px">7</td></tr>
+        <tr><td class="who-c">Priya Nair</td>
+          <td><div class="cel lo">5</div></td><td><div class="cel lo">3</div></td>
+          <td><div class="cel z">0</div></td><td><div class="cel lo">4</div></td>
+          <td><div class="cel fut"></div></td><td><div class="cel fut"></div></td><td><div class="cel fut"></div></td>
+          <td class="num v-bad" style="padding-left:14px">12</td></tr>
+        <tr><td class="who-c">Rahul Bose</td>
+          <td><div class="cel hi">16</div></td><td><div class="cel lo">4</div></td>
+          <td><div class="cel mid">6</div></td><td><div class="cel z">0</div></td>
+          <td><div class="cel fut"></div></td><td><div class="cel fut"></div></td><td><div class="cel fut"></div></td>
+          <td class="num v-bad" style="padding-left:14px">26</td></tr>
+        <tr><td class="who-c">Tom Alvarez</td>
+          <td><div class="cel hi">15</div></td><td><div class="cel mid">9</div></td>
+          <td><div class="cel mid">7</div></td><td><div class="cel lo">2</div></td>
+          <td><div class="cel fut"></div></td><td><div class="cel fut"></div></td><td><div class="cel fut"></div></td>
+          <td class="num v-warn" style="padding-left:14px">33</td></tr>
+        <tr><td class="who-c">Sanjay Rao</td>
+          <td><div class="cel hi">17</div></td><td><div class="cel mid">9</div></td>
+          <td><div class="cel mid">6</div></td><td><div class="cel mid">9</div></td>
+          <td><div class="cel fut"></div></td><td><div class="cel fut"></div></td><td><div class="cel fut"></div></td>
+          <td class="num v-ok" style="padding-left:14px">41</td></tr>
+        <tr><td class="who-c">Grace Okafor</td>
+          <td><div class="cel hi">16</div></td><td><div class="cel hi">15</div></td>
+          <td><div class="cel mid">8</div></td><td><div class="cel mid">9</div></td>
+          <td><div class="cel fut"></div></td><td><div class="cel fut"></div></td><td><div class="cel fut"></div></td>
+          <td class="num v-ok" style="padding-left:14px">48</td></tr>
+        <tr><td class="who-c">Meera Iyer</td>
+          <td><div class="cel hi">18</div></td><td><div class="cel hi">15</div></td>
+          <td><div class="cel hi">15</div></td><td><div class="cel lo">4</div></td>
+          <td><div class="cel fut"></div></td><td><div class="cel fut"></div></td><td><div class="cel fut"></div></td>
+          <td class="num v-ok" style="padding-left:14px">52</td></tr>
+      </tbody>
+    </table>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--acc);border:0;box-shadow:0 0 10px rgba(61,154,255,.5)"></i> Hit the daily minimum (15)</span>
+      <span><i class="sw" style="background:rgba(61,154,255,.24);border-color:rgba(61,154,255,.36)"></i> Logged, under it</span>
+      <span><i class="sw" style="background:var(--sunken)"></i> Nothing logged</span>
+      <span><i class="sw" style="background:none;border-style:dashed"></i> Hasn't happened yet</span>
+    </div>
+  </div>
+  <p class="note">The dark cells are the finding. Four rows show the same shape — one heavy Monday, then a fade — which is a team meeting topic, not four separate one-on-ones. This is also the screen most likely to feel like surveillance to associates; watch how the pilot group reacts before showing it to a second SMD.</p>
+</section>
+
+<section class="screen" id="agent">
+  <h2>Priya Nair <span style="color:var(--fg-3);font-weight:400">· last 4 weeks</span></h2>
+  <p class="lede">Filtering to one agent gives the SMD the same layout that agent sees on their own dashboard, so coaching happens against one shared picture. Counts only — never a contact name.</p>
+  <div class="bar-row">
+    <span class="pill"><b>Priya Nair</b> <span class="x">✕</span></span>
+    <span class="pill"><b>13 Jul – 13 Aug</b> <span class="x">▾</span></span>
+    <button class="btn" style="margin-left:auto">Export CSV</button>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="lab">Calls made</div><div class="val v-bad">61</div>
+      <div class="sec">of 200 · 31%</div><div class="trk"><i class="f-bad" style="width:31%"></i></div></div>
+    <div class="kpi"><div class="lab">Appointments held</div><div class="val v-warn">7</div>
+      <div class="sec">of 12 · 58%</div><div class="trk"><i class="f-warn" style="width:58%"></i></div></div>
+    <div class="kpi"><div class="lab">Premium</div><div class="val v-bad">$0</div>
+      <div class="sec">of $752 · 0%</div><div class="trk"><i class="f-bad" style="width:2%"></i></div></div>
+    <div class="kpi"><div class="lab">Dial-to-connect</div><div class="val v-ok">72%</div>
+      <div class="sec">44 of 61 reached</div></div>
+    <div class="kpi"><div class="lab">No-show rate</div><div class="val v-bad">36%</div>
+      <div class="sec">4 of 11 booked</div></div>
+  </div>
+  <div class="duo">
+    <div class="card pad">
+      <div class="ct">Days worked · 13 Jul – 13 Aug</div>
+      <div class="mtx-wrap"><table class="mtx"><tbody>
+        <tr><td class="who-c" style="font-size:11px">W 13 Jul</td>
+          <td><div class="cel hi">15</div></td><td><div class="cel mid">6</div></td>
+          <td><div class="cel lo">4</div></td><td><div class="cel z">0</div></td>
+          <td><div class="cel z">0</div></td><td><div class="cel z">0</div></td><td><div class="cel z">0</div></td></tr>
+        <tr><td class="who-c" style="font-size:11px">W 20 Jul</td>
+          <td><div class="cel mid">9</div></td><td><div class="cel mid">7</div></td>
+          <td><div class="cel z">0</div></td><td><div class="cel z">0</div></td>
+          <td><div class="cel z">0</div></td><td><div class="cel z">0</div></td><td><div class="cel z">0</div></td></tr>
+        <tr><td class="who-c" style="font-size:11px">W 27 Jul</td>
+          <td><div class="cel lo">5</div></td><td><div class="cel z">0</div></td>
+          <td><div class="cel z">0</div></td><td><div class="cel lo">3</div></td>
+          <td><div class="cel z">0</div></td><td><div class="cel z">0</div></td><td><div class="cel z">0</div></td></tr>
+        <tr><td class="who-c" style="font-size:11px">W 3 Aug</td>
+          <td><div class="cel z">0</div></td><td><div class="cel z">0</div></td>
+          <td><div class="cel z">0</div></td><td><div class="cel z">0</div></td>
+          <td><div class="cel z">0</div></td><td><div class="cel z">0</div></td><td><div class="cel z">0</div></td></tr>
+        <tr><td class="who-c" style="font-size:11px">W 10 Aug</td>
+          <td><div class="cel lo">5</div></td><td><div class="cel lo">3</div></td>
+          <td><div class="cel z">0</div></td><td><div class="cel lo">4</div></td>
+          <td><div class="cel fut"></div></td><td><div class="cel fut"></div></td><td><div class="cel fut"></div></td></tr>
+      </tbody></table></div>
+      <p style="font-size:11.5px;color:var(--fg-3);margin-top:14px">Fourteen working days with nothing logged. That is the conversation, not the 31%.</p>
+    </div>
+    <div class="card pad">
+      <div class="ct">Conversion funnel</div>
+      <div class="fn">
+        <div><div class="fbar" style="width:100%">61 &nbsp;calls made</div></div>
+        <div class="fpc">↓ <b style="color:var(--fg-2)">18%</b> booked</div>
+        <div><div class="fbar d" style="width:40%">11 &nbsp;appointments set</div></div>
+        <div class="fpc">↓ <b style="color:var(--warn)">64%</b> held — no-shows are the leak</div>
+        <div><div class="fbar d" style="width:28%">7 &nbsp;held</div></div>
+        <div class="fpc">↓ <b style="color:var(--bad)">0%</b> closed</div>
+        <div><div class="fbar o" style="width:18%">0 &nbsp;sales</div></div>
+      </div>
+      <p style="font-size:11.5px;color:var(--fg-3);margin-top:14px">She books well and closes nothing. Seven held, zero sales — the problem is the presentation, and no amount of “make more calls” fixes it.</p>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="targets">
+  <h2>Targets</h2>
+  <p class="lede">SMD only. The workbook's gold cells, one place, applying from the coming Monday.</p>
+  <div class="card" style="max-width:540px;overflow:hidden">
+    <div class="pad" style="padding-bottom:4px"><div class="ct">Team default</div>
+      <p style="font-size:12px;color:var(--fg-3);margin-bottom:12px">Applies to everyone without an override.</p></div>
+    <table>
+      <tr><td style="width:62%">Calls per week</td><td class="rt"><span class="pill num">50</span></td></tr>
+      <tr><td>Appointments held per week</td><td class="rt"><span class="pill num">3</span></td></tr>
+      <tr><td>Premium per week</td><td class="rt"><span class="pill num">$188</span></td></tr>
+      <tr><td>Minimum calls per day
+        <span style="color:var(--fg-4);font-size:11.5px">— sets the streak</span></td>
+        <td class="rt"><span class="pill num">15</span></td></tr>
+      <tr><td>MD deadline</td><td class="rt"><span class="pill num">15 Aug 2026</span></td></tr>
+    </table>
+    <div class="pad" style="border-top:1px solid var(--line);font-size:11.5px;color:var(--fg-3)">
+      Saving applies from <b style="color:var(--fg-2)">Mon 17 Aug</b>. Weeks already scored keep the
+      target that was live then — raising a target never turns a past green week red.
+    </div>
+  </div>
+  <div class="card" style="max-width:540px;margin-top:12px;overflow:hidden">
+    <div class="pad" style="padding-bottom:4px"><div class="ct">Per-agent overrides</div></div>
+    <table><thead><tr><th>Agent</th><th class="rt">Calls</th><th class="rt">Held</th>
+      <th class="rt">Premium</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>Sanjay Rao</td><td class="num rt">40</td><td class="num rt">3</td>
+            <td class="num rt">$188</td><td class="rt" style="color:var(--fg-4)">Remove</td></tr>
+        <tr><td colspan="5" style="color:var(--acc-2)">+ Add an override</td></tr>
+      </tbody></table>
+  </div>
+  <p class="note">Agents see this same card in settings, read-only, labelled “set by your SMD”. Every change is audit-logged — an SMD quietly lowering a target mid-quarter should leave a trace.</p>
+</section>
+
+</div></div></div>
+<script>
+const navs=[...document.querySelectorAll('.nav')];
+const crumb=document.getElementById('crumb');
+navs.forEach(b=>b.addEventListener('click',()=>{
+  navs.forEach(n=>n.setAttribute('aria-current','false'));
+  b.setAttribute('aria-current','true');
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  document.getElementById(b.dataset.s).classList.add('on');
+  crumb.innerHTML='<b>'+b.textContent.trim()+'</b>';
+  window.scrollTo({top:0,behavior:'instant'});
+}));
+</script>
+</body>
+</html>

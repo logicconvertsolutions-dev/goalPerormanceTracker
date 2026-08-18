@@ -1,0 +1,31 @@
+# Environment variables
+.env.local
+.env*.local
+
+# Dependencies
+node_modules/
+package-lock.json
+
+# Next.js
+.next/
+out/
+dist/
+
+# Testing
+coverage/
+
+# Database
+*.lock
+supabase/.temp/
+types/database.ts
+
+# OS
+.DS_Store
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-workspace
