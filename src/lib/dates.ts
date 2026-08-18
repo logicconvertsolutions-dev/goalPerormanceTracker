@@ -39,3 +39,46 @@ export function nextMonday(iso: string): string {
   return addDays(iso, daysUntilMonday);
 }
 
+export const PERIOD_PRESETS = [
+  'this_week',
+  'last_week',
+  'this_month',
+  'last_30_days',
+  'custom',
+] as const;
+export type PeriodPreset = (typeof PERIOD_PRESETS)[number];
+
+/**
+ * Resolves a period preset (plus optional custom bounds) to an inclusive
+ * `{from, to}` ISO date range. Shared by `<FilterBar>` and every page that
+ * reads it, so "This Week" means exactly the same thing everywhere (08-screen-specs.md).
+ */
+export function resolvePeriod(
+  preset: PeriodPreset,
+  asOf: string,
+  customFrom?: string,
+  customTo?: string
+): { from: string; to: string } {
+  switch (preset) {
+    case 'this_week': {
+      const from = weekStart(new Date(asOf + 'T00:00:00Z'));
+      return { from, to: addDays(from, 6) };
+    }
+    case 'last_week': {
+      const thisWeek = weekStart(new Date(asOf + 'T00:00:00Z'));
+      const from = addDays(thisWeek, -7);
+      return { from, to: addDays(from, 6) };
+    }
+    case 'this_month': {
+      const d = new Date(asOf + 'T00:00:00Z');
+      const from = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString().slice(0, 10);
+      const to = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+      return { from, to };
+    }
+    case 'last_30_days':
+      return { from: addDays(asOf, -29), to: asOf };
+    case 'custom':
+      return { from: customFrom || asOf, to: customTo || asOf };
+  }
+}
+

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { RailNav } from '@/components/shell/rail-nav';
 import { TabBar } from '@/components/shell/tab-bar';
 import { AccountMenu } from '@/components/shell/account-menu';
+import { OfflineSync } from '@/components/shell/offline-sync';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireAgent();
@@ -31,6 +32,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <main className="flex-1 px-4 py-6 pb-24 md:px-6 md:pb-6">{children}</main>
       </div>
       <TabBar isLeader={isLeader} />
+      <OfflineSync />
     </div>
   );
 }

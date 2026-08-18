@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { addDays, nextMonday, todayIso } from '@/lib/dates';
+import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
 import { logCallAction } from './actions';
 
 const SOURCES = [
@@ -67,6 +68,7 @@ export function LogForm({
   const [pending, startTransition] = useTransition();
   const [callDate, setCallDate] = useState(defaultDate ?? todayIso());
   const [showDatePicker, setShowDatePicker] = useState(Boolean(defaultDate));
+  const [source, setSource] = useState('warm_market');
   const [outcome, setOutcome] = useState('');
   const [followUpOn, setFollowUpOn] = useState('');
   const [showFollowUpPicker, setShowFollowUpPicker] = useState(false);
@@ -77,12 +79,14 @@ export function LogForm({
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     formData.set('callDate', callDate);
+    formData.set('source', source);
+    formData.set('clientRequestId', crypto.randomUUID());
     if (followUpOn) formData.set('followUpOn', followUpOn);
 
     startTransition(async () => {
-      const result = await logCallAction(formData);
+      const result = await submitWithOfflineFallback('call', formData, logCallAction);
       if (result.ok) {
-        toast.success('Call logged');
+        toast.success(result.queued ? 'Saved offline — will sync when back online' : 'Call logged');
         router.push('/today');
       } else {
         toast.error(result.error ?? 'Could not save the call.');
@@ -136,19 +140,14 @@ export function LogForm({
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="source">Source</Label>
-        <Select name="source" defaultValue="warm_market" required>
-          <SelectTrigger id="source">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SOURCES.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Label>Source</Label>
+        <div className="flex flex-wrap gap-2">
+          {SOURCES.map((s) => (
+            <Chip key={s.value} active={source === s.value} onClick={() => setSource(s.value)}>
+              {s.label}
+            </Chip>
+          ))}
+        </div>
       </div>
 
       <div className="space-y-1.5">

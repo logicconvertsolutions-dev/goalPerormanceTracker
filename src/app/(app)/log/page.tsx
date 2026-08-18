@@ -2,7 +2,7 @@ import { requireAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDisplayDate } from '@/lib/dates';
-import { LogForm } from './log-form';
+import { LogTypeSwitcher } from './log-type-switcher';
 
 export default async function LogPage({
   searchParams,
@@ -42,7 +42,7 @@ export default async function LogPage({
           <CardTitle>{prefill ? `Log a call — ${prefill.full_name}` : 'Quick log'}</CardTitle>
         </CardHeader>
         <CardContent>
-          <LogForm
+          <LogTypeSwitcher
             defaultContactName={prefill?.full_name ?? ''}
             defaultCompany={prefill?.company ?? ''}
             defaultDate={searchParams.date === 'today' ? undefined : searchParams.date}

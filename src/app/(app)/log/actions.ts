@@ -32,7 +32,11 @@ const logCallSchema = z.object({
   outcome: z.enum(CALL_OUTCOMES),
   notes: z.string().max(2000).optional(),
   followUpOn: z.string().optional(),
+  clientRequestId: z.string().optional(),
 });
+
+// Postgres unique-violation error code.
+const UNIQUE_VIOLATION = '23505';
 
 export async function logCallAction(formData: FormData) {
   const parsed = logCallSchema.safeParse({
@@ -43,6 +47,7 @@ export async function logCallAction(formData: FormData) {
     outcome: formData.get('outcome'),
     notes: formData.get('notes') || undefined,
     followUpOn: formData.get('followUpOn') || undefined,
+    clientRequestId: formData.get('clientRequestId') || undefined,
   });
 
   if (!parsed.success) {
@@ -72,9 +77,14 @@ export async function logCallAction(formData: FormData) {
     outcome: parsed.data.outcome,
     notes: parsed.data.notes || null,
     follow_up_on: parsed.data.outcome === 'connected' ? parsed.data.followUpOn || null : null,
+    client_request_id: parsed.data.clientRequestId || null,
   });
 
-  if (error) return { ok: false, error: 'Could not save the call.' };
+  // A duplicate client_request_id means this exact submission already
+  // succeeded (offline retry) -- treat as success, not an error.
+  if (error && error.code !== UNIQUE_VIOLATION) {
+    return { ok: false, error: 'Could not save the call.' };
+  }
 
   revalidatePath('/today');
   revalidatePath('/contacts');

@@ -48,9 +48,14 @@ export default async function ContactDetailPage({ params }: { params: { id: stri
           </h1>
           {contact.company && <p className="text-sm text-fg-3">{contact.company}</p>}
         </div>
-        <Button asChild variant="primary">
-          <Link href={`/log?contact=${contact.id}`}>Log a call</Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button asChild variant="secondary">
+            <Link href={`/appointments/new?contact=${contact.id}`}>Log appointment</Link>
+          </Button>
+          <Button asChild variant="primary">
+            <Link href={`/log?contact=${contact.id}`}>Log a call</Link>
+          </Button>
+        </div>
       </div>
 
       {(appointments?.length || sale) && (
