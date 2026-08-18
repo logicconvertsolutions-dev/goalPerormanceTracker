@@ -21,7 +21,13 @@ function initials(name: string) {
     .toUpperCase();
 }
 
-export function AccountMenu({ fullName }: { fullName: string }) {
+export function AccountMenu({
+  fullName,
+  isAdmin,
+}: {
+  fullName: string;
+  isAdmin: boolean;
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="rounded-full focus-visible:outline-none">
@@ -38,6 +44,14 @@ export function AccountMenu({ fullName }: { fullName: string }) {
         <DropdownMenuItem asChild>
           <Link href="/settings">Settings</Link>
         </DropdownMenuItem>
+        {isAdmin && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/admin/orgs">Admin: Organizations</Link>
+            </DropdownMenuItem>
+          </>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <form action={signOutAction} className="w-full">
