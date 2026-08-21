@@ -192,6 +192,22 @@ list before every deploy.
   this branch actually gets past the install step; it may not have since
   the repo's first commit.
 
+**P7 (pilot) — nothing here can start until the manual steps above are
+done.** The pilot needs a real, reachable, emailing deployment; there's no
+version of "run the pilot" that happens inside this sandbox. Once Vercel +
+Resend are live:
+1. Provision Deepak's org via `/admin/orgs` (or `provision_org` directly) —
+   this sends the SMD invite email, so it needs Resend actually configured
+   first, or the invite link has nowhere to go.
+2. Accept that invite as Deepak, then invite the 2 associates from
+   `/team/invites`.
+3. All three log real activity for two weeks. Check `/admin/pilot` (new
+   this session) partway through and at the end — it shows daily active
+   logging per agent over the last 10 business days and flags it red if
+   fewer than two thirds of an org's active agents are hitting 8 of 10.
+   Per `06-build-phases.md`: if that's red, the fix is P3 (the logging
+   flow), not a new feature.
+
 ## Prompts worth keeping around
 
 - `Regenerate types and show me what changed in the schema.`
