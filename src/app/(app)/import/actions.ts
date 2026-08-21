@@ -31,6 +31,18 @@ export async function commitImportAction(
   const session = await requireAgent();
   const supabase = await createClient();
 
+  // 04-security.md: rate limit the import path. Spreadsheet imports are an
+  // occasional, deliberate action, not a per-tap flow -- a handful per hour
+  // is generous for legitimate re-imports and corrections.
+  const { data: withinLimit } = await supabase.rpc('check_rate_limit', {
+    p_scope: 'import',
+    p_limit: 5,
+    p_window_seconds: 3600,
+  });
+  if (withinLimit === false) {
+    return { ok: false, error: 'Too many imports too quickly — try again in a bit.' };
+  }
+
   const result = await commitImport(supabase, session.agent!.id, session.agent!.org_id, parseResult.rows);
   return { ok: true, result };
 }

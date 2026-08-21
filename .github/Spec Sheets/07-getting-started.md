@@ -180,6 +180,17 @@ list before every deploy.
 - **P6 pre-launch gate** (`docs/04-security.md`): a restore drill (trigger a
   Supabase backup restore once, confirm it works) has to be done by hand
   against the dashboard — not something a migration or a script can prove.
+- **GitHub repo secrets for CI** (added in P6, `.github/workflows/ci.yml`):
+  `SUPABASE_ACCESS_TOKEN` and `SUPABASE_PROJECT_REF` — without them the
+  Supabase advisor-lints CI step skips itself instead of gating the build,
+  which the security doc calls for ("CI fails on Supabase advisor lints").
+  Generate the access token from the Supabase dashboard (Account →
+  Access Tokens); project ref is `arswptuybizvceabecyn`.
+- **`npm ci` was silently broken since P0**: `package-lock.json` was
+  gitignored and never committed, but CI calls `npm ci`, which requires one.
+  Fixed this session (lockfile now committed) — confirm the next CI run on
+  this branch actually gets past the install step; it may not have since
+  the repo's first commit.
 
 ## Prompts worth keeping around
 

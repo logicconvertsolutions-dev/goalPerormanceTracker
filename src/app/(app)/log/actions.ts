@@ -59,6 +59,18 @@ export async function logCallAction(formData: FormData) {
   const orgId = session.agent!.org_id;
   const supabase = await createClient();
 
+  // 04-security.md: rate limit the log mutation path. Generous enough for
+  // legitimate rapid-fire quick-logging (and an offline queue catching up
+  // after reconnecting), tight enough to stop a runaway loop.
+  const { data: withinLimit } = await supabase.rpc('check_rate_limit', {
+    p_scope: 'log_call',
+    p_limit: 60,
+    p_window_seconds: 60,
+  });
+  if (withinLimit === false) {
+    return { ok: false, error: 'Too many calls logged too quickly — wait a moment and try again.' };
+  }
+
   const contact = await findOrCreateContact(
     supabase,
     agentId,

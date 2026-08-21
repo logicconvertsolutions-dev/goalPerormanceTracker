@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -82,7 +83,11 @@ export function AcceptInviteForm({ token, email }: { token: string; email: strin
           onCheckedChange={(v) => setAgreed(v === true)}
         />
         <Label htmlFor="privacy" className="font-normal text-fg-2">
-          I accept the privacy notice. My SMD sees my numbers, never my contacts.
+          I accept the{' '}
+          <Link href="/privacy" target="_blank" className="text-acc hover:underline">
+            privacy notice
+          </Link>
+          . My SMD sees my numbers, never my contacts.
         </Label>
       </div>
       {error && <p className="text-sm text-bad">{error}</p>}

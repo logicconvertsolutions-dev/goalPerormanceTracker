@@ -123,6 +123,9 @@ export default async function TeamPage({
           <Button variant="secondary" asChild>
             <Link href="/team/members">Members</Link>
           </Button>
+          <Button variant="secondary" asChild>
+            <Link href="/team/audit">Audit</Link>
+          </Button>
         </div>
       </div>
 
