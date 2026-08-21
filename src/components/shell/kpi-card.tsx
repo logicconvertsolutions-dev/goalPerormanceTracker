@@ -1,18 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-
-/** ≥100% green, 70-99% amber, <70% red — attainment colour and nothing else (03-ui.md). */
-function attainmentColor(pct: number): string {
-  if (pct >= 100) return 'text-ok';
-  if (pct >= 70) return 'text-warn';
-  return 'text-bad';
-}
-
-function attainmentBar(pct: number): string {
-  if (pct >= 100) return 'bg-ok';
-  if (pct >= 70) return 'bg-warn';
-  return 'bg-bad';
-}
+import { attainmentColor, attainmentBar } from '@/lib/attainment';
 
 interface KpiCardProps {
   label: string;

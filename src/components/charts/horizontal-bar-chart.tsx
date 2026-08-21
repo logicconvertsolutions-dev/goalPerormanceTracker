@@ -1,6 +1,6 @@
 'use client';
 
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from 'recharts';
 
 export interface BarDatum {
   label: string;
@@ -8,7 +8,16 @@ export interface BarDatum {
 }
 
 /** Horizontal bar, sorted descending — for ranking questions like "where are my leads from" (08-screen-specs.md). */
-export function HorizontalBarChart({ title, data }: { title: string; data: BarDatum[] }) {
+export function HorizontalBarChart({
+  title,
+  data,
+  target,
+}: {
+  title: string;
+  data: BarDatum[];
+  /** Optional reference line, e.g. the per-agent calls target on "Calls by Agent" (08-screen-specs.md). */
+  target?: number;
+}) {
   const sorted = [...data].sort((a, b) => b.value - a.value);
 
   return (
@@ -27,6 +36,9 @@ export function HorizontalBarChart({ title, data }: { title: string; data: BarDa
               width={90}
             />
             <Bar dataKey="value" fill="#3D9AFF" radius={[0, 4, 4, 0]} maxBarSize={18} />
+            {target !== undefined && (
+              <ReferenceLine x={target} stroke="#9CA0A8" strokeDasharray="3 3" />
+            )}
           </BarChart>
         </ResponsiveContainer>
       </div>

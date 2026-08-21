@@ -12,17 +12,36 @@
 -- supabase/migrations/, not the earlier draft in docs/02-data-model.md.
 -- Deployed RPCs are exactly: team_week_summary, agent_daily_activity,
 -- agent_aggregate, team_inactive, my_followups, drain_metrics,
--- provision_org, create_invitation. There is no team_day_summary RPC.
+-- provision_org, create_invitation, plus P5's team_target,
+-- team_day_summary, team_trend, team_breakdown, nudge_agent
+-- (supabase/migrations/20260818194500_p5a_team_dashboard_rpcs.sql).
 
 begin;
 create extension if not exists pgtap with schema extensions;
 create schema if not exists tests;
 
-select plan(68);
+select plan(79);
 
 -- ---------------------------------------------------------------------
 -- Seed
 -- ---------------------------------------------------------------------
+-- handle_new_user() (p1j_invite_only_signup.sql) rejects any auth.users
+-- insert without a matching open invitation, and this suite's runner isn't
+-- the owner of auth.users so it can't disable that trigger directly. Give
+-- it what it wants instead: a throwaway org + a matching invitation per
+-- seeded email, inserted (and left to roll back) before the real users.
+insert into public.organizations (id, name) values
+  ('00000000-0000-0000-0000-00000000ee01', 'org_x'),
+  ('00000000-0000-0000-0000-00000000ee02', 'org_y');
+
+insert into public.invitations (email, org_id, upline_id, role, token_hash, created_by) values
+  ('smd_x@example.com',    '00000000-0000-0000-0000-00000000ee01', null, 'leader',    'seed-tok-a1', null),
+  ('assoc_1@example.com',  '00000000-0000-0000-0000-00000000ee01', null, 'associate', 'seed-tok-a2', null),
+  ('assoc_1a@example.com', '00000000-0000-0000-0000-00000000ee01', null, 'associate', 'seed-tok-a3', null),
+  ('assoc_2@example.com',  '00000000-0000-0000-0000-00000000ee01', null, 'associate', 'seed-tok-a4', null),
+  ('smd_y@example.com',    '00000000-0000-0000-0000-00000000ee02', null, 'leader',    'seed-tok-b1', null),
+  ('assoc_3@example.com',  '00000000-0000-0000-0000-00000000ee02', null, 'associate', 'seed-tok-b2', null);
+
 insert into auth.users (id, email, raw_user_meta_data, aud, role) values
   ('00000000-0000-0000-0000-0000000000a1', 'smd_x@example.com',    '{}', 'authenticated', 'authenticated'),
   ('00000000-0000-0000-0000-0000000000a2', 'assoc_1@example.com',  '{}', 'authenticated', 'authenticated'),
@@ -31,23 +50,19 @@ insert into auth.users (id, email, raw_user_meta_data, aud, role) values
   ('00000000-0000-0000-0000-0000000000b1', 'smd_y@example.com',    '{}', 'authenticated', 'authenticated'),
   ('00000000-0000-0000-0000-0000000000b2', 'assoc_3@example.com',  '{}', 'authenticated', 'authenticated');
 
-insert into public.organizations (id, name) values
-  ('00000000-0000-0000-0000-00000000ee01', 'org_x'),
-  ('00000000-0000-0000-0000-00000000ee02', 'org_y');
-
--- Insert order matters: upline row must exist first (same-org + closure triggers).
-insert into public.agents (id, org_id, full_name, email, upline_id, role) values
-  ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000ee01', 'SMD X',    'smd_x@example.com',    null, 'leader');
-insert into public.agents (id, org_id, full_name, email, upline_id, role) values
-  ('00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-00000000ee01', 'Assoc 1',  'assoc_1@example.com',  '00000000-0000-0000-0000-0000000000a1', 'associate');
-insert into public.agents (id, org_id, full_name, email, upline_id, role) values
-  ('00000000-0000-0000-0000-0000000000a3', '00000000-0000-0000-0000-00000000ee01', 'Assoc 1a', 'assoc_1a@example.com', '00000000-0000-0000-0000-0000000000a2', 'associate');
-insert into public.agents (id, org_id, full_name, email, upline_id, role) values
-  ('00000000-0000-0000-0000-0000000000a4', '00000000-0000-0000-0000-00000000ee01', 'Assoc 2',  'assoc_2@example.com',  '00000000-0000-0000-0000-0000000000a1', 'associate');
-insert into public.agents (id, org_id, full_name, email, upline_id, role) values
-  ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-00000000ee02', 'SMD Y',    'smd_y@example.com',    null, 'leader');
-insert into public.agents (id, org_id, full_name, email, upline_id, role) values
-  ('00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-00000000ee02', 'Assoc 3',  'assoc_3@example.com',  '00000000-0000-0000-0000-0000000000b1', 'associate');
+-- handle_new_user's trigger already inserted each agents row (id/org_id/
+-- email/role from the invitation, upline_id null, full_name from the local
+-- part of the email) when the auth.users insert above fired it. Reshape to
+-- match this suite's fixture exactly: display names and the org_x hierarchy
+-- edges. auth.uid() is null in this seed context (no tests.authenticate_as
+-- called yet), so guard_agent_privileged_columns' upline_id/role/org_id/
+-- status check is a no-op here (it only fires when auth.uid() is not null).
+update public.agents set full_name = 'SMD X'    where id = '00000000-0000-0000-0000-0000000000a1';
+update public.agents set full_name = 'Assoc 1',  upline_id = '00000000-0000-0000-0000-0000000000a1' where id = '00000000-0000-0000-0000-0000000000a2';
+update public.agents set full_name = 'Assoc 1a', upline_id = '00000000-0000-0000-0000-0000000000a2' where id = '00000000-0000-0000-0000-0000000000a3';
+update public.agents set full_name = 'Assoc 2',  upline_id = '00000000-0000-0000-0000-0000000000a1' where id = '00000000-0000-0000-0000-0000000000a4';
+update public.agents set full_name = 'SMD Y'    where id = '00000000-0000-0000-0000-0000000000b1';
+update public.agents set full_name = 'Assoc 3',  upline_id = '00000000-0000-0000-0000-0000000000b1' where id = '00000000-0000-0000-0000-0000000000b2';
 
 update public.organizations set owner_id = '00000000-0000-0000-0000-0000000000a1' where id = '00000000-0000-0000-0000-00000000ee01';
 update public.organizations set owner_id = '00000000-0000-0000-0000-0000000000b1' where id = '00000000-0000-0000-0000-00000000ee02';
@@ -96,6 +111,27 @@ begin
   perform set_config('role', 'postgres', true);
 end $$;
 
+-- set_config('role', ..., true) behaves like SET LOCAL ROLE: it actually
+-- switches the session's privilege-checking role, not just a GUC value. Once
+-- switched to authenticated/anon, those roles need USAGE on this schema and
+-- EXECUTE on these functions to call back into tests.* again (e.g. to
+-- re-authenticate as a different agent, or to clear_authentication back to
+-- postgres) — otherwise every impersonation after the first one fails with
+-- "permission denied for schema tests".
+grant usage on schema tests to authenticated, anon;
+grant execute on function tests.authenticate_as(uuid) to authenticated, anon;
+grant execute on function tests.authenticate_as_anon() to authenticated, anon;
+grant execute on function tests.clear_authentication() to authenticated, anon;
+
+-- private.* is deliberately never granted to authenticated/anon in
+-- production (02-data-model.md: reachable only via SECURITY DEFINER RPCs,
+-- not directly) -- but this suite calls private.is_upline_of/effective_target
+-- etc. directly, as an impersonated role, to test the helpers in isolation.
+-- Scoped to this rolled-back transaction only; never lands in a real
+-- migration.
+grant usage on schema private to authenticated, anon;
+grant execute on all functions in schema private to authenticated, anon;
+
 -- ============================================================
 -- RLS matrix: call_logs, appointments, sales, recruiting_logs (#1-7)
 -- ============================================================
@@ -109,14 +145,21 @@ select throws_ok(
     values ('00000000-0000-0000-0000-0000000000a4','00000000-0000-0000-0000-0000000000c2','cold','connected')$$,
   'assoc_1 inserting call_logs with agent_id = assoc_2 is rejected'
 );
-select is(
-  (with upd as (
-     update public.call_logs set notes = 'x'
-     where agent_id = '00000000-0000-0000-0000-0000000000a4'
-     returning 1
-   ) select count(*) from upd)::int, 0,
+-- A writable CTE must be a top-level statement in Postgres, so it can't sit
+-- as a scalar subquery argument inside select is(...) — run it as its own
+-- top-level statement (WITH ... UPDATE ... RETURNING ... SELECT count(*)),
+-- capture the count, then assert against that.
+create temporary table tests_scratch_upd on commit drop as
+  with upd as (
+    update public.call_logs set notes = 'x'
+    where agent_id = '00000000-0000-0000-0000-0000000000a4'
+    returning 1
+  )
+  select count(*)::int as n from upd;
+select is((select n from tests_scratch_upd), 0,
   'assoc_1 updating assoc_2 call_logs row: 0 rows affected'
 );
+drop table tests_scratch_upd;
 
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a1'); -- smd_x
 select is((select count(*) from public.call_logs where agent_id = '00000000-0000-0000-0000-0000000000a2')::int, 0,
@@ -301,11 +344,87 @@ select is(
    join information_schema.parameters p
      on p.specific_schema = r.specific_schema and p.specific_name = r.specific_name
    where r.routine_schema = 'public'
-     and r.routine_name in ('team_week_summary','agent_daily_activity','agent_aggregate','team_inactive')
+     and r.routine_name in (
+       'team_week_summary','agent_daily_activity','agent_aggregate','team_inactive',
+       'team_target','team_day_summary','team_trend','team_breakdown'
+     )
      and p.parameter_mode = 'OUT'
      and p.parameter_name in ('contact_name','client_name','prospect_name','notes','last_note')
   ), 0,
   'no team-facing RPC return column is a name/note/free-text field'
+);
+
+-- ============================================================
+-- P5: team dashboard RPCs (team_target, team_day_summary, team_trend,
+-- team_breakdown, nudge_agent) and the targets audit trigger.
+-- ============================================================
+
+select tests.authenticate_as('00000000-0000-0000-0000-0000000000a1'); -- smd_x
+select is(
+  (select count(*)::int from public.team_target('00000000-0000-0000-0000-0000000000b2', public.week_start(current_date))),
+  0, 'team_target(assoc_3,...) called by smd_x (not upline) returns 0 rows'
+);
+select ok(
+  (select count(*)::int from public.team_target('00000000-0000-0000-0000-0000000000a2', public.week_start(current_date))) = 1,
+  'team_target(assoc_1,...) called by smd_x (upline) returns 1 row'
+);
+
+select is(
+  (select count(*)::int from public.team_day_summary(current_date)
+   where agent_id = '00000000-0000-0000-0000-0000000000b2'),
+  0, 'team_day_summary never returns an agent from another org'
+);
+
+-- team_breakdown sums only the caller's downline: smd_x's total calls_made
+-- should equal assoc_1 + assoc_1a + assoc_2's daily_metrics for the period,
+-- and must never include assoc_3 (org_y).
+select is(
+  (select calls_made from public.team_breakdown(current_date - 7, current_date)),
+  (select coalesce(sum(calls_made),0)::int from public.daily_metrics
+   where agent_id in (
+     '00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2',
+     '00000000-0000-0000-0000-0000000000a3','00000000-0000-0000-0000-0000000000a4'
+   ) and activity_date between current_date - 7 and current_date),
+  'team_breakdown sums exactly the caller''s downline, org_y excluded'
+);
+
+-- nudge_agent: happy path writes audit_log, rejects a non-downline target,
+-- and rate-limits to one per agent per 7 days.
+select tests.authenticate_as('00000000-0000-0000-0000-0000000000a1'); -- smd_x
+select throws_ok(
+  $$select public.nudge_agent('00000000-0000-0000-0000-0000000000b2')$$,
+  'nudge_agent rejects a non-downline agent (assoc_3)'
+);
+select lives_ok(
+  $$select public.nudge_agent('00000000-0000-0000-0000-0000000000a2')$$,
+  'smd_x nudges assoc_1 successfully'
+);
+select is(
+  (select count(*)::int from public.audit_log where action = 'agent.nudged' and entity_id = '00000000-0000-0000-0000-0000000000a2'),
+  1, 'nudge_agent writes exactly one audit_log row'
+);
+select throws_ok(
+  $$select public.nudge_agent('00000000-0000-0000-0000-0000000000a2')$$,
+  'nudging the same agent again within 7 days is rejected'
+);
+
+select tests.authenticate_as('00000000-0000-0000-0000-0000000000a2'); -- assoc_1, not a leader
+select throws_ok(
+  $$select public.nudge_agent('00000000-0000-0000-0000-0000000000a3')$$,
+  'an associate (non-leader) cannot nudge anyone'
+);
+
+-- Every targets write lands in audit_log via the pre-existing
+-- audit_target_change/targets_audit trigger (p1j_invite_only_signup.sql).
+select tests.authenticate_as('00000000-0000-0000-0000-0000000000a1'); -- smd_x
+select lives_ok(
+  $$insert into public.targets (org_id, agent_id, set_by, effective_from, calls_per_week)
+    values ('00000000-0000-0000-0000-00000000ee01', '00000000-0000-0000-0000-0000000000a4', '00000000-0000-0000-0000-0000000000a1', public.week_start(current_date) + 21, 55)$$,
+  'smd_x writes another override for assoc_2'
+);
+select is(
+  (select count(*)::int from public.audit_log where action = 'insert.target' and metadata->>'agent_id' = '00000000-0000-0000-0000-0000000000a4'),
+  1, 'targets_audit trigger logs the target write to audit_log'
 );
 
 -- Closure trigger: self-row at depth 0.
