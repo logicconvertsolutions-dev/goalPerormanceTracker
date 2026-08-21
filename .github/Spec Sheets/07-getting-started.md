@@ -148,6 +148,39 @@ Same shape every time:
 > docs/06-build-phases.md. Stop at its Definition of Done and show me the DoD
 > checks passing. Do not start the next phase.
 
+## Manual steps outside Claude Code (updated after P5.5)
+
+Things only a human can do — Claude Code has no browser, no email inbox, and
+(depending on the session) no persistent shell across sessions. Re-check this
+list before every deploy.
+
+**Done / connected as of P5.5:**
+- Supabase is connected (MCP connector) — project `arswptuybizvceabecyn`,
+  region ca-central-1. Migrations through P5.5 are applied directly via MCP,
+  including two hotfixes (`p5b`, `p5c`) that existed on the remote DB but had
+  no local migration file until this session reconciled them.
+
+**Still to do:**
+- **Vercel**: no project exists yet for this repo under the connected
+  account. Create one (import this GitHub repo) so `vercel.json`'s cron
+  config (`/api/cron/notifications`, every 15 min) actually runs. Set the
+  production env vars below in the Vercel dashboard.
+- **Resend** (or another transactional email provider): create an account,
+  verify a sending domain, get an API key. Without `RESEND_API_KEY` set, the
+  cron route and the Nudge button both run for real (compose, rate-limit,
+  log to `notification_log`) but skip the actual send with a console warning
+  — safe, but no email reaches anyone.
+- **Env vars to set in Vercel** (see `.env.example` for the full list):
+  `RESEND_API_KEY`, `NOTIFICATIONS_FROM_EMAIL`, `NOTIFICATIONS_UNSUB_SECRET`
+  (`openssl rand -hex 32`), `CRON_SECRET` (also random — Vercel sends it back
+  as a bearer token automatically once set), `NEXT_PUBLIC_APP_URL`.
+- **Supabase Auth → Providers → Password**: enable "Leaked password
+  protection" (HaveIBeenPwned check). Flagged by the security advisor; not
+  settable via SQL/migration, dashboard-only.
+- **P6 pre-launch gate** (`docs/04-security.md`): a restore drill (trigger a
+  Supabase backup restore once, confirm it works) has to be done by hand
+  against the dashboard — not something a migration or a script can prove.
+
 ## Prompts worth keeping around
 
 - `Regenerate types and show me what changed in the schema.`

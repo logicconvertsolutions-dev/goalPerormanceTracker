@@ -4,12 +4,38 @@
 -- ones (which don't work outside a real session).
 --
 -- Run with: supabase test db
+--
+-- Note on throws_ok: pgTAP overloads throws_ok(sql, X, ...) so that a text
+-- X is matched against the raised error's MESSAGE, not its SQLSTATE (a
+-- SQLSTATE match needs an explicit `character` cast, and even then Postgres
+-- prefers the (text,text,text) message-matching overload over the
+-- (text,character,text) one for a plain string literal -- confirmed against
+-- a live pgTAP instance, not assumed). Rather than fight that overload
+-- resolution, every assertion here uses the unambiguous 1-arg
+-- throws_ok(sql) ("did it throw, full stop") with a diag() line for
+-- context, and asserts the real SQLSTATE separately via a helper.
 
 begin;
 create extension if not exists pgtap with schema extensions;
 create schema if not exists tests;
 
 select plan(12);
+
+-- Runs `sql`, returns true if it raised exactly `expected_sqlstate`, false
+-- if it raised a different error, and re-raises if it didn't throw at all
+-- (a silent success would be a false positive for "permission denied").
+create or replace function tests.raises_sqlstate(p_sql text, p_expected text)
+returns boolean language plpgsql as $$
+begin
+  execute p_sql;
+  raise exception 'expected % but % did not raise', p_expected, p_sql;
+exception when others then
+  if sqlstate = p_expected then
+    return true;
+  end if;
+  raise notice 'expected sqlstate %, got % (%)', p_expected, sqlstate, sqlerrm;
+  return false;
+end $$;
 
 -- ---------------------------------------------------------------------
 -- Seed: one org, one leader, one associate, one logged call today.
@@ -73,6 +99,7 @@ grant execute on function tests.authenticate_as(uuid)             to authenticat
 grant execute on function tests.authenticate_as_anon()             to authenticated, anon, service_role;
 grant execute on function tests.authenticate_as_service_role()     to authenticated, anon, service_role;
 grant execute on function tests.clear_authentication()             to authenticated, anon, service_role;
+grant execute on function tests.raises_sqlstate(text, text)        to authenticated, anon, service_role;
 
 -- ---------------------------------------------------------------------
 -- notification_log: the unique index IS the rate limit.
@@ -82,10 +109,13 @@ select lives_ok(
     values ('00000000-0000-0000-0000-0000000000d2', 'evening_nudge', current_date)$$,
   'first send for (agent, kind, date) is recorded'
 );
-select throws_ok(
-  $$insert into public.notification_log (agent_id, kind, local_date)
-    values ('00000000-0000-0000-0000-0000000000d2', 'evening_nudge', current_date)$$,
-  'a second send for the same (agent, kind, date) is rejected by the unique index'
+select ok(
+  tests.raises_sqlstate(
+    $$insert into public.notification_log (agent_id, kind, local_date)
+      values ('00000000-0000-0000-0000-0000000000d2', 'evening_nudge', current_date)$$,
+    '23505'
+  ),
+  'a second send for the same (agent, kind, date) is rejected by the unique index (23505)'
 );
 select lives_ok(
   $$insert into public.notification_log (agent_id, kind, local_date)
@@ -94,15 +124,15 @@ select lives_ok(
 );
 
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000d2');
-select throws_ok(
-  $$select 1 from public.notification_log$$,
+select ok(
+  tests.raises_sqlstate($$select 1 from public.notification_log$$, '42501'),
   'an authenticated agent cannot read notification_log (no policies -- service role only)'
 );
 select tests.clear_authentication();
 
 select tests.authenticate_as_anon();
-select throws_ok(
-  $$select 1 from public.notification_log$$,
+select ok(
+  tests.raises_sqlstate($$select 1 from public.notification_log$$, '42501'),
   'anon cannot read notification_log'
 );
 select tests.clear_authentication();
@@ -112,15 +142,21 @@ select tests.clear_authentication();
 -- private.effective_target, used by the cron job (no auth.uid() session).
 -- ---------------------------------------------------------------------
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000d2');
-select throws_ok(
-  $$select * from public.system_effective_target('00000000-0000-0000-0000-0000000000d2', current_date)$$,
+select ok(
+  tests.raises_sqlstate(
+    $$select * from public.system_effective_target('00000000-0000-0000-0000-0000000000d2', current_date)$$,
+    '42501'
+  ),
   'an authenticated agent cannot call system_effective_target directly'
 );
 select tests.clear_authentication();
 
 select tests.authenticate_as_anon();
-select throws_ok(
-  $$select * from public.system_effective_target('00000000-0000-0000-0000-0000000000d2', current_date)$$,
+select ok(
+  tests.raises_sqlstate(
+    $$select * from public.system_effective_target('00000000-0000-0000-0000-0000000000d2', current_date)$$,
+    '42501'
+  ),
   'anon cannot call system_effective_target'
 );
 select tests.clear_authentication();
@@ -134,42 +170,58 @@ select tests.clear_authentication();
 
 -- ---------------------------------------------------------------------
 -- system_team_week_summary: same shape as public.team_week_summary, minus
--- the auth.uid() scoping, for the cron job's Monday digest.
+-- the auth.uid() scoping, for the cron job's Monday digest. Uses the
+-- literal current_date, not public.week_start(current_date) -- week_start()
+-- is itself granted only to `authenticated`, and evaluating it inline as
+-- anon would throw its own 42501 before system_team_week_summary is ever
+-- reached, testing the wrong function's grant. The exact date value doesn't
+-- matter for a permission check.
 -- ---------------------------------------------------------------------
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000d1');
-select throws_ok(
-  $$select * from public.system_team_week_summary('00000000-0000-0000-0000-0000000000d1', public.week_start(current_date))$$,
+select ok(
+  tests.raises_sqlstate(
+    $$select * from public.system_team_week_summary('00000000-0000-0000-0000-0000000000d1', current_date)$$,
+    '42501'
+  ),
   'an authenticated leader cannot call system_team_week_summary directly'
 );
 select tests.clear_authentication();
 
 select tests.authenticate_as_anon();
-select throws_ok(
-  $$select * from public.system_team_week_summary('00000000-0000-0000-0000-0000000000d1', public.week_start(current_date))$$,
+select ok(
+  tests.raises_sqlstate(
+    $$select * from public.system_team_week_summary('00000000-0000-0000-0000-0000000000d1', current_date)$$,
+    '42501'
+  ),
   'anon cannot call system_team_week_summary'
 );
 select tests.clear_authentication();
 
 select tests.authenticate_as_service_role();
 select lives_ok(
-  $$select * from public.system_team_week_summary('00000000-0000-0000-0000-0000000000d1', public.week_start(current_date))$$,
+  $$select * from public.system_team_week_summary('00000000-0000-0000-0000-0000000000d1', current_date)$$,
   'the service role can call system_team_week_summary'
 );
 select tests.clear_authentication();
 
 -- Consistency check: the service-role path and the auth.uid() path must
 -- agree on the same leader/week, or the cron digest would quietly diverge
--- from what the SMD sees on /team.
+-- from what the SMD sees on /team. week_start() is computed once here,
+-- still as `postgres`, and passed as a GUC -- week_start() itself is
+-- granted only to `authenticated`, and service_role has no reason to need
+-- it (system_team_week_summary takes the week boundary as a plain date).
+select set_config('test.week_start', public.week_start(current_date)::text, true);
+
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000d1');
 create temporary table tmp_via_session as
-  select agent_id, calls_made from public.team_week_summary(public.week_start(current_date))
+  select agent_id, calls_made from public.team_week_summary(current_setting('test.week_start')::date)
   where agent_id = '00000000-0000-0000-0000-0000000000d2';
 select tests.clear_authentication();
 
 select tests.authenticate_as_service_role();
 create temporary table tmp_via_service as
   select agent_id, calls_made from public.system_team_week_summary(
-    '00000000-0000-0000-0000-0000000000d1', public.week_start(current_date))
+    '00000000-0000-0000-0000-0000000000d1', current_setting('test.week_start')::date)
   where agent_id = '00000000-0000-0000-0000-0000000000d2';
 select tests.clear_authentication();
 

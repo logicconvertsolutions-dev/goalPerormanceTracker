@@ -11,7 +11,7 @@ import { sendEmail } from '@/lib/notifications/send';
 const nudgeSchema = z.object({ agentId: z.string().uuid() });
 
 // Rate limiting and authorization live entirely in nudge_agent (leader/admin,
-// in-downline, one nudge per agent per 7 days -- 20260818194500_p5a). Once
+// in-downline, one nudge per agent per 7 days -- 20260818234435_p5a). Once
 // that RPC accepts the nudge, the email send is best-effort: a delivery
 // failure shouldn't undo the rate-limit record or report the click as failed.
 export async function nudgeAgentAction(agentId: string) {

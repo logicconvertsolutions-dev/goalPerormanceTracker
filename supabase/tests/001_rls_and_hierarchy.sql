@@ -14,7 +14,7 @@
 -- agent_aggregate, team_inactive, my_followups, drain_metrics,
 -- provision_org, create_invitation, plus P5's team_target,
 -- team_day_summary, team_trend, team_breakdown, nudge_agent
--- (supabase/migrations/20260818194500_p5a_team_dashboard_rpcs.sql).
+-- (supabase/migrations/20260818234435_p5a_team_dashboard_rpcs.sql).
 
 begin;
 create extension if not exists pgtap with schema extensions;
