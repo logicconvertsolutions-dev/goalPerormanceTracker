@@ -18,7 +18,6 @@ coverage/
 # Database
 *.lock
 supabase/.temp/
-types/database.ts
 
 # OS
 .DS_Store
