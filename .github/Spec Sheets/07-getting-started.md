@@ -162,9 +162,17 @@ list before every deploy.
 
 **Still to do:**
 - **Vercel**: no project exists yet for this repo under the connected
-  account. Create one (import this GitHub repo) so `vercel.json`'s cron
-  config (`/api/cron/notifications`, every 15 min) actually runs. Set the
-  production env vars below in the Vercel dashboard.
+  account. Create one (import this GitHub repo). Set the production env
+  vars below in the Vercel dashboard.
+- **Notifications cron moved off Vercel Cron**: Vercel's Hobby plan only
+  allows once-a-day cron schedules, but `/api/cron/notifications` needs a
+  15-minute cadence to catch each agent's local-time send window across
+  time zones (`src/lib/notifications/window.ts`). `vercel.json` was removed;
+  `.github/workflows/notifications-cron.yml` now hits the route every 15
+  minutes instead, authenticated with the same `CRON_SECRET`. Needs two
+  **GitHub repo secrets** (Settings → Secrets and variables → Actions):
+  `CRON_SECRET` (same value as the Vercel env var below) and
+  `CRON_TARGET_URL` (`https://<your-app>.vercel.app/api/cron/notifications`).
 - **Resend** (or another transactional email provider): create an account,
   verify a sending domain, get an API key. Without `RESEND_API_KEY` set, the
   cron route and the Nudge button both run for real (compose, rate-limit,

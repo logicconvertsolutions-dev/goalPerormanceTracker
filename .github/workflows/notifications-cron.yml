@@ -1,0 +1,29 @@
+name: Notifications cron
+
+# Vercel Hobby plan only allows once-a-day cron schedules, but the
+# notifications route (src/app/api/cron/notifications/route.ts) needs a
+# 15-minute cadence to catch each agent's local-time send window across
+# arbitrary time zones (src/lib/notifications/window.ts). GitHub Actions has
+# no such restriction, so it's the scheduler instead of vercel.json's cron.
+#
+# GitHub throttles scheduled workflow start times under load, so this is a
+# best-effort 15-minute cadence, not a guarantee -- the same tolerance the
+# window-matching logic already assumes.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the notifications cron route
+        run: |
+          curl --fail --silent --show-error \
+            --max-time 30 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${CRON_TARGET_URL}"
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          CRON_TARGET_URL: ${{ secrets.CRON_TARGET_URL }}
