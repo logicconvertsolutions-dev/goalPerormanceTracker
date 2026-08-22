@@ -148,6 +148,66 @@ Same shape every time:
 > docs/06-build-phases.md. Stop at its Definition of Done and show me the DoD
 > checks passing. Do not start the next phase.
 
+## Manual steps outside Claude Code (updated after P5.5)
+
+Things only a human can do — Claude Code has no browser, no email inbox, and
+(depending on the session) no persistent shell across sessions. Re-check this
+list before every deploy.
+
+**Done / connected as of P5.5:**
+- Supabase is connected (MCP connector) — project `arswptuybizvceabecyn`,
+  region ca-central-1. Migrations through P5.5 are applied directly via MCP,
+  including two hotfixes (`p5b`, `p5c`) that existed on the remote DB but had
+  no local migration file until this session reconciled them.
+
+**Still to do:**
+- **Vercel**: no project exists yet for this repo under the connected
+  account. Create one (import this GitHub repo) so `vercel.json`'s cron
+  config (`/api/cron/notifications`, every 15 min) actually runs. Set the
+  production env vars below in the Vercel dashboard.
+- **Resend** (or another transactional email provider): create an account,
+  verify a sending domain, get an API key. Without `RESEND_API_KEY` set, the
+  cron route and the Nudge button both run for real (compose, rate-limit,
+  log to `notification_log`) but skip the actual send with a console warning
+  — safe, but no email reaches anyone.
+- **Env vars to set in Vercel** (see `.env.example` for the full list):
+  `RESEND_API_KEY`, `NOTIFICATIONS_FROM_EMAIL`, `NOTIFICATIONS_UNSUB_SECRET`
+  (`openssl rand -hex 32`), `CRON_SECRET` (also random — Vercel sends it back
+  as a bearer token automatically once set), `NEXT_PUBLIC_APP_URL`.
+- **Supabase Auth → Providers → Password**: enable "Leaked password
+  protection" (HaveIBeenPwned check). Flagged by the security advisor; not
+  settable via SQL/migration, dashboard-only.
+- **P6 pre-launch gate** (`docs/04-security.md`): a restore drill (trigger a
+  Supabase backup restore once, confirm it works) has to be done by hand
+  against the dashboard — not something a migration or a script can prove.
+- **GitHub repo secrets for CI** (added in P6, `.github/workflows/ci.yml`):
+  `SUPABASE_ACCESS_TOKEN` and `SUPABASE_PROJECT_REF` — without them the
+  Supabase advisor-lints CI step skips itself instead of gating the build,
+  which the security doc calls for ("CI fails on Supabase advisor lints").
+  Generate the access token from the Supabase dashboard (Account →
+  Access Tokens); project ref is `arswptuybizvceabecyn`.
+- **`npm ci` was silently broken since P0**: `package-lock.json` was
+  gitignored and never committed, but CI calls `npm ci`, which requires one.
+  Fixed this session (lockfile now committed) — confirm the next CI run on
+  this branch actually gets past the install step; it may not have since
+  the repo's first commit.
+
+**P7 (pilot) — nothing here can start until the manual steps above are
+done.** The pilot needs a real, reachable, emailing deployment; there's no
+version of "run the pilot" that happens inside this sandbox. Once Vercel +
+Resend are live:
+1. Provision Deepak's org via `/admin/orgs` (or `provision_org` directly) —
+   this sends the SMD invite email, so it needs Resend actually configured
+   first, or the invite link has nowhere to go.
+2. Accept that invite as Deepak, then invite the 2 associates from
+   `/team/invites`.
+3. All three log real activity for two weeks. Check `/admin/pilot` (new
+   this session) partway through and at the end — it shows daily active
+   logging per agent over the last 10 business days and flags it red if
+   fewer than two thirds of an org's active agents are hitting 8 of 10.
+   Per `06-build-phases.md`: if that's red, the fix is P3 (the logging
+   flow), not a new feature.
+
 ## Prompts worth keeping around
 
 - `Regenerate types and show me what changed in the schema.`

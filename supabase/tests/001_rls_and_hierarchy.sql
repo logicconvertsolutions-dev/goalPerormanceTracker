@@ -14,7 +14,17 @@
 -- agent_aggregate, team_inactive, my_followups, drain_metrics,
 -- provision_org, create_invitation, plus P5's team_target,
 -- team_day_summary, team_trend, team_breakdown, nudge_agent
--- (supabase/migrations/20260818194500_p5a_team_dashboard_rpcs.sql).
+-- (supabase/migrations/20260818234435_p5a_team_dashboard_rpcs.sql).
+--
+-- P6 fix: every throws_ok() below used to pass a free-text description as
+-- the 2nd argument. pgTAP's throws_ok(sql, text) treats that 2nd argument
+-- as a message pattern to match against the raised error, not a label --
+-- confirmed by running this file live: it silently failed 17 of its own
+-- assertions this way (plus 3 more, unrelated) even when the underlying
+-- permission/trigger checks were firing correctly. Fixed by dropping to
+-- the unambiguous 1-arg throws_ok(sql) ("did it throw, full stop"), same
+-- fix as supabase/tests/003_notifications.sql, with the description moved
+-- to a trailing SQL comment for readability.
 
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -142,9 +152,8 @@ select is((select count(*) from public.call_logs where agent_id = '00000000-0000
   'assoc_1 selecting assoc_2 call_logs rows: 0 rows');
 select throws_ok(
   $$insert into public.call_logs (agent_id, contact_id, source, outcome)
-    values ('00000000-0000-0000-0000-0000000000a4','00000000-0000-0000-0000-0000000000c2','cold','connected')$$,
-  'assoc_1 inserting call_logs with agent_id = assoc_2 is rejected'
-);
+    values ('00000000-0000-0000-0000-0000000000a4','00000000-0000-0000-0000-0000000000c2','cold','connected')$$
+); -- assoc_1 inserting call_logs with agent_id = assoc_2 is rejected
 -- A writable CTE must be a top-level statement in Postgres, so it can't sit
 -- as a scalar subquery argument inside select is(...) — run it as its own
 -- top-level statement (WITH ... UPDATE ... RETURNING ... SELECT count(*)),
@@ -199,9 +208,8 @@ select lives_ok(
 );
 select throws_ok(
   $$insert into public.contacts (agent_id, org_id, full_name)
-    values ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-00000000ee01','Bharadwaj')$$,
-  'inserting "Bharadwaj" for the same agent violates the lower(full_name) unique index'
-);
+    values ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-00000000ee01','Bharadwaj')$$
+); -- inserting "Bharadwaj" for the same agent violates the lower(full_name) unique index
 select is(
   (select count(*)::int from public.contacts
    where agent_id = '00000000-0000-0000-0000-0000000000a2' and lower(full_name) = 'bharadwaj'),
@@ -332,9 +340,8 @@ select is((select count(*)::int from public.agent_daily_activity(
 select tests.clear_authentication();
 select throws_ok(
   $$update public.agents set upline_id = '00000000-0000-0000-0000-0000000000a1'
-    where id = '00000000-0000-0000-0000-0000000000b2'$$,
-  'setting assoc_3.upline_id = smd_x is rejected by the same-org trigger'
-);
+    where id = '00000000-0000-0000-0000-0000000000b2'$$
+); -- setting assoc_3.upline_id = smd_x is rejected by the same-org trigger
 
 -- Return-shape assertion: no RPC leaks a name/note/free-text field, except
 -- the deliberate exception my_followups.contact_name/company/last_note,
@@ -377,24 +384,38 @@ select is(
 
 -- team_breakdown sums only the caller's downline: smd_x's total calls_made
 -- should equal assoc_1 + assoc_1a + assoc_2's daily_metrics for the period,
--- and must never include assoc_3 (org_y).
+-- and must never include assoc_3 (org_y). The ground-truth side has to be
+-- computed as postgres, not as smd_x -- daily_metrics' RLS policy (own
+-- rows only) would otherwise silently restrict this "independent"
+-- recomputation to smd_x's own row too, making it agree with
+-- team_breakdown by construction instead of actually checking anything.
+create temporary table tmp_breakdown_actual on commit drop as
+  select calls_made from public.team_breakdown(current_date - 7, current_date);
+
+select tests.clear_authentication();
+create temporary table tmp_breakdown_expected on commit drop as
+  select coalesce(sum(calls_made),0)::int as calls_made from public.daily_metrics
+  where agent_id in (
+    '00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2',
+    '00000000-0000-0000-0000-0000000000a3','00000000-0000-0000-0000-0000000000a4'
+  ) and activity_date between current_date - 7 and current_date;
+
 select is(
-  (select calls_made from public.team_breakdown(current_date - 7, current_date)),
-  (select coalesce(sum(calls_made),0)::int from public.daily_metrics
-   where agent_id in (
-     '00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2',
-     '00000000-0000-0000-0000-0000000000a3','00000000-0000-0000-0000-0000000000a4'
-   ) and activity_date between current_date - 7 and current_date),
+  (select calls_made from tmp_breakdown_actual),
+  (select calls_made from tmp_breakdown_expected),
   'team_breakdown sums exactly the caller''s downline, org_y excluded'
 );
+drop table tmp_breakdown_actual;
+drop table tmp_breakdown_expected;
+
+select tests.authenticate_as('00000000-0000-0000-0000-0000000000a1'); -- smd_x, restored for what follows
 
 -- nudge_agent: happy path writes audit_log, rejects a non-downline target,
 -- and rate-limits to one per agent per 7 days.
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a1'); -- smd_x
 select throws_ok(
-  $$select public.nudge_agent('00000000-0000-0000-0000-0000000000b2')$$,
-  'nudge_agent rejects a non-downline agent (assoc_3)'
-);
+  $$select public.nudge_agent('00000000-0000-0000-0000-0000000000b2')$$
+); -- nudge_agent rejects a non-downline agent (assoc_3)
 select lives_ok(
   $$select public.nudge_agent('00000000-0000-0000-0000-0000000000a2')$$,
   'smd_x nudges assoc_1 successfully'
@@ -404,15 +425,13 @@ select is(
   1, 'nudge_agent writes exactly one audit_log row'
 );
 select throws_ok(
-  $$select public.nudge_agent('00000000-0000-0000-0000-0000000000a2')$$,
-  'nudging the same agent again within 7 days is rejected'
-);
+  $$select public.nudge_agent('00000000-0000-0000-0000-0000000000a2')$$
+); -- nudging the same agent again within 7 days is rejected
 
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a2'); -- assoc_1, not a leader
 select throws_ok(
-  $$select public.nudge_agent('00000000-0000-0000-0000-0000000000a3')$$,
-  'an associate (non-leader) cannot nudge anyone'
-);
+  $$select public.nudge_agent('00000000-0000-0000-0000-0000000000a3')$$
+); -- an associate (non-leader) cannot nudge anyone
 
 -- Every targets write lands in audit_log via the pre-existing
 -- audit_target_change/targets_audit trigger (p1j_invite_only_signup.sql).
@@ -463,16 +482,14 @@ select ok(
 -- Cycle guard: setting a descendant as your own upline is rejected.
 select throws_ok(
   $$update public.agents set upline_id = '00000000-0000-0000-0000-0000000000a3'
-    where id = '00000000-0000-0000-0000-0000000000a1'$$,
-  'cycle guard: setting a descendant (assoc_1a) as smd_x''s upline is rejected'
-);
+    where id = '00000000-0000-0000-0000-0000000000a1'$$
+); -- cycle guard: setting a descendant (assoc_1a) as smd_x's upline is rejected
 
 -- Moving an agent across orgs is rejected by the same-org trigger.
 select throws_ok(
   $$update public.agents set upline_id = '00000000-0000-0000-0000-0000000000b1'
-    where id = '00000000-0000-0000-0000-0000000000a3'$$,
-  'moving assoc_1a to smd_y (different org) is rejected'
-);
+    where id = '00000000-0000-0000-0000-0000000000a3'$$
+); -- moving assoc_1a to smd_y (different org) is rejected
 
 -- Deactivated agent excluded from roster but history still sums.
 update public.agents set status = 'inactive' where id = '00000000-0000-0000-0000-0000000000a4';
@@ -508,9 +525,8 @@ select lives_ok(
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a2'); -- assoc_1
 select throws_ok(
   $$insert into public.targets (org_id, agent_id, set_by, effective_from, calls_per_week)
-    values ('00000000-0000-0000-0000-00000000ee01', '00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000a2', public.week_start(current_date) + 7, 100)$$,
-  'assoc_1 cannot write any target'
-);
+    values ('00000000-0000-0000-0000-00000000ee01', '00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000a2', public.week_start(current_date) + 7, 100)$$
+); -- assoc_1 cannot write any target
 select is((select count(*)::int from public.targets where agent_id is null and org_id = '00000000-0000-0000-0000-00000000ee01'), 1,
   'assoc_1 can read the org default');
 select is((select count(*)::int from public.targets where agent_id = '00000000-0000-0000-0000-0000000000a2'), 1,
@@ -521,17 +537,15 @@ select is((select count(*)::int from public.targets where agent_id = '00000000-0
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000b1'); -- smd_y
 select throws_ok(
   $$insert into public.targets (org_id, agent_id, set_by, effective_from, calls_per_week)
-    values ('00000000-0000-0000-0000-00000000ee01', null, '00000000-0000-0000-0000-0000000000b1', public.week_start(current_date) + 14, 90)$$,
-  'smd_y cannot write into org_x'
-);
+    values ('00000000-0000-0000-0000-00000000ee01', null, '00000000-0000-0000-0000-0000000000b1', public.week_start(current_date) + 14, 90)$$
+); -- smd_y cannot write into org_x
 
 -- Targets uniqueness: two org-default rows for the same effective_from rejected.
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a1');
 select throws_ok(
   $$insert into public.targets (org_id, agent_id, set_by, effective_from, calls_per_week)
-    values ('00000000-0000-0000-0000-00000000ee01', null, '00000000-0000-0000-0000-0000000000a1', public.week_start(current_date), 999)$$,
-  'two org-default target rows for the same effective_from are rejected'
-);
+    values ('00000000-0000-0000-0000-00000000ee01', null, '00000000-0000-0000-0000-0000000000a1', public.week_start(current_date), 999)$$
+); -- two org-default target rows for the same effective_from are rejected
 
 -- effective_target: override beats org default beats fallback.
 select tests.clear_authentication();
@@ -553,30 +567,25 @@ select is(
 -- ============================================================
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a2');
 select throws_ok(
-  $$insert into public.audit_log (action, entity) values ('x','y')$$,
-  'authenticated user cannot insert into audit_log'
-);
+  $$insert into public.audit_log (action, entity) values ('x','y')$$
+); -- authenticated user cannot insert into audit_log
 
 -- ============================================================
 -- Privilege escalation — the single most important test in the file.
 -- ============================================================
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a2'); -- assoc_1
 select throws_ok(
-  $$update public.agents set role = 'admin' where id = '00000000-0000-0000-0000-0000000000a2'$$,
-  'assoc_1 setting own role to admin is rejected'
-);
+  $$update public.agents set role = 'admin' where id = '00000000-0000-0000-0000-0000000000a2'$$
+); -- assoc_1 setting own role to admin is rejected
 select throws_ok(
-  $$update public.agents set upline_id = null where id = '00000000-0000-0000-0000-0000000000a2'$$,
-  'assoc_1 changing own upline_id is rejected'
-);
+  $$update public.agents set upline_id = null where id = '00000000-0000-0000-0000-0000000000a2'$$
+); -- assoc_1 changing own upline_id is rejected
 select throws_ok(
-  $$update public.agents set org_id = '00000000-0000-0000-0000-00000000ee02' where id = '00000000-0000-0000-0000-0000000000a2'$$,
-  'assoc_1 changing own org_id is rejected'
-);
+  $$update public.agents set org_id = '00000000-0000-0000-0000-00000000ee02' where id = '00000000-0000-0000-0000-0000000000a2'$$
+); -- assoc_1 changing own org_id is rejected
 select throws_ok(
-  $$update public.agents set status = 'inactive' where id = '00000000-0000-0000-0000-0000000000a2'$$,
-  'assoc_1 changing own status is rejected'
-);
+  $$update public.agents set status = 'inactive' where id = '00000000-0000-0000-0000-0000000000a2'$$
+); -- assoc_1 changing own status is rejected
 select lives_ok(
   $$update public.agents set full_name = 'Assoc One Renamed' where id = '00000000-0000-0000-0000-0000000000a2'$$,
   'assoc_1 updating own full_name succeeds'
@@ -591,9 +600,8 @@ select is((select count(*) from public.daily_metrics where agent_id = '00000000-
   'assoc_1 selecting assoc_2 daily_metrics: 0 rows');
 select throws_ok(
   $$insert into public.daily_metrics (agent_id, org_id, activity_date)
-    values ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-00000000ee01', current_date + 30)$$,
-  'authenticated user cannot directly insert into daily_metrics'
-);
+    values ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-00000000ee01', current_date + 30)$$
+); -- authenticated user cannot directly insert into daily_metrics
 
 select * from finish();
 rollback;

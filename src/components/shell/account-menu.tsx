@@ -53,6 +53,15 @@ export function AccountMenu({
             <DropdownMenuItem asChild>
               <Link href="/admin/orgs">Admin: Organizations</Link>
             </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/admin/agents">Admin: Agents</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/admin/audit">Admin: Audit</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/admin/pilot">Admin: Pilot</Link>
+            </DropdownMenuItem>
           </>
         )}
         <DropdownMenuSeparator />

@@ -111,8 +111,11 @@ export default async function SettingsPage() {
         <CardHeader>
           <CardTitle>Your data</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <DataActions />
+          <Link href="/privacy" className="text-xs text-acc hover:underline">
+            Read the privacy notice
+          </Link>
         </CardContent>
       </Card>
     </div>
