@@ -15,22 +15,31 @@ import {
   DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog';
-import { moveAgentAction, reactivateAgentAction, hardDeleteAgentAction } from './actions';
+import {
+  moveAgentAction,
+  reactivateAgentAction,
+  hardDeleteAgentAction,
+  setAgentRoleAction,
+} from './actions';
 
 interface SameOrgAgent {
   id: string;
   fullName: string;
 }
 
+type AgentRole = 'associate' | 'leader' | 'admin';
+
 export function AgentRow({
   agentId,
   fullName,
+  role,
   status,
   currentUplineId,
   sameOrgAgents,
 }: {
   agentId: string;
   fullName: string;
+  role: AgentRole;
   status: 'active' | 'inactive';
   currentUplineId: string | null;
   sameOrgAgents: SameOrgAgent[];
@@ -46,8 +55,27 @@ export function AgentRow({
     });
   }
 
+  function setRole(newRole: AgentRole) {
+    startTransition(async () => {
+      const result = await setAgentRoleAction({ agentId, role: newRole });
+      if (result.ok) toast.success(`${fullName} is now ${newRole}`);
+      else toast.error(result.error ?? 'Could not change role — try again');
+    });
+  }
+
   return (
     <div className="flex items-center gap-2">
+      <Select value={role} onValueChange={(v) => setRole(v as AgentRole)} disabled={pending}>
+        <SelectTrigger className="h-8 w-28 text-xs">
+          <SelectValue placeholder="Role" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="associate">Associate</SelectItem>
+          <SelectItem value="leader">Leader (SMD)</SelectItem>
+          <SelectItem value="admin">Admin</SelectItem>
+        </SelectContent>
+      </Select>
+
       <Select
         value={currentUplineId ?? '__none__'}
         onValueChange={(v) => move(v === '__none__' ? null : v)}

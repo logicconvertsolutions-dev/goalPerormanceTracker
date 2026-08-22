@@ -66,6 +66,30 @@ export async function reactivateAgentAction(agentId: string) {
   return { ok: true };
 }
 
+const setRoleSchema = z.object({
+  agentId: z.string().uuid(),
+  role: z.enum(['associate', 'leader', 'admin']),
+});
+
+export async function setAgentRoleAction(input: z.infer<typeof setRoleSchema>) {
+  const actor = await requireAdminActor();
+  if ('error' in actor) return { ok: false, error: actor.error };
+
+  const parsed = setRoleSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'Invalid input.' };
+
+  const admin = createAdminClient();
+  const { error } = await admin.rpc('admin_set_agent_role', {
+    p_actor_id: actor.id,
+    p_agent_id: parsed.data.agentId,
+    p_role: parsed.data.role,
+  });
+
+  revalidatePath('/admin/agents');
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
 export async function hardDeleteAgentAction(agentId: string) {
   const actor = await requireAdminActor();
   if ('error' in actor) return { ok: false, error: actor.error };

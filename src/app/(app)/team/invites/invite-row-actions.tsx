@@ -22,8 +22,13 @@ export function InviteRowActions({
         disabled={pending}
         onClick={() =>
           startTransition(async () => {
-            await resendInvitationAction(email);
-            toast.success('Invitation resent');
+            const result = await resendInvitationAction(email);
+            if (result.ok && result.inviteUrl) {
+              navigator.clipboard.writeText(result.inviteUrl);
+              toast.success('Invitation resent — link copied too, in case email doesn\'t arrive');
+            } else {
+              toast.error('Could not resend — try again');
+            }
           })
         }
       >

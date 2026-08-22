@@ -39,6 +39,21 @@ export function nextMonday(iso: string): string {
   return addDays(iso, daysUntilMonday);
 }
 
+/**
+ * Number of 7-day weeks spanned by an inclusive `[from, to]` range (e.g. a
+ * 28-day month = 4, a 31-day month ≈ 4.43). Targets are only ever set
+ * per-week (CLAUDE.md rule 8) — there is no monthly target concept in the
+ * database — so any KPI target shown for a period longer than one week is
+ * this multiplier applied to the weekly number, never a value the SMD set
+ * directly.
+ */
+export function weeksInRange(from: string, to: string): number {
+  const start = new Date(from + 'T00:00:00Z');
+  const end = new Date(to + 'T00:00:00Z');
+  const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+  return days / 7;
+}
+
 export const PERIOD_PRESETS = [
   'this_week',
   'last_week',

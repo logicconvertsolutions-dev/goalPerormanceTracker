@@ -126,6 +126,28 @@ export function mondayDigestEmail(d: MondayDigestData): EmailContent {
   };
 }
 
+export interface InviteData {
+  orgName: string;
+  inviterName: string;
+  inviteUrl: string;
+}
+
+// No agentId/unsubscribe footer -- the invitee isn't an agent yet, there's
+// no notification_prefs row to unsubscribe from.
+export function inviteEmail(d: InviteData): EmailContent {
+  const bodyHtml = `
+    <p>Hi,</p>
+    <p>${firstName(d.inviterName)} invited you to join <strong>${d.orgName}</strong> on the team tracker.</p>
+    <p><a href="${d.inviteUrl}" style="display:inline-block;padding:10px 16px;background:#111;color:#fff;text-decoration:none;border-radius:6px;">Accept invitation</a></p>
+    <p style="font-size:12px;color:#888;">This link expires in 7 days.</p>`;
+  const bodyText = `Hi,\n\n${firstName(d.inviterName)} invited you to join ${d.orgName} on the team tracker.\n\nAccept invitation: ${d.inviteUrl}\n\nThis link expires in 7 days.`;
+  return {
+    subject: `${d.inviterName} invited you to join ${d.orgName}`,
+    html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;color:#111;">${bodyHtml}</div>`,
+    text: bodyText,
+  };
+}
+
 export interface NudgeData {
   agentId: string;
   fullName: string;
