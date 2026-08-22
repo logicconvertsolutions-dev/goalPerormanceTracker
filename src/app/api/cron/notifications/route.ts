@@ -7,10 +7,12 @@ import type { EmailContent } from '@/lib/notifications/templates';
 
 export const dynamic = 'force-dynamic';
 
-// Invoked every 15 minutes by vercel.json's cron config -- Vercel Cron sends
-// `Authorization: Bearer ${CRON_SECRET}` automatically when that env var is
-// set, so this also doubles as the auth check keeping the route from being
-// a public trigger for arbitrary email sends.
+// Invoked every 15 minutes by .github/workflows/notifications-cron.yml
+// (Vercel Hobby only allows once-a-day cron, too coarse for per-agent local
+// send windows -- see window.ts). That workflow sends
+// `Authorization: Bearer ${CRON_SECRET}`, which also doubles as the auth
+// check keeping this route from being a public trigger for arbitrary email
+// sends.
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return true; // no secret configured (local dev) -- don't lock developers out

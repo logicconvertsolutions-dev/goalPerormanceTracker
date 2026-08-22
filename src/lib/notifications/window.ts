@@ -1,9 +1,10 @@
 // Per-agent local time window matching. Each agent carries an IANA time_zone
 // (settings screen, defaults from the browser); the cron job runs on a
-// fixed UTC schedule (vercel.json, every 15 minutes) and this is what maps
-// "now, in UTC" to "is it 7:00pm for this particular agent right now."
-// Deliberately no manual DST math: Intl.DateTimeFormat resolves the offset
-// for the given instant + zone, DST included.
+// fixed UTC schedule (.github/workflows/notifications-cron.yml, every 15
+// minutes) and this is what maps "now, in UTC" to "is it 7:00pm for this
+// particular agent right now." Deliberately no manual DST math:
+// Intl.DateTimeFormat resolves the offset for the given instant + zone,
+// DST included.
 
 export type NotificationKind = 'evening_nudge' | 'sunday_summary' | 'monday_digest';
 
@@ -54,7 +55,7 @@ export function localParts(timeZone: string, at: Date): LocalParts {
   };
 }
 
-const WINDOW_MINUTES = 15; // matches the cron cadence in vercel.json
+const WINDOW_MINUTES = 15; // matches the cron cadence in notifications-cron.yml
 
 /** Which notification kinds are in their send window for this agent right now. */
 export function kindsInWindow(parts: LocalParts): NotificationKind[] {
