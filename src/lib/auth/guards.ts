@@ -17,6 +17,12 @@ export async function requireAgent(): Promise<SessionAgent> {
 /**
  * Leader or admin, with MFA verified. Per docs/09-account-and-auth.md a
  * leader without MFA is blocked from /team — redirect to setup, not a 403.
+ *
+ * A leader who already has a verified factor but whose *session* hasn't
+ * stepped up to aal2 (e.g. a fresh sign-in) goes to the step-up challenge,
+ * not enrollment — sending them back to /mfa/setup would either error
+ * (already enrolled) or, worse, silently enroll a second factor while never
+ * actually solving why this session is stuck at aal1.
  */
 export async function requireLeader(): Promise<SessionAgent> {
   const session = await requireAgent();
@@ -25,7 +31,11 @@ export async function requireLeader(): Promise<SessionAgent> {
     redirect('/dashboard?toast=team-restricted');
   }
   if (!session.mfaVerified) {
-    redirect('/mfa/setup?required=team');
+    redirect(
+      session.mfaEnrolled
+        ? '/mfa/verify?next=%2Fteam'
+        : '/mfa/setup?required=team'
+    );
   }
   return session;
 }

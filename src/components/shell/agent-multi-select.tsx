@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,19 @@ export function AgentMultiSelect({ agents }: { agents: AgentOption[] }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [filter, setFilter] = useState('');
+  const [open, setOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // DropdownMenuContent doesn't expose onOpenAutoFocus in this Radix
+  // version, and it auto-focuses the first checkbox item on open by
+  // default — steal focus back to the search box right after so typing
+  // works immediately without an extra click.
+  useEffect(() => {
+    if (open) {
+      const id = requestAnimationFrame(() => searchRef.current?.focus());
+      return () => cancelAnimationFrame(id);
+    }
+  }, [open]);
 
   const selected = new Set((searchParams.get('agents') ?? '').split(',').filter(Boolean));
   const allSelected = selected.size === 0;
@@ -55,16 +68,17 @@ export function AgentMultiSelect({ agents }: { agents: AgentOption[] }) {
       : `${selected.size} agents`;
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="secondary" size="sm" className="gap-1.5">
           {label}
           <ChevronDown className="h-3.5 w-3.5" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-64" align="start">
+      <DropdownMenuContent className="w-64" align="start" onCloseAutoFocus={() => setFilter('')}>
         <div className="px-1 pb-1">
           <Input
+            ref={searchRef}
             placeholder="Search agents..."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}

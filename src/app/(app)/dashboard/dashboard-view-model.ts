@@ -75,8 +75,23 @@ export function buildDashboardViewModel(input: {
   openAppointments: { status: string; expected_premium_cents: number }[];
   streakRows: Map<string, DailyMetricsRow>;
   today: string;
+  /** Weeks spanned by the selected period (lib/dates.ts weeksInRange). The
+   * weekly target is scaled by this so "This Month" compares the month's
+   * totals against a monthly-equivalent target instead of one week's. */
+  periodWeeks?: number;
 }): DashboardViewModel {
-  const { totals: t2, target, trendRows, openAppointments, streakRows, today } = input;
+  const { totals: t2, target, trendRows, openAppointments, streakRows, today, periodWeeks = 1 } = input;
+  // Targets are only ever set per week -- scale here for any longer period,
+  // and mark the scaled value with "~" so it reads as derived, not SMD-set.
+  const scaled = target && periodWeeks !== 1
+    ? {
+        ...target,
+        calls_per_week: Math.round(target.calls_per_week * periodWeeks),
+        appts_held_per_week: Math.round(target.appts_held_per_week * periodWeeks),
+        premium_cents_per_week: Math.round(Number(target.premium_cents_per_week) * periodWeeks),
+      }
+    : target;
+  const targetPrefix = periodWeeks !== 1 ? '~' : '';
 
   const funnel = conversionFunnel(
     t2
@@ -103,12 +118,12 @@ export function buildDashboardViewModel(input: {
   const streak = currentStreak(streakRows, target?.min_calls_per_day ?? 15, today);
   const daysToDeadline = target?.md_deadline ? daysToMdDeadline(target.md_deadline, today) : null;
 
-  const callsTargetPct = target?.calls_per_week ? Math.round((100 * (t2?.calls_made ?? 0)) / target.calls_per_week) : 0;
-  const apptsTargetPct = target?.appts_held_per_week
-    ? Math.round((100 * (t2?.appt_held ?? 0)) / target.appts_held_per_week)
+  const callsTargetPct = scaled?.calls_per_week ? Math.round((100 * (t2?.calls_made ?? 0)) / scaled.calls_per_week) : 0;
+  const apptsTargetPct = scaled?.appts_held_per_week
+    ? Math.round((100 * (t2?.appt_held ?? 0)) / scaled.appts_held_per_week)
     : 0;
-  const premiumTargetPct = target?.premium_cents_per_week
-    ? Math.round((100 * Number(t2?.premium_cents ?? 0)) / Number(target.premium_cents_per_week))
+  const premiumTargetPct = scaled?.premium_cents_per_week
+    ? Math.round((100 * Number(t2?.premium_cents ?? 0)) / Number(scaled.premium_cents_per_week))
     : 0;
 
   const trendWeeks: TrendWeek[] = [];
@@ -135,10 +150,17 @@ export function buildDashboardViewModel(input: {
     premiumCents: t2?.premium_cents ?? 0,
     streak,
     daysToDeadline,
-    callsTarget: target ? { value: String(target.calls_per_week), pct: callsTargetPct } : undefined,
-    apptsTarget: target ? { value: String(target.appts_held_per_week), pct: apptsTargetPct } : undefined,
-    premiumTarget: target
-      ? { value: `$${(Number(target.premium_cents_per_week) / 100).toLocaleString('en-CA')}`, pct: premiumTargetPct }
+    callsTarget: scaled
+      ? { value: `${targetPrefix}${scaled.calls_per_week}`, pct: callsTargetPct }
+      : undefined,
+    apptsTarget: scaled
+      ? { value: `${targetPrefix}${scaled.appts_held_per_week}`, pct: apptsTargetPct }
+      : undefined,
+    premiumTarget: scaled
+      ? {
+          value: `${targetPrefix}$${(Number(scaled.premium_cents_per_week) / 100).toLocaleString('en-CA')}`,
+          pct: premiumTargetPct,
+        }
       : undefined,
     dialToConnectPct: Math.round(dialToConnect * 100),
     noShowPct: Math.round(noShow * 100),

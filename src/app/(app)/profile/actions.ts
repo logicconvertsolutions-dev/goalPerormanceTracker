@@ -60,3 +60,23 @@ export async function signOutEverywhereAction() {
   const supabase = await createClient();
   await supabase.auth.signOut({ scope: 'global' });
 }
+
+// Requires this session to already be aal2 (Supabase's own MFA unenroll
+// rule) — a leader who's lost their authenticator and can never reach aal2
+// needs a different recovery path, not this button; this is for "I still
+// have my device, I want to start over with a new one."
+export async function resetMfaAction() {
+  const supabase = await createClient();
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aal?.currentLevel !== 'aal2') {
+    return { ok: false, error: 'Verify your current code first.' };
+  }
+
+  const { data: factors } = await supabase.auth.mfa.listFactors();
+  const verified = factors?.totp?.find((f) => f.status === 'verified');
+  if (!verified) return { ok: false, error: 'No factor to reset.' };
+
+  const { error } = await supabase.auth.mfa.unenroll({ factorId: verified.id });
+  revalidatePath('/profile');
+  return { ok: !error, error: error?.message };
+}

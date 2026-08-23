@@ -1,16 +1,14 @@
 import { requireAgent } from '@/lib/auth/guards';
-import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { FullNameForm } from './full-name-form';
 import { PasswordForm } from './password-form';
 import { SignOutEverywhereButton } from './sign-out-everywhere-button';
+import { ResetMfaButton } from './reset-mfa-button';
 
 export default async function ProfilePage() {
   const session = await requireAgent();
-  const supabase = await createClient();
-  const { data: factors } = await supabase.auth.mfa.listFactors();
-  const mfaEnabled = (factors?.totp?.length ?? 0) > 0;
+  const mfaEnabled = session.mfaEnrolled;
 
   return (
     <div className="space-y-4 max-w-lg">
@@ -52,6 +50,15 @@ export default async function ProfilePage() {
             {!mfaEnabled && (
               <a href="/mfa/setup" className="text-sm text-acc hover:underline">
                 Set up
+              </a>
+            )}
+            {mfaEnabled && session.mfaVerified && <ResetMfaButton />}
+            {mfaEnabled && !session.mfaVerified && (
+              <a
+                href="/mfa/verify?next=%2Fprofile"
+                className="text-sm text-acc hover:underline"
+              >
+                Verify to manage
               </a>
             )}
           </div>

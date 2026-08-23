@@ -9,7 +9,8 @@ import { AgentMultiSelect } from '@/components/shell/agent-multi-select';
 import { DonutChart } from '@/components/charts/donut-chart';
 import { HorizontalBarChart } from '@/components/charts/horizontal-bar-chart';
 import { TrendChart, type TrendWeek } from '@/components/charts/trend-chart';
-import { resolvePeriod, todayIso, weekStart, addDays, type PeriodPreset, PERIOD_PRESETS } from '@/lib/dates';
+import { resolvePeriod, todayIso, addDays, weeksInRange, type PeriodPreset, PERIOD_PRESETS } from '@/lib/dates';
+import { DailyBreakdownTable } from '@/components/shell/daily-breakdown-table';
 import { RosterRow, type RosterRowData } from './roster-row';
 import { DailyGrid, type DailyGridColumn } from './daily-grid';
 import { NudgeButton } from './nudge-button';
@@ -18,7 +19,7 @@ function isPeriodPreset(v: string | undefined): v is PeriodPreset {
   return !!v && (PERIOD_PRESETS as readonly string[]).includes(v);
 }
 
-type View = 'summary' | 'daily';
+type View = 'summary' | 'daily' | 'activity';
 
 export default async function TeamPage({
   searchParams,
@@ -32,20 +33,26 @@ export default async function TeamPage({
   const today = todayIso();
   const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'this_week';
   const { from, to } = resolvePeriod(preset, today, params.from, params.to);
-  const targetWeek = weekStart(new Date(from + 'T00:00:00Z'));
-  const view: View = params.view === 'daily' ? 'daily' : 'summary';
+  const view: View =
+    params.view === 'daily' ? 'daily' : params.view === 'activity' ? 'activity' : 'summary';
   const selectedIds = (params.agents ?? '').split(',').filter(Boolean);
 
-  const [{ data: roster }, { data: quiet }, { data: trendRows }, { data: breakdown }] = await Promise.all([
-    supabase.rpc('team_week_summary', { p_week_start: targetWeek }),
-    supabase.rpc('team_inactive', { p_days: 7 }),
-    supabase.rpc('team_trend', { p_weeks: 8, p_agent_ids: selectedIds.length ? selectedIds : undefined }),
-    supabase.rpc('team_breakdown', {
-      p_from: from,
-      p_to: to,
-      p_agent_ids: selectedIds.length ? selectedIds : undefined,
-    }),
-  ]);
+  const [{ data: roster }, { data: quiet }, { data: trendRows }, { data: breakdown }, { data: dailyBreakdown }] =
+    await Promise.all([
+      supabase.rpc('team_period_summary', { p_from: from, p_to: to }),
+      supabase.rpc('team_inactive', { p_days: 7 }),
+      supabase.rpc('team_trend', { p_weeks: 8, p_agent_ids: selectedIds.length ? selectedIds : undefined }),
+      supabase.rpc('team_breakdown', {
+        p_from: from,
+        p_to: to,
+        p_agent_ids: selectedIds.length ? selectedIds : undefined,
+      }),
+      supabase.rpc('agent_daily_breakdown', {
+        p_from: from,
+        p_to: to,
+        p_agent_ids: selectedIds.length ? selectedIds : undefined,
+      }),
+    ]);
 
   const allAgents = (roster ?? []) as RosterRowData[];
   if (allAgents.length === 0) {
@@ -77,6 +84,10 @@ export default async function TeamPage({
   const totalPremium = visibleAgents.reduce((acc, a) => acc + a.premium_cents, 0);
   const totalPremiumTarget = visibleAgents.reduce((acc, a) => acc + Number(a.premium_cents_target), 0);
   const onTarget = visibleAgents.filter((a) => (a.pct_calls ?? 0) >= 100).length;
+  // Targets are only ever set per week (CLAUDE.md rule 8) -- team_period_summary
+  // already scales each agent's target by the weeks in [from, to], so the "~"
+  // here just marks that scaling for any period longer than one week.
+  const targetPrefix = weeksInRange(from, to) !== 1 ? '~' : '';
   const visibleIdSet = new Set(visibleAgents.map((a) => a.agent_id));
   const quietRows = (quiet ?? []).filter((q) => visibleIdSet.has(q.agent_id));
   const quietIds = quietRows.map((q) => q.agent_id);
@@ -115,6 +126,9 @@ export default async function TeamPage({
         <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Team</h1>
         <div className="flex gap-2">
           <Button variant="secondary" asChild>
+            <Link href="/team/organization">Organization</Link>
+          </Button>
+          <Button variant="secondary" asChild>
             <Link href="/team/targets">Targets</Link>
           </Button>
           <Button variant="secondary" asChild>
@@ -152,6 +166,16 @@ export default async function TeamPage({
           >
             Daily
           </Link>
+          <Link
+            href={withParam({ view: 'activity' })}
+            className={
+              view === 'activity'
+                ? 'rounded-sm bg-acc px-3 py-1.5 text-xs font-medium text-bg min-h-[32px] flex items-center'
+                : 'rounded-sm px-3 py-1.5 text-xs font-medium text-fg-2 hover:bg-hover hover:text-fg min-h-[32px] flex items-center'
+            }
+          >
+            Activity
+          </Link>
         </div>
         {view === 'summary' && (
           <Link
@@ -167,13 +191,16 @@ export default async function TeamPage({
         <KpiCard
           label="Total Calls"
           value={String(totalCalls)}
-          target={{ value: String(totalCallsTarget), pct: totalCallsTarget ? Math.round((100 * totalCalls) / totalCallsTarget) : 0 }}
+          target={{
+            value: `${targetPrefix}${totalCallsTarget}`,
+            pct: totalCallsTarget ? Math.round((100 * totalCalls) / totalCallsTarget) : 0,
+          }}
         />
         <KpiCard
           label="Total Appts Held"
           value={String(totalApptsHeld)}
           target={{
-            value: String(totalApptsHeldTarget),
+            value: `${targetPrefix}${totalApptsHeldTarget}`,
             pct: totalApptsHeldTarget ? Math.round((100 * totalApptsHeld) / totalApptsHeldTarget) : 0,
           }}
         />
@@ -181,7 +208,7 @@ export default async function TeamPage({
           label="Total Premium"
           value={`$${(totalPremium / 100).toLocaleString('en-CA')}`}
           target={{
-            value: `$${(totalPremiumTarget / 100).toLocaleString('en-CA')}`,
+            value: `${targetPrefix}$${(totalPremiumTarget / 100).toLocaleString('en-CA')}`,
             pct: totalPremiumTarget ? Math.round((100 * totalPremium) / totalPremiumTarget) : 0,
           }}
         />
@@ -209,6 +236,8 @@ export default async function TeamPage({
 
       {view === 'daily' ? (
         <DailyGridSection agentIds={selectedIds.length ? selectedIds : allAgents.map((a) => a.agent_id)} allAgents={allAgents} from={from} to={to} />
+      ) : view === 'activity' ? (
+        <DailyBreakdownTable rows={dailyBreakdown ?? []} />
       ) : (
         <>
           <div className="overflow-x-auto rounded-lg border border-line hidden md:block">
