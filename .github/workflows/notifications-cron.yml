@@ -18,7 +18,13 @@ jobs:
   trigger:
     runs-on: ubuntu-latest
     steps:
+      # CRON_TARGET_URL/CRON_SECRET aren't set until the app is actually
+      # deployed somewhere (Vercel preview or production -- a custom domain
+      # isn't required, any *.vercel.app URL works). Skip cleanly instead of
+      # failing every 15 minutes until then, same as CI's own Supabase
+      # advisor step does for its not-yet-configured secrets.
       - name: Call the notifications cron route
+        if: ${{ secrets.CRON_TARGET_URL != '' }}
         run: |
           curl --fail --silent --show-error \
             --max-time 30 \

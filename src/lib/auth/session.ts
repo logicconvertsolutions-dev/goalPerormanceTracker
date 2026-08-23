@@ -8,6 +8,11 @@ export interface SessionAgent {
   email: string;
   agent: Agent | null;
   mfaVerified: boolean;
+  /** True when a verified TOTP factor already exists, regardless of this
+   * session's AAL — distinguishes "never enrolled" from "enrolled, this
+   * session just hasn't stepped up yet" so guards can send the user to the
+   * right screen (enroll vs. verify). */
+  mfaEnrolled: boolean;
 }
 
 /**
@@ -32,11 +37,13 @@ export async function getSessionAgent(): Promise<SessionAgent | null> {
     .maybeSingle();
 
   const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  const { data: factors } = await supabase.auth.mfa.listFactors();
 
   return {
     userId: user.id,
     email: user.email ?? '',
     agent: agent ?? null,
     mfaVerified: aal?.currentLevel === 'aal2',
+    mfaEnrolled: (factors?.totp?.some((f) => f.status === 'verified') ?? false),
   };
 }

@@ -29,6 +29,7 @@ export default async function TeamTargetsPage() {
   ]);
 
   const defaultTarget = orgDefault?.[0] ?? FALLBACK;
+  const me = (roster ?? []).find((a) => a.agent_id === session.agent!.id);
   const agents = (roster ?? []).filter((a) => a.agent_id !== session.agent!.id);
 
   return (
@@ -48,6 +49,29 @@ export default async function TeamTargetsPage() {
           <TargetForm agentId={null} current={defaultTarget} effectiveMonday={effectiveMonday} />
         </CardContent>
       </Card>
+
+      {me && (
+        <Card>
+          <CardHeader>
+            <CardTitle>My target</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AgentOverrideRow
+              agentId={me.agent_id}
+              fullName="Me"
+              hasOverride={me.has_override}
+              effectiveMonday={effectiveMonday}
+              current={{
+                calls_per_week: me.calls_target,
+                appts_held_per_week: me.appts_held_target,
+                premium_cents_per_week: Number(me.premium_cents_target),
+                min_calls_per_day: defaultTarget.min_calls_per_day,
+                md_deadline: null,
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

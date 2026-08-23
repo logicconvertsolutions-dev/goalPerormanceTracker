@@ -40,8 +40,8 @@ export default async function AdminAgentsPage() {
     <div className="space-y-4 max-w-3xl">
       <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Agents</h1>
       <p className="text-sm text-fg-3">
-        Move an agent between uplines, reactivate a deactivated agent, or hard-delete on request.
-        Hard-delete is irreversible.
+        Change an agent&apos;s role, move them between uplines, reactivate a deactivated agent, or
+        hard-delete on request. Hard-delete is irreversible.
       </p>
 
       {[...byOrg.entries()].map(([orgId, orgAgents]) => (
@@ -60,11 +60,11 @@ export default async function AdminAgentsPage() {
                   <p className="text-fg-3 text-xs">{agent.email}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="neutral">{agent.role}</Badge>
                   {agent.status === 'inactive' && <Badge variant="bad">Inactive</Badge>}
                   <AgentRow
                     agentId={agent.id}
                     fullName={agent.full_name}
+                    role={agent.role}
                     status={agent.status}
                     currentUplineId={agent.upline_id}
                     sameOrgAgents={orgAgents

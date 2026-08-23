@@ -1,9 +1,3 @@
-// GENERATED FILE -- do not hand-edit.
-// Regenerate after any migration lands: `npm run types`, then commit the
-// diff in the same PR as the migration. Committed (not gitignored) because
-// the production build (Vercel, and CI once it runs) has no Supabase CLI
-// session to generate this against at build time -- see the P7.1 fix that
-// removed types/database.ts from .gitignore.
 export type Json =
   | string
   | number
@@ -628,6 +622,7 @@ export type Database = {
           call_log_retention_months: number
           created_at: string
           id: string
+          logo_path: string | null
           name: string
           owner_id: string | null
         }
@@ -635,6 +630,7 @@ export type Database = {
           call_log_retention_months?: number
           created_at?: string
           id?: string
+          logo_path?: string | null
           name: string
           owner_id?: string | null
         }
@@ -642,6 +638,7 @@ export type Database = {
           call_log_retention_months?: number
           created_at?: string
           id?: string
+          logo_path?: string | null
           name?: string
           owner_id?: string | null
         }
@@ -889,6 +886,14 @@ export type Database = {
         Args: { p_actor_id: string; p_agent_id: string }
         Returns: undefined
       }
+      admin_set_agent_role: {
+        Args: {
+          p_actor_id: string
+          p_agent_id: string
+          p_role: Database["public"]["Enums"]["agent_role"]
+        }
+        Returns: undefined
+      }
       agent_aggregate: {
         Args: { p_agent_id: string; p_from: string; p_to: string }
         Returns: {
@@ -927,6 +932,17 @@ export type Database = {
           min_calls_target: number
           min_met: boolean
           premium_cents: number
+        }[]
+      }
+      agent_daily_breakdown: {
+        Args: { p_agent_ids?: string[]; p_from: string; p_to: string }
+        Returns: {
+          activity_date: string
+          appt_held: number
+          appts_set: number
+          calls_made: number
+          recruiting_convos: number
+          sales_count: number
         }[]
       }
       check_rate_limit: {
@@ -1049,6 +1065,25 @@ export type Database = {
           days_quiet: number
           full_name: string
           last_logged_at: string
+        }[]
+      }
+      team_period_summary: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          agent_id: string
+          appts_held: number
+          appts_held_target: number
+          appts_set: number
+          calls_made: number
+          calls_target: number
+          depth: number
+          full_name: string
+          has_override: boolean
+          last_logged_at: string
+          pct_calls: number
+          premium_cents: number
+          premium_cents_target: number
+          streak_days: number
         }[]
       }
       team_target: {
