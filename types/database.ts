@@ -1,9 +1,3 @@
-// GENERATED FILE -- do not hand-edit.
-// Regenerate after any migration lands: `npm run types`, then commit the
-// diff in the same PR as the migration. Committed (not gitignored) because
-// the production build (Vercel, and CI once it runs) has no Supabase CLI
-// session to generate this against at build time -- see the P7.1 fix that
-// removed types/database.ts from .gitignore.
 export type Json =
   | string
   | number
@@ -1073,25 +1067,6 @@ export type Database = {
           last_logged_at: string
         }[]
       }
-      team_target: {
-        Args: { p_agent_id: string; p_week: string }
-        Returns: {
-          appts_held_per_week: number
-          calls_per_week: number
-          md_deadline: string
-          min_calls_per_day: number
-          premium_cents_per_week: number
-        }[]
-      }
-      team_trend: {
-        Args: { p_agent_ids?: string[]; p_weeks?: number }
-        Returns: {
-          calls_made: number
-          calls_target: number
-          premium_cents: number
-          week_start: string
-        }[]
-      }
       team_period_summary: {
         Args: { p_from: string; p_to: string }
         Returns: {
@@ -1109,6 +1084,25 @@ export type Database = {
           premium_cents: number
           premium_cents_target: number
           streak_days: number
+        }[]
+      }
+      team_target: {
+        Args: { p_agent_id: string; p_week: string }
+        Returns: {
+          appts_held_per_week: number
+          calls_per_week: number
+          md_deadline: string
+          min_calls_per_day: number
+          premium_cents_per_week: number
+        }[]
+      }
+      team_trend: {
+        Args: { p_agent_ids?: string[]; p_weeks?: number }
+        Returns: {
+          calls_made: number
+          calls_target: number
+          premium_cents: number
+          week_start: string
         }[]
       }
       team_week_summary: {
