@@ -86,7 +86,7 @@ export default async function DashboardPage({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Dashboard</h1>
+        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">My Dashboard</h1>
       </div>
 
       {/* Desktop reaches these via the rail nav's secondary group; the mobile
