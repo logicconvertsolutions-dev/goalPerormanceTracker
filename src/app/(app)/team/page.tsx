@@ -58,7 +58,7 @@ export default async function TeamPage({
   if (allAgents.length === 0) {
     return (
       <div className="space-y-4">
-        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Team</h1>
+        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">My Team</h1>
         <Card>
           <CardContent className="pt-4">
             <p className="text-sm text-fg-2">
@@ -123,7 +123,7 @@ export default async function TeamPage({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Team</h1>
+        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">My Team</h1>
         <div className="flex gap-2">
           <Button variant="secondary" asChild>
             <Link href="/team/organization">Organization</Link>

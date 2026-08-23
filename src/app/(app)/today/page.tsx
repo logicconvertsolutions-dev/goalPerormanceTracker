@@ -25,7 +25,7 @@ export default async function TodayPage() {
   return (
     <div className="space-y-4 max-w-lg">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Today</h1>
+        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">My Day</h1>
         <p className="text-sm text-fg-3">{callsToday ?? 0} calls logged today</p>
       </div>
 

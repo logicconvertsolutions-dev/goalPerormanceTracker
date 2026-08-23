@@ -4,10 +4,10 @@ export interface NavItem {
 }
 
 export const PRIMARY_NAV: NavItem[] = [
-  { href: '/today', label: 'Today' },
-  { href: '/log', label: 'Log' },
+  { href: '/today', label: 'My Day' },
+  { href: '/log', label: 'Log Activity' },
   { href: '/contacts', label: 'Contacts' },
-  { href: '/dashboard', label: 'Me' },
+  { href: '/dashboard', label: 'My Dashboard' },
 ];
 
 // Desktop rail only — the mobile tab bar has no room for a 5th/6th/7th slot,
@@ -18,4 +18,4 @@ export const SECONDARY_NAV: NavItem[] = [
   { href: '/recruiting', label: 'Recruiting' },
 ];
 
-export const LEADER_NAV: NavItem = { href: '/team', label: 'Team' };
+export const LEADER_NAV: NavItem = { href: '/team', label: 'My Team' };

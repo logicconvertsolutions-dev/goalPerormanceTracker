@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { uploadOrgLogoAction } from './actions';
@@ -9,6 +9,14 @@ export function OrgLogoUpload({ currentLogoUrl }: { currentLogoUrl: string | nul
   const [pending, startTransition] = useTransition();
   const [preview, setPreview] = useState<string | null>(currentLogoUrl);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // On success the server issues a fresh signed URL and revalidates the
+  // page, which flows back here as a new `currentLogoUrl` prop -- pick it
+  // up once it arrives so we stop pointing at the (now-revoked) blob
+  // preview from handleFileChange.
+  useEffect(() => {
+    setPreview(currentLogoUrl);
+  }, [currentLogoUrl]);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
