@@ -1,4 +1,4 @@
-import { requireAgent } from '@/lib/auth/guards';
+import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,7 @@ import { todayIso } from '@/lib/dates';
 import { TodayRow } from './today-row';
 
 export default async function TodayPage() {
-  const session = await requireAgent();
+  const session = await requireVerifiedAgent();
   const supabase = await createClient();
 
   const { data: followUps } = await supabase.rpc('my_followups');

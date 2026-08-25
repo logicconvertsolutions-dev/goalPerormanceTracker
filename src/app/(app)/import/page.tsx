@@ -1,8 +1,8 @@
-import { requireAgent } from '@/lib/auth/guards';
+import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { ImportFlow } from './import-flow';
 
 export default async function ImportPage() {
-  await requireAgent();
+  await requireVerifiedAgent();
 
   return (
     <div className="max-w-2xl space-y-4">

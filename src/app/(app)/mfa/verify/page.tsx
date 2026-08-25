@@ -19,7 +19,7 @@ export default async function MfaVerifyPage({
           Enter the code from your authenticator app to continue.
         </p>
       </div>
-      <MfaVerifyFlow next={next && next.startsWith('/') ? next : '/team'} />
+      <MfaVerifyFlow next={next && next.startsWith('/') ? next : '/today'} />
     </div>
   );
 }

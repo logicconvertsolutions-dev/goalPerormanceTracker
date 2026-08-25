@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { requireAgent } from '@/lib/auth/guards';
+import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { weekStart } from '@/lib/dates';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +9,7 @@ import { TimeZoneSelect } from './time-zone-select';
 import { DataActions } from './data-actions';
 
 export default async function SettingsPage() {
-  const session = await requireAgent();
+  const session = await requireVerifiedAgent();
   const supabase = await createClient();
 
   const [{ data: target }, { data: prefs }] = await Promise.all([

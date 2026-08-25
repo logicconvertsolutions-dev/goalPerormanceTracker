@@ -1,4 +1,4 @@
-import { requireAgent } from '@/lib/auth/guards';
+import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDisplayDate } from '@/lib/dates';
@@ -9,16 +9,16 @@ export default async function LogPage({
 }: {
   searchParams: { contact?: string; date?: string };
 }) {
-  const session = await requireAgent();
+  const session = await requireVerifiedAgent();
   const supabase = await createClient();
 
-  let prefill: { id: string; full_name: string; company: string | null } | null = null;
+  let prefill: { id: string; full_name: string } | null = null;
   let history: { call_date: string; outcome: string; notes: string | null }[] = [];
 
   if (searchParams.contact) {
     const { data: contact } = await supabase
       .from('contacts')
-      .select('id, full_name, company')
+      .select('id, full_name')
       .eq('id', searchParams.contact)
       .eq('agent_id', session.agent!.id)
       .maybeSingle();
@@ -44,7 +44,7 @@ export default async function LogPage({
         <CardContent>
           <LogTypeSwitcher
             defaultContactName={prefill?.full_name ?? ''}
-            defaultCompany={prefill?.company ?? ''}
+            defaultContactId={prefill?.id ?? ''}
             defaultDate={searchParams.date === 'today' ? undefined : searchParams.date}
           />
         </CardContent>

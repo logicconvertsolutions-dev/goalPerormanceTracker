@@ -1,4 +1,4 @@
-import { requireAgent } from '@/lib/auth/guards';
+import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { FullNameForm } from './full-name-form';
@@ -7,7 +7,7 @@ import { SignOutEverywhereButton } from './sign-out-everywhere-button';
 import { ResetMfaButton } from './reset-mfa-button';
 
 export default async function ProfilePage() {
-  const session = await requireAgent();
+  const session = await requireVerifiedAgent();
   const mfaEnabled = session.mfaEnrolled;
 
   return (

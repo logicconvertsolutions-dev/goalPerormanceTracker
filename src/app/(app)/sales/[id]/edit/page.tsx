@@ -1,15 +1,15 @@
 import { notFound } from 'next/navigation';
-import { requireAgent } from '@/lib/auth/guards';
+import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { SaleForm } from '../../sale-form';
 
 export default async function EditSalePage({ params }: { params: { id: string } }) {
-  const session = await requireAgent();
+  const session = await requireVerifiedAgent();
   const supabase = await createClient();
 
   const { data: sale } = await supabase
     .from('sales')
-    .select('id, sale_date, product_type, premium_cents, notes')
+    .select('id, sale_date, product_type, premium_cents, notes, follow_up_on')
     .eq('id', params.id)
     .eq('agent_id', session.agent!.id)
     .maybeSingle();
@@ -27,6 +27,7 @@ export default async function EditSalePage({ params }: { params: { id: string } 
           productType: sale.product_type,
           premiumCents: sale.premium_cents,
           notes: sale.notes,
+          followUpOn: sale.follow_up_on,
         }}
       />
     </div>
