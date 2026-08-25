@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { requireAgent } from '@/lib/auth/guards';
+import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ export default async function SalesPage({
   searchParams: Record<string, string | undefined>;
 }) {
   const params = searchParams;
-  const session = await requireAgent();
+  const session = await requireVerifiedAgent();
   const supabase = await createClient();
 
   const today = todayIso();

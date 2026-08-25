@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { requireAgent } from '@/lib/auth/guards';
+import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { FilterBar } from '@/components/shell/filter-bar';
 import { DailyBreakdownTable } from '@/components/shell/daily-breakdown-table';
@@ -26,7 +26,7 @@ export default async function DashboardPage({
   searchParams: Record<string, string | undefined>;
 }) {
   const params = searchParams;
-  const session = await requireAgent();
+  const session = await requireVerifiedAgent();
   const agentId = session.agent!.id;
   const supabase = await createClient();
 

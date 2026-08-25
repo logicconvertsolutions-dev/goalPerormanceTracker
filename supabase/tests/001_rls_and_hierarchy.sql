@@ -344,8 +344,8 @@ select throws_ok(
 ); -- setting assoc_3.upline_id = smd_x is rejected by the same-org trigger
 
 -- Return-shape assertion: no RPC leaks a name/note/free-text field, except
--- the deliberate exception my_followups.contact_name/company/last_note,
--- which is the agent's OWN data (never crosses the hierarchy boundary).
+-- the deliberate exception my_followups.contact_name/last_note, which is
+-- the agent's OWN data (never crosses the hierarchy boundary).
 select is(
   (select count(*)::int from information_schema.routines r
    join information_schema.parameters p

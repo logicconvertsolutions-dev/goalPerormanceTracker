@@ -9,10 +9,15 @@ import { todayIso } from '@/lib/dates';
 
 const saleSchema = z.object({
   clientName: z.string().min(1, 'Enter the client name.').max(200),
-  saleDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
+  contactId: z.string().uuid().optional(),
+  saleDate: z
+    .string()
+    .refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.')
+    .refine((v) => v <= todayIso(), 'Sale date cannot be in the future.'),
   productType: z.string().max(200).optional(),
   premiumCents: z.coerce.number().int().min(0).default(0),
   notes: z.string().max(2000).optional(),
+  followUpOn: z.string().optional(),
   clientRequestId: z.string().optional(),
 });
 
@@ -23,10 +28,12 @@ const UNIQUE_VIOLATION = '23505';
 export async function createSaleAction(formData: FormData) {
   const parsed = saleSchema.safeParse({
     clientName: formData.get('clientName'),
+    contactId: formData.get('contactId') || undefined,
     saleDate: formData.get('saleDate') || todayIso(),
     productType: formData.get('productType') || undefined,
     premiumCents: formData.get('premiumCents') || 0,
     notes: formData.get('notes') || undefined,
+    followUpOn: formData.get('followUpOn') || undefined,
     clientRequestId: formData.get('clientRequestId') || undefined,
   });
 
@@ -39,7 +46,13 @@ export async function createSaleAction(formData: FormData) {
   const orgId = session.agent!.org_id;
   const supabase = await createClient();
 
-  const contact = await findOrCreateContact(supabase, agentId, orgId, parsed.data.clientName);
+  const contact = await findOrCreateContact(
+    supabase,
+    agentId,
+    orgId,
+    parsed.data.clientName,
+    parsed.data.contactId
+  );
   if ('error' in contact) return { ok: false, error: contact.error };
 
   const { error } = await supabase.from('sales').insert({
@@ -50,6 +63,7 @@ export async function createSaleAction(formData: FormData) {
     product_type: parsed.data.productType || null,
     premium_cents: parsed.data.premiumCents,
     notes: parsed.data.notes || null,
+    follow_up_on: parsed.data.followUpOn || null,
     client_request_id: parsed.data.clientRequestId || null,
   });
 
@@ -75,6 +89,7 @@ export async function updateSaleAction(formData: FormData) {
     productType: formData.get('productType') || undefined,
     premiumCents: formData.get('premiumCents') || 0,
     notes: formData.get('notes') || undefined,
+    followUpOn: formData.get('followUpOn') || undefined,
   });
 
   if (!parsed.success) {
@@ -91,6 +106,7 @@ export async function updateSaleAction(formData: FormData) {
       product_type: parsed.data.productType || null,
       premium_cents: parsed.data.premiumCents,
       notes: parsed.data.notes || null,
+      follow_up_on: parsed.data.followUpOn || null,
     })
     .eq('id', parsed.data.id)
     .eq('agent_id', session.agent!.id);

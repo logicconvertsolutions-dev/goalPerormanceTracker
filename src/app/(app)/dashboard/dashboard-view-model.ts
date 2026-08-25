@@ -5,7 +5,6 @@
 import {
   conversionFunnel,
   currentStreak,
-  daysToMdDeadline,
   pipelineValueOpenAppts,
   type DailyMetricsRow,
   type FunnelResult,
@@ -43,7 +42,6 @@ export interface EffectiveTarget {
   appts_held_per_week: number;
   premium_cents_per_week: number;
   min_calls_per_day: number;
-  md_deadline: string | null;
 }
 
 export interface DashboardViewModel {
@@ -52,7 +50,6 @@ export interface DashboardViewModel {
   apptsHeld: number;
   premiumCents: number;
   streak: number;
-  daysToDeadline: number | null;
   callsTarget: { value: string; pct: number } | undefined;
   apptsTarget: { value: string; pct: number } | undefined;
   premiumTarget: { value: string; pct: number } | undefined;
@@ -116,7 +113,6 @@ export function buildDashboardViewModel(input: {
 
   const pipelineValueCents = pipelineValueOpenAppts(openAppointments);
   const streak = currentStreak(streakRows, target?.min_calls_per_day ?? 15, today);
-  const daysToDeadline = target?.md_deadline ? daysToMdDeadline(target.md_deadline, today) : null;
 
   const callsTargetPct = scaled?.calls_per_week ? Math.round((100 * (t2?.calls_made ?? 0)) / scaled.calls_per_week) : 0;
   const apptsTargetPct = scaled?.appts_held_per_week
@@ -149,7 +145,6 @@ export function buildDashboardViewModel(input: {
     apptsHeld: t2?.appt_held ?? 0,
     premiumCents: t2?.premium_cents ?? 0,
     streak,
-    daysToDeadline,
     callsTarget: scaled
       ? { value: `${targetPrefix}${scaled.calls_per_week}`, pct: callsTargetPct }
       : undefined,

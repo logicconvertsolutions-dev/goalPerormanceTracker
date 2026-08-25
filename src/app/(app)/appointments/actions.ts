@@ -11,13 +11,17 @@ const APPT_STATUSES = ['scheduled', 'held', 'no_show', 'rescheduled', 'cancelled
 
 const appointmentSchema = z.object({
   contactName: z.string().min(1, 'Enter who the appointment is with.').max(200),
-  company: z.string().max(200).optional(),
-  apptDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
+  contactId: z.string().uuid().optional(),
+  apptDate: z
+    .string()
+    .refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.')
+    .refine((v) => v <= todayIso(), 'Appointment date cannot be in the future.'),
   apptType: z.string().max(200).optional(),
   status: z.enum(APPT_STATUSES),
   expectedPremiumCents: z.coerce.number().int().min(0).default(0),
   referralsGiven: z.coerce.number().int().min(0).default(0),
   notes: z.string().max(2000).optional(),
+  followUpOn: z.string().optional(),
   clientRequestId: z.string().optional(),
 });
 
@@ -28,13 +32,14 @@ const UNIQUE_VIOLATION = '23505';
 export async function createAppointmentAction(formData: FormData) {
   const parsed = appointmentSchema.safeParse({
     contactName: formData.get('contactName'),
-    company: formData.get('company') || undefined,
+    contactId: formData.get('contactId') || undefined,
     apptDate: formData.get('apptDate') || todayIso(),
     apptType: formData.get('apptType') || undefined,
     status: formData.get('status') || 'scheduled',
     expectedPremiumCents: formData.get('expectedPremiumCents') || 0,
     referralsGiven: formData.get('referralsGiven') || 0,
     notes: formData.get('notes') || undefined,
+    followUpOn: formData.get('followUpOn') || undefined,
     clientRequestId: formData.get('clientRequestId') || undefined,
   });
 
@@ -52,7 +57,7 @@ export async function createAppointmentAction(formData: FormData) {
     agentId,
     orgId,
     parsed.data.contactName,
-    parsed.data.company
+    parsed.data.contactId
   );
   if ('error' in contact) return { ok: false, error: contact.error };
 
@@ -66,6 +71,7 @@ export async function createAppointmentAction(formData: FormData) {
     expected_premium_cents: parsed.data.expectedPremiumCents,
     referrals_given: parsed.data.referralsGiven,
     notes: parsed.data.notes || null,
+    follow_up_on: parsed.data.followUpOn || null,
     client_request_id: parsed.data.clientRequestId || null,
   });
 
@@ -93,6 +99,7 @@ export async function updateAppointmentAction(formData: FormData) {
     expectedPremiumCents: formData.get('expectedPremiumCents') || 0,
     referralsGiven: formData.get('referralsGiven') || 0,
     notes: formData.get('notes') || undefined,
+    followUpOn: formData.get('followUpOn') || undefined,
   });
 
   if (!parsed.success) {
@@ -111,6 +118,7 @@ export async function updateAppointmentAction(formData: FormData) {
       expected_premium_cents: parsed.data.expectedPremiumCents,
       referrals_given: parsed.data.referralsGiven,
       notes: parsed.data.notes || null,
+      follow_up_on: parsed.data.followUpOn || null,
     })
     .eq('id', parsed.data.id)
     .eq('agent_id', session.agent!.id);

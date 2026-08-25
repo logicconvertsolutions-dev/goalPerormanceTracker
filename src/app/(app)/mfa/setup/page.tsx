@@ -6,10 +6,9 @@ export default async function MfaSetupPage({
 }: {
   searchParams: Promise<{ required?: string }>;
 }) {
-  const session = await requireAgent();
+  await requireAgent();
   const { required } = await searchParams;
-  const isRequired = required === 'team' &&
-    (session.agent!.role === 'leader' || session.agent!.role === 'admin');
+  const isRequired = required === 'login' || required === 'team';
 
   return (
     <div className="max-w-md space-y-4">
@@ -18,9 +17,7 @@ export default async function MfaSetupPage({
           Set up two-factor authentication
         </h1>
         {isRequired && (
-          <p className="text-sm text-warn mt-1">
-            Required before you can access /team.
-          </p>
+          <p className="text-sm text-warn mt-1">Required before you can continue.</p>
         )}
       </div>
       <MfaEnrollFlow />

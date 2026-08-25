@@ -15,27 +15,33 @@ export async function requireAgent(): Promise<SessionAgent> {
 }
 
 /**
- * Leader or admin, with MFA verified. Per docs/09-account-and-auth.md a
- * leader without MFA is blocked from /team — redirect to setup, not a 403.
- *
- * A leader who already has a verified factor but whose *session* hasn't
- * stepped up to aal2 (e.g. a fresh sign-in) goes to the step-up challenge,
- * not enrollment — sending them back to /mfa/setup would either error
+ * Any signed-in, active agent with MFA verified. Every regular app page
+ * requires this now (not just leaders) — a user with no verified factor
+ * goes to enrollment, one whose *session* hasn't stepped up to aal2 (e.g. a
+ * fresh sign-in with an already-enrolled factor) goes to the step-up
+ * challenge instead — sending them back to /mfa/setup would either error
  * (already enrolled) or, worse, silently enroll a second factor while never
  * actually solving why this session is stuck at aal1.
+ *
+ * mfa/setup and mfa/verify themselves must keep calling requireAgent()
+ * directly, never this — routing through here would redirect right back to
+ * itself.
  */
-export async function requireLeader(): Promise<SessionAgent> {
+export async function requireVerifiedAgent(): Promise<SessionAgent> {
   const session = await requireAgent();
+
+  if (!session.mfaVerified) {
+    redirect(session.mfaEnrolled ? '/mfa/verify' : '/mfa/setup?required=login');
+  }
+  return session;
+}
+
+/** Leader or admin, with MFA verified (see requireVerifiedAgent). */
+export async function requireLeader(): Promise<SessionAgent> {
+  const session = await requireVerifiedAgent();
 
   if (session.agent!.role !== 'leader' && session.agent!.role !== 'admin') {
     redirect('/dashboard?toast=team-restricted');
-  }
-  if (!session.mfaVerified) {
-    redirect(
-      session.mfaEnrolled
-        ? '/mfa/verify?next=%2Fteam'
-        : '/mfa/setup?required=team'
-    );
   }
   return session;
 }

@@ -1,8 +1,8 @@
-import { requireAgent } from '@/lib/auth/guards';
+import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { RecruitingForm } from '../recruiting-form';
 
 export default async function NewRecruitingLogPage() {
-  await requireAgent();
+  await requireVerifiedAgent();
 
   return (
     <div className="max-w-md space-y-4">

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { requireAgent } from '@/lib/auth/guards';
+import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,12 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import { formatDisplayDate } from '@/lib/dates';
 
 export default async function ContactDetailPage({ params }: { params: { id: string } }) {
-  const session = await requireAgent();
+  const session = await requireVerifiedAgent();
   const supabase = await createClient();
 
   const { data: contact } = await supabase
     .from('contacts')
-    .select('id, full_name, company, created_at')
+    .select('id, full_name, created_at')
     .eq('id', params.id)
     .eq('agent_id', session.agent!.id)
     .maybeSingle();
@@ -46,7 +46,6 @@ export default async function ContactDetailPage({ params }: { params: { id: stri
           <h1 className="text-xl font-semibold tracking-heading-tight text-fg">
             {contact.full_name}
           </h1>
-          {contact.company && <p className="text-sm text-fg-3">{contact.company}</p>}
         </div>
         <div className="flex gap-2">
           <Button asChild variant="secondary">

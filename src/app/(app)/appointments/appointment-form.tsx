@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { todayIso } from '@/lib/dates';
+import { ContactPicker } from '@/components/shell/contact-picker';
+import { todayIso, addDays, nextMonday } from '@/lib/dates';
 import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
 import { createAppointmentAction, updateAppointmentAction } from './actions';
 
@@ -20,25 +21,54 @@ const STATUSES = [
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
+// Statuses that describe an appointment that's done but may need another
+// touch — held/no-show/rescheduled/cancelled can all need a follow-up call;
+// "scheduled" doesn't (it's already the pending item).
+const NEEDS_FOLLOW_UP_STATUSES = new Set(['held', 'no_show', 'rescheduled', 'cancelled']);
+
+function Chip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        active
+          ? 'rounded-full border border-acc-line bg-acc-dim px-3 py-1.5 text-xs font-medium text-acc transition-smooth'
+          : 'rounded-full border border-line-2 px-3 py-1.5 text-xs font-medium text-fg-2 transition-smooth hover:bg-hover hover:text-fg'
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
 export function AppointmentForm({
   mode = 'create',
   defaultValues,
   prefillContactName,
-  prefillCompany,
+  prefillContactId,
 }: {
   mode?: 'create' | 'edit';
   prefillContactName?: string;
-  prefillCompany?: string;
+  prefillContactId?: string;
   defaultValues?: {
     id: string;
     contactName?: string;
-    company?: string;
     apptDate: string;
     apptType: string | null;
     status: string;
     expectedPremiumCents: number;
     referralsGiven: number;
     notes: string | null;
+    followUpOn?: string | null;
   };
 }) {
   const router = useRouter();
@@ -47,12 +77,18 @@ export function AppointmentForm({
   const [premiumDollars, setPremiumDollars] = useState(
     defaultValues ? String(defaultValues.expectedPremiumCents / 100) : '0'
   );
+  const [followUpOn, setFollowUpOn] = useState(defaultValues?.followUpOn ?? '');
+  const [showFollowUpPicker, setShowFollowUpPicker] = useState(false);
+  const apptDate = defaultValues?.apptDate ?? todayIso();
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     formData.set('status', status);
     formData.set('expectedPremiumCents', String(Math.round(Number(premiumDollars || 0) * 100)));
+    if (NEEDS_FOLLOW_UP_STATUSES.has(status) && followUpOn) {
+      formData.set('followUpOn', followUpOn);
+    }
 
     if (mode === 'edit') {
       formData.set('id', defaultValues!.id);
@@ -83,22 +119,11 @@ export function AppointmentForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {mode === 'create' && (
-        <>
-          <div className="space-y-1.5">
-            <Label htmlFor="contactName">Who is this with?</Label>
-            <Input
-              id="contactName"
-              name="contactName"
-              defaultValue={prefillContactName ?? ''}
-              placeholder="Contact name"
-              required
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="company">Company (optional)</Label>
-            <Input id="company" name="company" defaultValue={prefillCompany ?? ''} />
-          </div>
-        </>
+        <ContactPicker
+          label="Who is this with?"
+          defaultName={prefillContactName ?? ''}
+          defaultId={prefillContactId ?? ''}
+        />
       )}
 
       <div className="space-y-1.5">
@@ -107,7 +132,8 @@ export function AppointmentForm({
           id="apptDate"
           name="apptDate"
           type="date"
-          defaultValue={defaultValues?.apptDate ?? todayIso()}
+          defaultValue={apptDate}
+          max={todayIso()}
           required
         />
       </div>
@@ -137,6 +163,40 @@ export function AppointmentForm({
           </SelectContent>
         </Select>
       </div>
+
+      {NEEDS_FOLLOW_UP_STATUSES.has(status) && (
+        <div className="space-y-1.5">
+          <Label>Needs another follow-up?</Label>
+          <div className="flex flex-wrap gap-2">
+            <Chip active={followUpOn === addDays(apptDate, 1)} onClick={() => { setFollowUpOn(addDays(apptDate, 1)); setShowFollowUpPicker(false); }}>
+              Tomorrow
+            </Chip>
+            <Chip active={followUpOn === nextMonday(apptDate)} onClick={() => { setFollowUpOn(nextMonday(apptDate)); setShowFollowUpPicker(false); }}>
+              Monday
+            </Chip>
+            <Chip active={followUpOn === addDays(apptDate, 7)} onClick={() => { setFollowUpOn(addDays(apptDate, 7)); setShowFollowUpPicker(false); }}>
+              Next week
+            </Chip>
+            <Chip active={showFollowUpPicker} onClick={() => setShowFollowUpPicker(true)}>
+              Pick a date
+            </Chip>
+            {followUpOn && (
+              <Chip active={false} onClick={() => { setFollowUpOn(''); setShowFollowUpPicker(false); }}>
+                Clear
+              </Chip>
+            )}
+          </div>
+          {showFollowUpPicker && (
+            <Input
+              type="date"
+              value={followUpOn}
+              min={apptDate}
+              onChange={(e) => setFollowUpOn(e.target.value)}
+              className="w-auto"
+            />
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
