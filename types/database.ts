@@ -143,6 +143,8 @@ export type Database = {
           contact_id: string
           created_at: string
           expected_premium_cents: number
+          follow_up_done_at: string | null
+          follow_up_on: string | null
           id: string
           import_row_hash: string | null
           notes: string | null
@@ -158,6 +160,8 @@ export type Database = {
           contact_id: string
           created_at?: string
           expected_premium_cents?: number
+          follow_up_done_at?: string | null
+          follow_up_on?: string | null
           id?: string
           import_row_hash?: string | null
           notes?: string | null
@@ -173,6 +177,8 @@ export type Database = {
           contact_id?: string
           created_at?: string
           expected_premium_cents?: number
+          follow_up_done_at?: string | null
+          follow_up_on?: string | null
           id?: string
           import_row_hash?: string | null
           notes?: string | null
@@ -310,7 +316,6 @@ export type Database = {
       contacts: {
         Row: {
           agent_id: string
-          company: string | null
           created_at: string
           full_name: string
           id: string
@@ -318,7 +323,6 @@ export type Database = {
         }
         Insert: {
           agent_id: string
-          company?: string | null
           created_at?: string
           full_name: string
           id?: string
@@ -326,7 +330,6 @@ export type Database = {
         }
         Update: {
           agent_id?: string
-          company?: string | null
           created_at?: string
           full_name?: string
           id?: string
@@ -723,6 +726,8 @@ export type Database = {
           client_request_id: string | null
           contact_id: string | null
           created_at: string
+          follow_up_done_at: string | null
+          follow_up_on: string | null
           id: string
           import_row_hash: string | null
           notes: string | null
@@ -737,6 +742,8 @@ export type Database = {
           client_request_id?: string | null
           contact_id?: string | null
           created_at?: string
+          follow_up_done_at?: string | null
+          follow_up_on?: string | null
           id?: string
           import_row_hash?: string | null
           notes?: string | null
@@ -751,6 +758,8 @@ export type Database = {
           client_request_id?: string | null
           contact_id?: string | null
           created_at?: string
+          follow_up_done_at?: string | null
+          follow_up_on?: string | null
           id?: string
           import_row_hash?: string | null
           notes?: string | null
@@ -963,7 +972,6 @@ export type Database = {
         Args: { p_as_of?: string }
         Returns: {
           call_id: string
-          company: string
           contact_id: string
           contact_name: string
           days_late: number
