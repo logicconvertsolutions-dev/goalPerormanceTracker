@@ -26,7 +26,9 @@ export async function updateOrgNameAction(formData: FormData) {
 }
 
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
-const MAX_BYTES = 2 * 1024 * 1024;
+// Matches the org-logos bucket's file_size_limit (p8a migration). 2MB was too
+// tight for a logo exported straight off a phone camera.
+const MAX_BYTES = 5 * 1024 * 1024;
 
 export async function uploadOrgLogoAction(formData: FormData) {
   const session = await getSessionAgent();

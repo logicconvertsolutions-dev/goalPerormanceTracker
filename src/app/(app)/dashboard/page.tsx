@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import { ListChecks } from 'lucide-react';
 import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
+import { Button } from '@/components/ui/button';
 import { FilterBar } from '@/components/shell/filter-bar';
 import { DailyBreakdownTable } from '@/components/shell/daily-breakdown-table';
 import type { DailyMetricsRow } from '@/lib/metrics';
@@ -87,20 +89,14 @@ export default async function DashboardPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold tracking-heading-tight text-fg">My Dashboard</h1>
-      </div>
-
-      {/* Desktop reaches these via the rail nav's secondary group; the mobile
-          tab bar has no room for them, so they need a link here too. */}
-      <div className="flex flex-wrap gap-3 text-sm md:hidden">
-        <Link href="/appointments" className="text-acc hover:underline">
-          Appointments →
-        </Link>
-        <Link href="/sales" className="text-acc hover:underline">
-          Sales →
-        </Link>
-        <Link href="/recruiting" className="text-acc hover:underline">
-          Recruiting →
-        </Link>
+        {/* Desktop reaches this via the rail nav's secondary group; the
+            mobile tab bar has no room for it, so it needs a link here too. */}
+        <Button asChild variant="secondary" size="sm" className="md:hidden">
+          <Link href="/logs">
+            <ListChecks className="h-4 w-4" aria-hidden="true" />
+            Activity logs
+          </Link>
+        </Button>
       </div>
 
       <FilterBar preset={preset} customFrom={params.from} customTo={params.to}>

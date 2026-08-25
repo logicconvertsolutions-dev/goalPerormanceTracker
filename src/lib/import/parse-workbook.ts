@@ -5,7 +5,13 @@ import { createHash } from 'node:crypto';
 export type CallSource = 'warm_market' | 'referral' | 'cold' | 'social_media' | 'friend' | 'other';
 export type CallOutcome = 'connected' | 'voicemail' | 'no_answer' | 'appointment_set' | 'not_interested';
 export type ApptStatus = 'scheduled' | 'held' | 'no_show' | 'rescheduled' | 'cancelled';
-export type RecruitStatus = 'contacted' | 'interviewed' | 'joined' | 'licensed' | 'declined';
+export type RecruitStatus =
+  | 'contacted'
+  | 'marketing_presented'
+  | 'recruited'
+  | 'certified'
+  | 'licensed'
+  | 'declined';
 
 // Title Case workbook labels -> snake_case DB enum values. Shared source of
 // truth for the parser and its tests.
@@ -35,13 +41,18 @@ export const APPT_STATUS_LABEL_MAP: Record<string, ApptStatus> = {
   Cancelled: 'cancelled',
 };
 
-// "Interview Scheduled" has no exact enum match — mapped to 'interviewed'
-// per product decision (closest existing value, no schema change).
+// Legacy workbook labels ("Interview Scheduled", "Interviewed", "Joined")
+// map onto the current pipeline stage names — no exact match for the old
+// "Interview Scheduled" wording, so it lands on 'marketing_presented'
+// (closest existing value, per product decision).
 export const RECRUIT_STATUS_LABEL_MAP: Record<string, RecruitStatus> = {
   Contacted: 'contacted',
-  'Interview Scheduled': 'interviewed',
-  Interviewed: 'interviewed',
-  Joined: 'joined',
+  'Interview Scheduled': 'marketing_presented',
+  Interviewed: 'marketing_presented',
+  'Marketing Presented': 'marketing_presented',
+  Joined: 'recruited',
+  Recruited: 'recruited',
+  Certified: 'certified',
   Licensed: 'licensed',
   Declined: 'declined',
 };

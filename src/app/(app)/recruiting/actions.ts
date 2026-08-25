@@ -8,7 +8,14 @@ import { findOrCreateContact } from '@/lib/contacts';
 import { todayIso } from '@/lib/dates';
 
 const CALL_SOURCES = ['warm_market', 'referral', 'cold', 'social_media', 'friend', 'other'] as const;
-const RECRUIT_STATUSES = ['contacted', 'interviewed', 'joined', 'licensed', 'declined'] as const;
+const RECRUIT_STATUSES = [
+  'contacted',
+  'marketing_presented',
+  'recruited',
+  'certified',
+  'licensed',
+  'declined',
+] as const;
 
 const recruitingSchema = z.object({
   prospectName: z.string().min(1, 'Enter the prospect name.').max(200),
@@ -59,10 +66,12 @@ export async function createRecruitingLogAction(formData: FormData) {
   // A duplicate client_request_id means this exact submission already
   // succeeded (offline retry) -- treat as success, not an error.
   if (error && error.code !== UNIQUE_VIOLATION) {
+    console.error('createRecruitingLogAction: insert failed', error);
     return { ok: false, error: 'Could not save the recruiting log.' };
   }
 
   revalidatePath('/recruiting');
+  revalidatePath('/logs');
   revalidatePath(`/contacts/${contact.id}`);
   return { ok: true };
 }
@@ -98,9 +107,13 @@ export async function updateRecruitingLogAction(formData: FormData) {
     .eq('id', parsed.data.id)
     .eq('agent_id', session.agent!.id);
 
-  if (error) return { ok: false, error: 'Could not update the recruiting log.' };
+  if (error) {
+    console.error('updateRecruitingLogAction: update failed', error);
+    return { ok: false, error: 'Could not update the recruiting log.' };
+  }
 
   revalidatePath('/recruiting');
+  revalidatePath('/logs');
   return { ok: true };
 }
 
@@ -115,6 +128,7 @@ export async function updateRecruitingStatusAction(id: string, status: (typeof R
     .eq('agent_id', session.agent!.id);
 
   revalidatePath('/recruiting');
+  revalidatePath('/logs');
   return { ok: !error };
 }
 
@@ -129,5 +143,6 @@ export async function deleteRecruitingLogAction(id: string) {
     .eq('agent_id', session.agent!.id);
 
   revalidatePath('/recruiting');
+  revalidatePath('/logs');
   return { ok: !error };
 }

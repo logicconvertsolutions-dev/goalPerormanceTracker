@@ -3,7 +3,9 @@ import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { todayIso } from '@/lib/dates';
+import { todayIso, formatDisplayDate } from '@/lib/dates';
+import { fetchRecentActivity } from '@/lib/recent-activity';
+import { ACTIVITY_META } from '@/components/shell/activity-icons';
 import { TodayRow } from './today-row';
 
 export default async function TodayPage() {
@@ -18,6 +20,8 @@ export default async function TodayPage() {
     .select('id', { count: 'exact', head: true })
     .eq('agent_id', session.agent!.id)
     .eq('call_date', todayIso());
+
+  const recentActivity = await fetchRecentActivity(supabase, session.agent!.id, 7);
 
   const overdue = rows.filter((r) => r.days_late > 0);
   const dueToday = rows.filter((r) => r.days_late === 0);
@@ -97,6 +101,38 @@ export default async function TodayPage() {
           </div>
         </>
       )}
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-sm">Recent activity</CardTitle>
+          <Link href="/logs" className="text-xs text-acc hover:underline">
+            View all →
+          </Link>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {recentActivity.length === 0 ? (
+            <p className="text-sm text-fg-3">Nothing logged yet.</p>
+          ) : (
+            recentActivity.map((item) => {
+              const Icon = ACTIVITY_META[item.kind].icon;
+              return (
+                <div key={`${item.kind}-${item.id}`} className="flex items-center gap-3 text-sm">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-panel-2 text-fg-2">
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-fg font-medium">{item.contactName}</p>
+                    <p className="truncate text-xs text-fg-3">{item.summary}</p>
+                  </div>
+                  <span className="shrink-0 text-xs text-fg-4">
+                    {formatDisplayDate(item.createdAt.slice(0, 10))}
+                  </span>
+                </div>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

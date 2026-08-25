@@ -23,8 +23,9 @@ const SOURCES = [
 
 const STATUSES = [
   { value: 'contacted', label: 'Contacted' },
-  { value: 'interviewed', label: 'Interviewed' },
-  { value: 'joined', label: 'Joined' },
+  { value: 'marketing_presented', label: 'Marketing Presented' },
+  { value: 'recruited', label: 'Recruited' },
+  { value: 'certified', label: 'Certified' },
   { value: 'licensed', label: 'Licensed' },
   { value: 'declined', label: 'Declined' },
 ];

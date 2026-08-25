@@ -66,7 +66,7 @@ export function OrgLogoUpload({ currentLogoUrl }: { currentLogoUrl: string | nul
         >
           {pending ? 'Uploading…' : 'Upload logo'}
         </Button>
-        <p className="text-xs text-fg-3">PNG, JPEG, WebP, or SVG. Under 2MB.</p>
+        <p className="text-xs text-fg-3">PNG, JPEG, WebP, or SVG. Under 5MB.</p>
       </div>
     </div>
   );
