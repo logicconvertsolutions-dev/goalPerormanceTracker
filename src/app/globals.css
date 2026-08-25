@@ -58,3 +58,18 @@ button:active:focus-visible {
     @apply transition-all duration-200 ease-in-out;
   }
 }
+
+/* Respect the user's motion preference (docs/03-ui.md: "Honour prefers-reduced-motion") */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
