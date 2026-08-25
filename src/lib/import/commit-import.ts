@@ -91,7 +91,7 @@ async function commitCallLog(
   data: CallLogImportData,
   rowHash: string
 ): Promise<CommitOutcome> {
-  const contact = await findOrCreateContact(supabase, agentId, orgId, data.contactName, data.company);
+  const contact = await findOrCreateContact(supabase, agentId, orgId, data.contactName);
   if ('error' in contact) return { message: contact.error };
 
   const { error } = await supabase.from('call_logs').insert({

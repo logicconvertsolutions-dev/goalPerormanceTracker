@@ -1,4 +1,13 @@
-import { CalendarDays, ListPlus, Users, LayoutDashboard, UsersRound, ListChecks, type LucideIcon } from 'lucide-react';
+import {
+  CalendarDays,
+  ListPlus,
+  Users,
+  LayoutDashboard,
+  UsersRound,
+  ListChecks,
+  NotebookText,
+  type LucideIcon,
+} from 'lucide-react';
 
 export interface NavItem {
   href: string;
@@ -17,6 +26,7 @@ export const PRIMARY_NAV: NavItem[] = [
 // this stays reachable on mobile via the quick-link on /dashboard instead.
 export const SECONDARY_NAV: NavItem[] = [
   { href: '/logs', label: 'Activity Logs', icon: ListChecks },
+  { href: '/notes', label: 'Meeting Notes', icon: NotebookText },
 ];
 
 export const LEADER_NAV: NavItem = { href: '/team', label: 'My Team', icon: UsersRound };

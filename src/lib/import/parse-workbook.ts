@@ -59,7 +59,6 @@ export const RECRUIT_STATUS_LABEL_MAP: Record<string, RecruitStatus> = {
 
 export interface CallLogImportData {
   contactName: string;
-  company: string | null;
   callDate: string;
   source: CallSource;
   outcome: CallOutcome;
@@ -167,7 +166,10 @@ function rowHashFor(fileHash: string, sheet: string, rowNumber: number): string 
 }
 
 function parseCallLogRow(cells: unknown[]): { data: CallLogImportData | null; errors: string[] } {
-  const [dateCell, contactName, company, sourceLabel, outcomeLabel, notes] = cells;
+  // Company was column index 2 in the source workbook layout — still
+  // skipped positionally so existing import templates don't need to change,
+  // just no longer read into the app (company isn't collected anymore).
+  const [dateCell, contactName, , sourceLabel, outcomeLabel, notes] = cells;
   const errors: string[] = [];
 
   const callDate = parseWorkbookDate(dateCell);
@@ -185,7 +187,7 @@ function parseCallLogRow(cells: unknown[]): { data: CallLogImportData | null; er
   if (errors.length > 0 || !callDate || !name || !source || !outcome) return { data: null, errors };
 
   return {
-    data: { contactName: name, company: toTextOrNull(company), callDate, source, outcome, notes: toTextOrNull(notes) },
+    data: { contactName: name, callDate, source, outcome, notes: toTextOrNull(notes) },
     errors: [],
   };
 }

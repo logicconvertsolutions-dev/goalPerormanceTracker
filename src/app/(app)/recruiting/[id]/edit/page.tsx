@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation';
-import { requireAgent } from '@/lib/auth/guards';
+import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { RecruitingForm } from '../../recruiting-form';
 
 export default async function EditRecruitingLogPage({ params }: { params: { id: string } }) {
-  const session = await requireAgent();
+  const session = await requireVerifiedAgent();
   const supabase = await createClient();
 
   const { data: log } = await supabase

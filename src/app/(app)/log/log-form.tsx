@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ContactPicker } from '@/components/shell/contact-picker';
 import { cn } from '@/lib/utils';
 import { addDays, nextMonday, todayIso } from '@/lib/dates';
 import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
@@ -57,11 +58,11 @@ function Chip({
 
 export function LogForm({
   defaultContactName = '',
-  defaultCompany = '',
+  defaultContactId = '',
   defaultDate,
 }: {
   defaultContactName?: string;
-  defaultCompany?: string;
+  defaultContactId?: string;
   defaultDate?: string;
 }) {
   const router = useRouter();
@@ -123,31 +124,26 @@ export function LogForm({
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="contactName">Who did you call?</Label>
-        <Input
-          id="contactName"
-          name="contactName"
-          defaultValue={defaultContactName}
-          placeholder="Contact name"
-          required
-        />
-      </div>
+      <ContactPicker
+        label="Who did you call?"
+        defaultName={defaultContactName}
+        defaultId={defaultContactId}
+      />
 
       <div className="space-y-1.5">
-        <Label htmlFor="company">Company (optional)</Label>
-        <Input id="company" name="company" defaultValue={defaultCompany} />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>Source</Label>
-        <div className="flex flex-wrap gap-2">
-          {SOURCES.map((s) => (
-            <Chip key={s.value} active={source === s.value} onClick={() => setSource(s.value)}>
-              {s.label}
-            </Chip>
-          ))}
-        </div>
+        <Label htmlFor="source">Source</Label>
+        <Select name="source" value={source} onValueChange={setSource} required>
+          <SelectTrigger id="source">
+            <SelectValue placeholder="Select a source" />
+          </SelectTrigger>
+          <SelectContent>
+            {SOURCES.map((s) => (
+              <SelectItem key={s.value} value={s.value}>
+                {s.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-1.5">
@@ -166,7 +162,7 @@ export function LogForm({
         </Select>
       </div>
 
-      {outcome === 'connected' && (
+      {outcome && (
         <div className="space-y-1.5">
           <Label>Call back on…</Label>
           <div className="flex flex-wrap gap-2">

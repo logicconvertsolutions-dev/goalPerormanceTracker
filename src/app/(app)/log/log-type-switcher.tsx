@@ -20,11 +20,11 @@ const RecruitingIcon = ACTIVITY_META.recruiting.icon;
  */
 export function LogTypeSwitcher({
   defaultContactName,
-  defaultCompany,
+  defaultContactId,
   defaultDate,
 }: {
   defaultContactName?: string;
-  defaultCompany?: string;
+  defaultContactId?: string;
   defaultDate?: string;
 }) {
   return (
@@ -51,7 +51,7 @@ export function LogTypeSwitcher({
       <TabsContent value="call">
         <LogForm
           defaultContactName={defaultContactName}
-          defaultCompany={defaultCompany}
+          defaultContactId={defaultContactId}
           defaultDate={defaultDate}
         />
       </TabsContent>
@@ -59,7 +59,7 @@ export function LogTypeSwitcher({
         <AppointmentForm
           mode="create"
           prefillContactName={defaultContactName}
-          prefillCompany={defaultCompany}
+          prefillContactId={defaultContactId}
         />
       </TabsContent>
       <TabsContent value="sale">

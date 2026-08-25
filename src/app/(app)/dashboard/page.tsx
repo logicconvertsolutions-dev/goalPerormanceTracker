@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ListChecks } from 'lucide-react';
-import { requireAgent } from '@/lib/auth/guards';
+import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Button } from '@/components/ui/button';
 import { FilterBar } from '@/components/shell/filter-bar';
@@ -28,7 +28,7 @@ export default async function DashboardPage({
   searchParams: Record<string, string | undefined>;
 }) {
   const params = searchParams;
-  const session = await requireAgent();
+  const session = await requireVerifiedAgent();
   const agentId = session.agent!.id;
   const supabase = await createClient();
 

@@ -163,7 +163,7 @@ export function MfaEnrollFlow() {
           <Button variant="secondary" onClick={downloadCodes}>
             Download codes
           </Button>
-          <Button variant="primary" onClick={() => router.push('/team')}>
+          <Button variant="primary" onClick={() => router.push('/today')}>
             Done
           </Button>
         </div>

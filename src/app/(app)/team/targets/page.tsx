@@ -11,7 +11,6 @@ const FALLBACK = {
   appts_held_per_week: 3,
   premium_cents_per_week: 18800,
   min_calls_per_day: 15,
-  md_deadline: null as string | null,
 };
 
 // Org default + per-agent overrides (03-ui.md: "/team/targets, SMD-only").
@@ -66,7 +65,6 @@ export default async function TeamTargetsPage() {
                 appts_held_per_week: me.appts_held_target,
                 premium_cents_per_week: Number(me.premium_cents_target),
                 min_calls_per_day: defaultTarget.min_calls_per_day,
-                md_deadline: null,
               }}
             />
           </CardContent>
@@ -93,7 +91,6 @@ export default async function TeamTargetsPage() {
                   appts_held_per_week: a.appts_held_target,
                   premium_cents_per_week: Number(a.premium_cents_target),
                   min_calls_per_day: defaultTarget.min_calls_per_day,
-                  md_deadline: null,
                 }}
               />
             ))

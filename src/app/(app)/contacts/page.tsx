@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { requireAgent } from '@/lib/auth/guards';
+import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,6 @@ import { formatDisplayDate } from '@/lib/dates';
 interface ContactRow {
   id: string;
   full_name: string;
-  company: string | null;
   call_logs: { call_date: string; outcome: string; follow_up_on: string | null; follow_up_done_at: string | null }[];
 }
 
@@ -17,18 +16,18 @@ export default async function ContactsPage({
 }: {
   searchParams: { q?: string };
 }) {
-  const session = await requireAgent();
+  const session = await requireVerifiedAgent();
   const supabase = await createClient();
   const q = searchParams.q?.trim();
 
   let query = supabase
     .from('contacts')
-    .select('id, full_name, company, call_logs(call_date, outcome, follow_up_on, follow_up_done_at)')
+    .select('id, full_name, call_logs(call_date, outcome, follow_up_on, follow_up_done_at)')
     .eq('agent_id', session.agent!.id);
 
   if (q) {
     const escaped = q.replace(/[%_]/g, '\\$&');
-    query = query.or(`full_name.ilike.%${escaped}%,company.ilike.%${escaped}%`);
+    query = query.ilike('full_name', `%${escaped}%`);
   }
 
   const { data: contacts } = await query
@@ -43,7 +42,7 @@ export default async function ContactsPage({
       </div>
 
       <form className="max-w-sm">
-        <Input name="q" defaultValue={q ?? ''} placeholder="Search name or company" />
+        <Input name="q" defaultValue={q ?? ''} placeholder="Search name" />
       </form>
 
       {rows.length === 0 ? (
@@ -62,7 +61,6 @@ export default async function ContactsPage({
             <thead className="bg-bg-2 text-fg-3 text-xs uppercase tracking-wide">
               <tr>
                 <th className="text-left font-medium px-4 py-2.5">Contact</th>
-                <th className="text-left font-medium px-4 py-2.5">Company</th>
                 <th className="text-left font-medium px-4 py-2.5">Times called</th>
                 <th className="text-left font-medium px-4 py-2.5">Last called</th>
                 <th className="text-left font-medium px-4 py-2.5">Last outcome</th>
@@ -84,7 +82,6 @@ export default async function ContactsPage({
                         {c.full_name}
                       </Link>
                     </td>
-                    <td className="px-4 py-2.5 text-fg-2">{c.company ?? '—'}</td>
                     <td className="px-4 py-2.5 text-fg-2">{calls.length}</td>
                     <td className="px-4 py-2.5 text-fg-2">
                       {last ? formatDisplayDate(last.call_date) : '—'}
