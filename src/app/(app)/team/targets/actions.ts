@@ -11,7 +11,6 @@ const schema = z.object({
   apptsHeldPerWeek: z.coerce.number().int().positive(),
   premiumDollarsPerWeek: z.coerce.number().nonnegative(),
   minCallsPerDay: z.coerce.number().int().positive(),
-  mdDeadline: z.string().optional(),
 });
 
 // Insert-only — never mutate a past target row (CLAUDE.md rule 8). Always
@@ -25,7 +24,6 @@ export async function setTargetAction(formData: FormData) {
     apptsHeldPerWeek: formData.get('apptsHeldPerWeek'),
     premiumDollarsPerWeek: formData.get('premiumDollarsPerWeek'),
     minCallsPerDay: formData.get('minCallsPerDay'),
-    mdDeadline: formData.get('mdDeadline') || undefined,
   };
   const parsed = schema.safeParse(raw);
   if (!parsed.success) return { ok: false, error: 'Check the values entered.' };
@@ -44,7 +42,6 @@ export async function setTargetAction(formData: FormData) {
     appts_held_per_week: parsed.data.apptsHeldPerWeek,
     premium_cents_per_week: Math.round(parsed.data.premiumDollarsPerWeek * 100),
     min_calls_per_day: parsed.data.minCallsPerDay,
-    md_deadline: parsed.data.mdDeadline || null,
   });
 
   revalidatePath('/team/targets');

@@ -107,13 +107,6 @@ export function currentStreak(
   return streak;
 }
 
-/** Dashboard B78: `=mdDeadline-TODAY()` — computed from the real current date. */
-export function daysToMdDeadline(mdDeadlineIso: string, asOf: string): number {
-  const deadline = new Date(mdDeadlineIso + 'T00:00:00Z').getTime();
-  const from = new Date(asOf + 'T00:00:00Z').getTime();
-  return Math.round((deadline - from) / 86_400_000);
-}
-
 export interface FunnelResult {
   callsMade: number;
   apptsSet: number;

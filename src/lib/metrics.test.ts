@@ -4,7 +4,6 @@ import {
   conversionFunnel,
   currentStreak,
   dialToConnectRatio,
-  daysToMdDeadline,
   noShowRate,
   pipelineValueOpenAppts,
   rollingAvgCallsPerWeek,
@@ -124,15 +123,6 @@ describe('currentStreak', () => {
       ['2026-07-08', row({ activity_date: '2026-07-08', calls_made: 15 })],
     ]);
     expect(currentStreak(rows, 15, '2026-07-08')).toBe(1);
-  });
-});
-
-describe('daysToMdDeadline', () => {
-  it('matches the workbook formula shape: deadline - today', () => {
-    expect(daysToMdDeadline('2026-08-01', '2026-07-25')).toBe(7);
-  });
-  it('is negative once the deadline has passed', () => {
-    expect(daysToMdDeadline('2026-07-01', '2026-07-10')).toBe(-9);
   });
 });
 

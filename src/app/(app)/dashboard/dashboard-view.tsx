@@ -26,7 +26,7 @@ export function DashboardView({ vm }: { vm: DashboardViewModel }) {
 
   return (
     <>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard label="Calls Made" value={String(vm.callsMade)} target={vm.callsTarget} />
         <KpiCard label="Appointments Held" value={String(vm.apptsHeld)} target={vm.apptsTarget} />
         <KpiCard
@@ -35,7 +35,6 @@ export function DashboardView({ vm }: { vm: DashboardViewModel }) {
           target={vm.premiumTarget}
         />
         <KpiCard label="Current Streak" value={`${vm.streak}d`} />
-        <KpiCard label="Days to MD Deadline" value={vm.daysToDeadline === null ? '—' : String(vm.daysToDeadline)} />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">

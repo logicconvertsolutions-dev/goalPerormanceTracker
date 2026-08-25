@@ -12,7 +12,6 @@ export interface TargetDefaults {
   appts_held_per_week: number;
   premium_cents_per_week: number;
   min_calls_per_day: number;
-  md_deadline: string | null;
 }
 
 /**
@@ -95,15 +94,6 @@ export function TargetForm({
             min={1}
             defaultValue={current.min_calls_per_day}
             required
-          />
-        </div>
-        <div className="space-y-1.5 col-span-2">
-          <Label htmlFor={`md-deadline-${agentId ?? 'default'}`}>MD Deadline</Label>
-          <Input
-            id={`md-deadline-${agentId ?? 'default'}`}
-            name="mdDeadline"
-            type="date"
-            defaultValue={current.md_deadline ?? ''}
           />
         </div>
       </div>
