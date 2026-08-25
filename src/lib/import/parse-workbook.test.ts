@@ -89,12 +89,12 @@ describe('parseWorkbook', () => {
 
     const recruiting = result.rows.find((r) => r.sheet === 'Recruiting Log')!;
     expect(recruiting.errors).toEqual([]);
-    // "Interview Scheduled" maps to 'interviewed' — no exact enum match exists.
+    // "Interview Scheduled" maps to 'marketing_presented' — no exact enum match exists.
     expect(recruiting.data).toMatchObject({
       prospectName: 'Alex Kumar',
       logDate: '2026-07-07',
       source: 'referral',
-      status: 'interviewed',
+      status: 'marketing_presented',
     });
   });
 

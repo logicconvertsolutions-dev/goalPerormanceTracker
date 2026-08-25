@@ -56,10 +56,12 @@ export async function createSaleAction(formData: FormData) {
   // A duplicate client_request_id means this exact submission already
   // succeeded (offline retry) -- treat as success, not an error.
   if (error && error.code !== UNIQUE_VIOLATION) {
+    console.error('createSaleAction: insert failed', error);
     return { ok: false, error: 'Could not save the sale.' };
   }
 
   revalidatePath('/sales');
+  revalidatePath('/logs');
   revalidatePath(`/contacts/${contact.id}`);
   return { ok: true };
 }
@@ -95,9 +97,13 @@ export async function updateSaleAction(formData: FormData) {
     .eq('id', parsed.data.id)
     .eq('agent_id', session.agent!.id);
 
-  if (error) return { ok: false, error: 'Could not update the sale.' };
+  if (error) {
+    console.error('updateSaleAction: update failed', error);
+    return { ok: false, error: 'Could not update the sale.' };
+  }
 
   revalidatePath('/sales');
+  revalidatePath('/logs');
   return { ok: true };
 }
 
@@ -108,5 +114,6 @@ export async function deleteSaleAction(id: string) {
   const { error } = await supabase.from('sales').delete().eq('id', id).eq('agent_id', session.agent!.id);
 
   revalidatePath('/sales');
+  revalidatePath('/logs');
   return { ok: !error };
 }

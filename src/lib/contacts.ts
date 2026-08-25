@@ -35,6 +35,9 @@ export async function findOrCreateContact(
     .select('id')
     .single();
 
-  if (error || !created) return { error: 'Could not save contact.' };
+  if (error || !created) {
+    console.error('findOrCreateContact: insert failed', error);
+    return { error: 'Could not save contact.' };
+  }
   return { id: created.id };
 }

@@ -16,22 +16,18 @@ export function TabBar({ isLeader }: { isLeader: boolean }) {
     >
       {items.map((item) => {
         const current = pathname.startsWith(item.href);
+        const Icon = item.icon;
         return (
           <Link
             key={item.href}
             href={item.href}
             aria-current={current}
             className={cn(
-              'flex flex-1 flex-col items-center justify-center gap-1 py-2.5 min-h-[44px] text-xs',
+              'flex flex-1 flex-col items-center justify-center gap-1 py-2.5 min-h-[44px] text-[11px] leading-none',
               current ? 'text-acc' : 'text-fg-3'
             )}
           >
-            <span
-              className={cn(
-                'h-[5px] w-[5px] rounded-full bg-fg-4',
-                current && 'bg-acc shadow-[0_0_8px_var(--acc,#3D9AFF)]'
-              )}
-            />
+            <Icon className="h-5 w-5" aria-hidden="true" />
             {item.label}
           </Link>
         );

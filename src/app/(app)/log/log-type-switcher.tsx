@@ -1,10 +1,16 @@
 'use client';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ACTIVITY_META } from '@/components/shell/activity-icons';
 import { LogForm } from './log-form';
 import { AppointmentForm } from '../appointments/appointment-form';
 import { SaleForm } from '../sales/sale-form';
 import { RecruitingForm } from '../recruiting/recruiting-form';
+
+const CallIcon = ACTIVITY_META.call.icon;
+const AppointmentIcon = ACTIVITY_META.appointment.icon;
+const SaleIcon = ACTIVITY_META.sale.icon;
+const RecruitingIcon = ACTIVITY_META.recruiting.icon;
 
 /**
  * The one nav-level "Log" entry point for all four activity types. Call
@@ -24,10 +30,22 @@ export function LogTypeSwitcher({
   return (
     <Tabs defaultValue="call">
       <TabsList>
-        <TabsTrigger value="call">Call</TabsTrigger>
-        <TabsTrigger value="appointment">Appointment</TabsTrigger>
-        <TabsTrigger value="sale">Sale</TabsTrigger>
-        <TabsTrigger value="recruiting">Recruiting</TabsTrigger>
+        <TabsTrigger value="call" className="gap-1.5">
+          <CallIcon className="h-4 w-4" aria-hidden="true" />
+          Call
+        </TabsTrigger>
+        <TabsTrigger value="appointment" className="gap-1.5">
+          <AppointmentIcon className="h-4 w-4" aria-hidden="true" />
+          Appointment
+        </TabsTrigger>
+        <TabsTrigger value="sale" className="gap-1.5">
+          <SaleIcon className="h-4 w-4" aria-hidden="true" />
+          Sale
+        </TabsTrigger>
+        <TabsTrigger value="recruiting" className="gap-1.5">
+          <RecruitingIcon className="h-4 w-4" aria-hidden="true" />
+          Recruiting
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="call">

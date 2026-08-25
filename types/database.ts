@@ -1150,8 +1150,9 @@ export type Database = {
         | "other"
       recruit_status:
         | "contacted"
-        | "interviewed"
-        | "joined"
+        | "marketing_presented"
+        | "recruited"
+        | "certified"
         | "licensed"
         | "declined"
     }
@@ -1301,8 +1302,9 @@ export const Constants = {
       ],
       recruit_status: [
         "contacted",
-        "interviewed",
-        "joined",
+        "marketing_presented",
+        "recruited",
+        "certified",
         "licensed",
         "declined",
       ],

@@ -72,10 +72,12 @@ export async function createAppointmentAction(formData: FormData) {
   // A duplicate client_request_id means this exact submission already
   // succeeded (offline retry) -- treat as success, not an error.
   if (error && error.code !== UNIQUE_VIOLATION) {
+    console.error('createAppointmentAction: insert failed', error);
     return { ok: false, error: 'Could not save the appointment.' };
   }
 
   revalidatePath('/appointments');
+  revalidatePath('/logs');
   revalidatePath(`/contacts/${contact.id}`);
   return { ok: true };
 }
@@ -115,9 +117,13 @@ export async function updateAppointmentAction(formData: FormData) {
     .eq('id', parsed.data.id)
     .eq('agent_id', session.agent!.id);
 
-  if (error) return { ok: false, error: 'Could not update the appointment.' };
+  if (error) {
+    console.error('updateAppointmentAction: update failed', error);
+    return { ok: false, error: 'Could not update the appointment.' };
+  }
 
   revalidatePath('/appointments');
+  revalidatePath('/logs');
   return { ok: true };
 }
 
@@ -132,6 +138,7 @@ export async function updateAppointmentStatusAction(id: string, status: (typeof 
     .eq('agent_id', session.agent!.id);
 
   revalidatePath('/appointments');
+  revalidatePath('/logs');
   return { ok: !error };
 }
 
@@ -146,5 +153,6 @@ export async function deleteAppointmentAction(id: string) {
     .eq('agent_id', session.agent!.id);
 
   revalidatePath('/appointments');
+  revalidatePath('/logs');
   return { ok: !error };
 }

@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { PRIMARY_NAV, SECONDARY_NAV, LEADER_NAV, type NavItem } from './nav-items';
 
 function NavLink({ item, current }: { item: NavItem; current: boolean }) {
+  const Icon = item.icon;
   return (
     <Link
       href={item.href}
@@ -16,12 +17,7 @@ function NavLink({ item, current }: { item: NavItem; current: boolean }) {
         current && 'bg-panel-2 text-fg font-medium shadow-lift'
       )}
     >
-      <span
-        className={cn(
-          'h-[5px] w-[5px] shrink-0 rounded-full bg-fg-4',
-          current && 'bg-acc shadow-[0_0_8px_var(--acc,#3D9AFF)]'
-        )}
-      />
+      <Icon className={cn('h-4 w-4 shrink-0', current && 'text-acc')} aria-hidden="true" />
       {item.label}
     </Link>
   );

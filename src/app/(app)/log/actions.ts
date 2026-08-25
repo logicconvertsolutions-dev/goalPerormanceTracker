@@ -95,11 +95,24 @@ export async function logCallAction(formData: FormData) {
   // A duplicate client_request_id means this exact submission already
   // succeeded (offline retry) -- treat as success, not an error.
   if (error && error.code !== UNIQUE_VIOLATION) {
+    console.error('logCallAction: insert failed', error);
     return { ok: false, error: 'Could not save the call.' };
   }
 
   revalidatePath('/today');
   revalidatePath('/contacts');
   revalidatePath(`/contacts/${contact.id}`);
+  revalidatePath('/logs');
   return { ok: true };
+}
+
+export async function deleteCallAction(id: string) {
+  const session = await requireAgent();
+  const supabase = await createClient();
+
+  const { error } = await supabase.from('call_logs').delete().eq('id', id).eq('agent_id', session.agent!.id);
+
+  revalidatePath('/logs');
+  revalidatePath('/today');
+  return { ok: !error };
 }

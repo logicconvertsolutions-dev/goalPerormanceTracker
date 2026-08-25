@@ -7,7 +7,14 @@ import { FilterBar, type FilterChip } from '@/components/shell/filter-bar';
 import { resolvePeriod, todayIso, type PeriodPreset, PERIOD_PRESETS } from '@/lib/dates';
 import { RecruitingRow } from './recruiting-row';
 
-const STATUSES = ['contacted', 'interviewed', 'joined', 'licensed', 'declined'] as const;
+const STATUSES = [
+  'contacted',
+  'marketing_presented',
+  'recruited',
+  'certified',
+  'licensed',
+  'declined',
+] as const;
 
 function isPeriodPreset(v: string | undefined): v is PeriodPreset {
   return !!v && (PERIOD_PRESETS as readonly string[]).includes(v);
@@ -44,8 +51,10 @@ export default async function RecruitingPage({
   const rows = logs ?? [];
 
   const conversations = rows.length;
-  const interviewed = rows.filter((r) => ['interviewed', 'joined', 'licensed'].includes(r.status)).length;
-  const joined = rows.filter((r) => ['joined', 'licensed'].includes(r.status)).length;
+  const marketingPresented = rows.filter((r) =>
+    ['marketing_presented', 'recruited', 'certified', 'licensed'].includes(r.status)
+  ).length;
+  const recruited = rows.filter((r) => ['recruited', 'certified', 'licensed'].includes(r.status)).length;
   const licensed = rows.filter((r) => r.status === 'licensed').length;
 
   const chips: FilterChip[] = [];
@@ -96,8 +105,8 @@ export default async function RecruitingPage({
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <SummaryStat label="Conversations" value={String(conversations)} />
-            <SummaryStat label="Interviewed" value={String(interviewed)} />
-            <SummaryStat label="Joined" value={String(joined)} />
+            <SummaryStat label="Marketing Presented" value={String(marketingPresented)} />
+            <SummaryStat label="Recruited" value={String(recruited)} />
             <SummaryStat label="Licensed" value={String(licensed)} />
           </div>
 
