@@ -7,9 +7,43 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { todayIso } from '@/lib/dates';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ContactPicker } from '@/components/shell/contact-picker';
+import { todayIso, addDays, nextMonday } from '@/lib/dates';
 import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
 import { createSaleAction, updateSaleAction } from './actions';
+
+const PRODUCT_TYPES = [
+  { value: 'universal_life', label: 'Universal Life' },
+  { value: 'term_life', label: 'Term Life' },
+  { value: 'critical_illness', label: 'Critical Illness' },
+  { value: 'disability', label: 'Disability' },
+  { value: 'other', label: 'Other' },
+];
+
+function Chip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        active
+          ? 'rounded-full border border-acc-line bg-acc-dim px-3 py-1.5 text-xs font-medium text-acc transition-smooth'
+          : 'rounded-full border border-line-2 px-3 py-1.5 text-xs font-medium text-fg-2 transition-smooth hover:bg-hover hover:text-fg'
+      }
+    >
+      {children}
+    </button>
+  );
+}
 
 export function SaleForm({
   mode = 'create',
@@ -23,6 +57,7 @@ export function SaleForm({
     productType: string | null;
     premiumCents: number;
     notes: string | null;
+    followUpOn?: string | null;
   };
 }) {
   const router = useRouter();
@@ -30,11 +65,23 @@ export function SaleForm({
   const [premiumDollars, setPremiumDollars] = useState(
     defaultValues ? String(defaultValues.premiumCents / 100) : '0'
   );
+  const knownProductType = PRODUCT_TYPES.some((p) => p.value === defaultValues?.productType);
+  const [productType, setProductType] = useState(
+    defaultValues?.productType ? (knownProductType ? defaultValues.productType : 'other') : ''
+  );
+  const [otherProductType, setOtherProductType] = useState(
+    defaultValues?.productType && !knownProductType ? defaultValues.productType : ''
+  );
+  const [followUpOn, setFollowUpOn] = useState(defaultValues?.followUpOn ?? '');
+  const [showFollowUpPicker, setShowFollowUpPicker] = useState(false);
+  const saleDate = defaultValues?.saleDate ?? todayIso();
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     formData.set('premiumCents', String(Math.round(Number(premiumDollars || 0) * 100)));
+    formData.set('productType', productType === 'other' ? otherProductType : productType);
+    if (followUpOn) formData.set('followUpOn', followUpOn);
 
     if (mode === 'edit') {
       formData.set('id', defaultValues!.id);
@@ -64,12 +111,7 @@ export function SaleForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {mode === 'create' && (
-        <div className="space-y-1.5">
-          <Label htmlFor="clientName">Client name</Label>
-          <Input id="clientName" name="clientName" placeholder="Client name" required />
-        </div>
-      )}
+      {mode === 'create' && <ContactPicker label="Client name" fieldName="clientName" />}
 
       <div className="space-y-1.5">
         <Label htmlFor="saleDate">Date</Label>
@@ -77,19 +119,34 @@ export function SaleForm({
           id="saleDate"
           name="saleDate"
           type="date"
-          defaultValue={defaultValues?.saleDate ?? todayIso()}
+          defaultValue={saleDate}
+          max={todayIso()}
           required
         />
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="productType">Product type (optional)</Label>
-        <Input
-          id="productType"
-          name="productType"
-          defaultValue={defaultValues?.productType ?? ''}
-          placeholder="Universal Life"
-        />
+        <Label htmlFor="productType">Product type</Label>
+        <Select value={productType} onValueChange={setProductType}>
+          <SelectTrigger id="productType">
+            <SelectValue placeholder="Select a product type" />
+          </SelectTrigger>
+          <SelectContent>
+            {PRODUCT_TYPES.map((p) => (
+              <SelectItem key={p.value} value={p.value}>
+                {p.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {productType === 'other' && (
+          <Input
+            value={otherProductType}
+            onChange={(e) => setOtherProductType(e.target.value)}
+            placeholder="Product type"
+            className="mt-1.5"
+          />
+        )}
       </div>
 
       <div className="space-y-1.5">
@@ -102,6 +159,38 @@ export function SaleForm({
           value={premiumDollars}
           onChange={(e) => setPremiumDollars(e.target.value)}
         />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Follow up on… (optional)</Label>
+        <div className="flex flex-wrap gap-2">
+          <Chip active={followUpOn === addDays(saleDate, 1)} onClick={() => { setFollowUpOn(addDays(saleDate, 1)); setShowFollowUpPicker(false); }}>
+            Tomorrow
+          </Chip>
+          <Chip active={followUpOn === nextMonday(saleDate)} onClick={() => { setFollowUpOn(nextMonday(saleDate)); setShowFollowUpPicker(false); }}>
+            Monday
+          </Chip>
+          <Chip active={followUpOn === addDays(saleDate, 30)} onClick={() => { setFollowUpOn(addDays(saleDate, 30)); setShowFollowUpPicker(false); }}>
+            1 month
+          </Chip>
+          <Chip active={showFollowUpPicker} onClick={() => setShowFollowUpPicker(true)}>
+            Pick a date
+          </Chip>
+          {followUpOn && (
+            <Chip active={false} onClick={() => { setFollowUpOn(''); setShowFollowUpPicker(false); }}>
+              Clear
+            </Chip>
+          )}
+        </div>
+        {showFollowUpPicker && (
+          <Input
+            type="date"
+            value={followUpOn}
+            min={saleDate}
+            onChange={(e) => setFollowUpOn(e.target.value)}
+            className="w-auto"
+          />
+        )}
       </div>
 
       <div className="space-y-1.5">

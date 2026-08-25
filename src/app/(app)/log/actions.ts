@@ -26,7 +26,7 @@ const CALL_OUTCOMES = [
 
 const logCallSchema = z.object({
   contactName: z.string().min(1, 'Enter who you called.').max(200),
-  company: z.string().max(200).optional(),
+  contactId: z.string().uuid().optional(),
   callDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
   source: z.enum(CALL_SOURCES),
   outcome: z.enum(CALL_OUTCOMES),
@@ -41,7 +41,7 @@ const UNIQUE_VIOLATION = '23505';
 export async function logCallAction(formData: FormData) {
   const parsed = logCallSchema.safeParse({
     contactName: formData.get('contactName'),
-    company: formData.get('company') || undefined,
+    contactId: formData.get('contactId') || undefined,
     callDate: formData.get('callDate') || todayIso(),
     source: formData.get('source'),
     outcome: formData.get('outcome'),
@@ -76,7 +76,7 @@ export async function logCallAction(formData: FormData) {
     agentId,
     orgId,
     parsed.data.contactName,
-    parsed.data.company
+    parsed.data.contactId
   );
   if ('error' in contact) return { ok: false, error: contact.error };
 
@@ -88,7 +88,7 @@ export async function logCallAction(formData: FormData) {
     source: parsed.data.source,
     outcome: parsed.data.outcome,
     notes: parsed.data.notes || null,
-    follow_up_on: parsed.data.outcome === 'connected' ? parsed.data.followUpOn || null : null,
+    follow_up_on: parsed.data.followUpOn || null,
     client_request_id: parsed.data.clientRequestId || null,
   });
 

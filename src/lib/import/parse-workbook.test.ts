@@ -61,7 +61,6 @@ describe('parseWorkbook', () => {
     expect(call.errors).toEqual([]);
     expect(call.data).toMatchObject({
       contactName: 'Jane Doe',
-      company: 'Acme Inc.',
       callDate: '2026-07-06',
       source: 'warm_market',
       outcome: 'appointment_set',
