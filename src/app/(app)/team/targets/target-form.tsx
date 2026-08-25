@@ -40,7 +40,7 @@ export function TargetForm({
     startTransition(async () => {
       const result = await setTargetAction(formData);
       if (result.ok) {
-        toast.success('Target saved — applies from Monday');
+        toast.success('Goal saved — applies from Monday');
         onSaved?.();
       } else {
         toast.error(result.error ?? 'Could not save — try again');
@@ -52,7 +52,7 @@ export function TargetForm({
     <form onSubmit={handleSubmit} className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor={`calls-${agentId ?? 'default'}`}>Calls Target / Wk</Label>
+          <Label htmlFor={`calls-${agentId ?? 'default'}`}>Calls Goal / Wk</Label>
           <Input
             id={`calls-${agentId ?? 'default'}`}
             name="callsPerWeek"
@@ -63,7 +63,7 @@ export function TargetForm({
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={`appts-${agentId ?? 'default'}`}>Appts Held Target / Wk</Label>
+          <Label htmlFor={`appts-${agentId ?? 'default'}`}>Appts Held Goal / Wk</Label>
           <Input
             id={`appts-${agentId ?? 'default'}`}
             name="apptsHeldPerWeek"
@@ -74,7 +74,7 @@ export function TargetForm({
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={`premium-${agentId ?? 'default'}`}>Premium Target / Wk ($)</Label>
+          <Label htmlFor={`premium-${agentId ?? 'default'}`}>Premium Goal / Wk ($)</Label>
           <Input
             id={`premium-${agentId ?? 'default'}`}
             name="premiumDollarsPerWeek"
@@ -98,7 +98,7 @@ export function TargetForm({
         </div>
       </div>
       <p className="text-xs text-fg-3">
-        Applies from Monday, {effectiveMonday}. Past weeks keep their original target.
+        Applies from Monday, {effectiveMonday}. Past weeks keep their original goal.
       </p>
       <Button type="submit" variant="primary" disabled={pending}>
         {pending ? 'Saving…' : 'Save'}

@@ -199,9 +199,20 @@ export function LogForm({
         <Textarea id="notes" name="notes" placeholder="What did you talk about?" />
       </div>
 
-      <Button type="submit" variant="primary" className="w-full" disabled={pending}>
-        {pending ? 'Saving…' : 'Log call'}
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          className="flex-1"
+          disabled={pending}
+          onClick={() => router.back()}
+        >
+          Cancel
+        </Button>
+        <Button type="submit" variant="primary" className="flex-1" disabled={pending}>
+          {pending ? 'Saving…' : 'Log call'}
+        </Button>
+      </div>
     </form>
   );
 }

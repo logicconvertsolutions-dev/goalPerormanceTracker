@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireLeader } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { BackLink } from '@/components/shell/back-link';
 import { OrgNameForm } from './org-name-form';
 import { OrgLogoUpload } from './org-logo-upload';
 
@@ -27,9 +28,7 @@ export default async function OrganizationSettingsPage() {
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Organization</h1>
-        <Link href="/team" className="text-sm text-acc hover:underline">
-          ← Team
-        </Link>
+        <BackLink href="/team" label="Team" />
       </div>
 
       <Card>
@@ -44,15 +43,15 @@ export default async function OrganizationSettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Default team targets</CardTitle>
+          <CardTitle>Default team goals</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-sm text-fg-2">
-            The weekly calls, appointments, and premium targets every associate starts with
+            The weekly calls, appointments, and premium goals every associate starts with
             unless you set a per-agent override.
           </p>
           <Link href="/team/targets" className="text-sm text-acc hover:underline">
-            Manage targets →
+            Manage goals →
           </Link>
         </CardContent>
       </Card>

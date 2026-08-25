@@ -1,7 +1,7 @@
-import Link from 'next/link';
 import { requireLeader } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { BackLink } from '@/components/shell/back-link';
 import { nextMonday, todayIso, weekStart, formatDisplayDate } from '@/lib/dates';
 import { TargetForm } from './target-form';
 import { AgentOverrideRow } from './agent-override-row';
@@ -34,10 +34,8 @@ export default async function TeamTargetsPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Targets</h1>
-        <Link href="/team" className="text-sm text-acc hover:underline">
-          ← Team
-        </Link>
+        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Goals</h1>
+        <BackLink href="/team" label="Team" />
       </div>
 
       <Card>
@@ -52,7 +50,7 @@ export default async function TeamTargetsPage() {
       {me && (
         <Card>
           <CardHeader>
-            <CardTitle>My target</CardTitle>
+            <CardTitle>My goal</CardTitle>
           </CardHeader>
           <CardContent>
             <AgentOverrideRow

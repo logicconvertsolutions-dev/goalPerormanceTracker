@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { requireLeader } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { FilterBar } from '@/components/shell/filter-bar';
+import { BackLink } from '@/components/shell/back-link';
 import { resolvePeriod, todayIso, addDays, type PeriodPreset, PERIOD_PRESETS } from '@/lib/dates';
 import { DailyGrid, type DailyGridColumn } from '../../daily-grid';
 
@@ -66,9 +67,7 @@ export default async function TeamAgentDailyPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <Link href={`/team/${agentId}`} className="text-xs text-fg-3 hover:text-fg">
-            ← {agent.full_name}
-          </Link>
+          <BackLink href={`/team/${agentId}`} label={agent.full_name} className="text-xs" />
           <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Daily grid</h1>
         </div>
         <Link

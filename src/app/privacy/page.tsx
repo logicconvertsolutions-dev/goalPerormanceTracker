@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { BackLink } from '@/components/shell/back-link';
 
 // Public, no-login page -- linked from the accept-invite screen (before an
 // account exists) and from /settings. Content mirrors .github/Spec
@@ -9,7 +10,10 @@ export default function PrivacyPage() {
   return (
     <main className="min-h-screen px-4 py-12 bg-bg">
       <div className="mx-auto w-full max-w-2xl space-y-4">
-        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Privacy notice</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Privacy notice</h1>
+          <BackLink href="/settings" label="Settings" />
+        </div>
 
         <Card>
           <CardHeader>

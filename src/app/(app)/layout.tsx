@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { requireAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { RailNav } from '@/components/shell/rail-nav';
@@ -27,13 +28,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <RailNav isLeader={isLeader} />
       <div className="flex-1 flex flex-col min-w-0">
         <header className="flex items-center justify-between border-b border-line px-4 py-3 md:px-6">
-          <span className="flex items-center gap-2 text-sm font-medium text-fg-2">
+          <Link
+            href="/today"
+            className="flex items-center gap-2 text-sm font-medium text-fg-2 transition-smooth hover:text-fg"
+          >
             {logoUrl && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={logoUrl} alt="" className="h-6 w-6 rounded-sm object-contain" />
             )}
             {org?.name ?? 'Performance Tracker'}
-          </span>
+          </Link>
           <AccountMenu
             fullName={session.agent!.full_name}
             isAdmin={session.agent!.role === 'admin'}

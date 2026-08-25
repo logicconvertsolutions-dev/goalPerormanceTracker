@@ -29,22 +29,34 @@ export function LogTypeSwitcher({
 }) {
   return (
     <Tabs defaultValue="call">
-      <TabsList>
-        <TabsTrigger value="call" className="gap-1.5">
-          <CallIcon className="h-4 w-4" aria-hidden="true" />
-          Call
+      <TabsList className="grid h-auto w-full grid-cols-4 gap-1">
+        <TabsTrigger
+          value="call"
+          className="flex-col gap-0.5 px-1 py-1.5 text-[11px] leading-tight sm:flex-row sm:gap-1.5 sm:px-3 sm:text-sm"
+        >
+          <CallIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="truncate">Call</span>
         </TabsTrigger>
-        <TabsTrigger value="appointment" className="gap-1.5">
-          <AppointmentIcon className="h-4 w-4" aria-hidden="true" />
-          Appointment
+        <TabsTrigger
+          value="appointment"
+          className="flex-col gap-0.5 px-1 py-1.5 text-[11px] leading-tight sm:flex-row sm:gap-1.5 sm:px-3 sm:text-sm"
+        >
+          <AppointmentIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="truncate">Appointment</span>
         </TabsTrigger>
-        <TabsTrigger value="sale" className="gap-1.5">
-          <SaleIcon className="h-4 w-4" aria-hidden="true" />
-          Sale
+        <TabsTrigger
+          value="sale"
+          className="flex-col gap-0.5 px-1 py-1.5 text-[11px] leading-tight sm:flex-row sm:gap-1.5 sm:px-3 sm:text-sm"
+        >
+          <SaleIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="truncate">Sale</span>
         </TabsTrigger>
-        <TabsTrigger value="recruiting" className="gap-1.5">
-          <RecruitingIcon className="h-4 w-4" aria-hidden="true" />
-          Recruiting
+        <TabsTrigger
+          value="recruiting"
+          className="flex-col gap-0.5 px-1 py-1.5 text-[11px] leading-tight sm:flex-row sm:gap-1.5 sm:px-3 sm:text-sm"
+        >
+          <RecruitingIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="truncate">Recruiting</span>
         </TabsTrigger>
       </TabsList>
 

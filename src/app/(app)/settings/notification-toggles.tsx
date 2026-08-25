@@ -21,12 +21,12 @@ const ROWS: { key: keyof Prefs; label: string; description: string }[] = [
   {
     key: 'sundaySummary',
     label: 'Sunday summary',
-    description: 'Calls vs target, streak, follow-ups due next week',
+    description: 'Calls vs goal, streak, follow-ups due next week',
   },
   {
     key: 'mondayDigest',
     label: 'Monday team digest',
-    description: 'Leaders only — totals vs target, who is quiet',
+    description: 'Leaders only — totals vs goal, who is quiet',
   },
 ];
 

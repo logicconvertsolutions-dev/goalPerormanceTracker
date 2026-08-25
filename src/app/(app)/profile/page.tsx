@@ -25,10 +25,8 @@ export default async function ProfilePage() {
             <p className="text-sm text-fg">{session.email}</p>
           </div>
           <div>
-            <p className="text-xs text-fg-3">Role &amp; team</p>
-            <p className="text-sm text-fg">
-              {session.agent!.role} · set by your SMD
-            </p>
+            <p className="text-xs text-fg-3">Role</p>
+            <p className="text-sm text-fg capitalize">{session.agent!.role}</p>
           </div>
           <div>
             <p className="text-xs text-fg-3">Joined</p>

@@ -12,7 +12,7 @@ interface Target {
   min_calls_per_day: number;
 }
 
-const STEPS = ['Your targets', 'What your SMD sees', 'Your spreadsheet'] as const;
+const STEPS = ['Your goals', 'What your SMD sees', 'Your spreadsheet'] as const;
 
 export function OnboardingSteps({ target }: { target: Target | null }) {
   const router = useRouter();
@@ -41,7 +41,7 @@ export function OnboardingSteps({ target }: { target: Target | null }) {
       {step === 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Your targets</CardTitle>
+            <CardTitle>Your goals</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-fg-2">
@@ -73,7 +73,7 @@ export function OnboardingSteps({ target }: { target: Target | null }) {
                 </div>
               </dl>
             ) : (
-              <p className="text-sm text-fg-3">Targets aren&apos;t set yet.</p>
+              <p className="text-sm text-fg-3">Goals aren&apos;t set yet.</p>
             )}
           </CardContent>
         </Card>

@@ -36,7 +36,7 @@ export function TrendChart({ weeks, metric }: { weeks: TrendWeek[]; metric: 'cal
           <tr>
             <th>Week of</th>
             <th>{metric === 'calls' ? 'Calls' : 'Premium'}</th>
-            {metric === 'calls' && <th>Target</th>}
+            {metric === 'calls' && <th>Goal</th>}
           </tr>
         </thead>
         <tbody>

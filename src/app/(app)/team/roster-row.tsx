@@ -39,7 +39,7 @@ export function RosterRow({ row }: { row: RosterRowData }) {
           {row.full_name}
         </Link>
         {row.has_override && (
-          <span className="ml-1.5 text-[10px] text-fg-3" title="Has a per-agent target override">
+          <span className="ml-1.5 text-[10px] text-fg-3" title="Has a per-agent goal override">
             *
           </span>
         )}

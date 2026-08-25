@@ -29,7 +29,7 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Your targets</CardTitle>
+          <CardTitle>Your goals</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-xs text-fg-3 mb-3">Set by your SMD</p>
@@ -59,7 +59,7 @@ export default async function SettingsPage() {
               </div>
             </dl>
           ) : (
-            <p className="text-sm text-fg-3">No target set yet.</p>
+            <p className="text-sm text-fg-3">No goal set yet.</p>
           )}
         </CardContent>
       </Card>

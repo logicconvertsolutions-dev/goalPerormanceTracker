@@ -1,6 +1,7 @@
 import { requireLeader } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { AuditLogTable, type AuditLogRow } from '@/components/shell/audit-log-table';
+import { BackLink } from '@/components/shell/back-link';
 
 export default async function TeamAuditPage() {
   await requireLeader();
@@ -29,9 +30,12 @@ export default async function TeamAuditPage() {
 
   return (
     <div className="space-y-4 max-w-3xl">
-      <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Audit</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Audit</h1>
+        <BackLink href="/team" label="Team" />
+      </div>
       <p className="text-sm text-fg-3">
-        Target changes, invitations, and deactivations for your team. Who, what, when.
+        Goal changes, invitations, and deactivations for your team. Who, what, when.
       </p>
       <AuditLogTable rows={rows} title="Recent activity" />
     </div>

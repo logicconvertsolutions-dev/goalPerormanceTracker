@@ -2,6 +2,7 @@ import { requireLeader } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { BackLink } from '@/components/shell/back-link';
 import { InviteForm } from './invite-form';
 import { InviteRowActions } from './invite-row-actions';
 
@@ -18,7 +19,10 @@ export default async function TeamInvitesPage() {
 
   return (
     <div className="space-y-4 max-w-2xl">
-      <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Invites</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Invites</h1>
+        <BackLink href="/team" label="Team" />
+      </div>
 
       <Card>
         <CardHeader>
@@ -42,10 +46,10 @@ export default async function TeamInvitesPage() {
               return (
                 <div
                   key={inv.id}
-                  className="flex items-center justify-between rounded-sm border border-line py-2 px-3 text-sm"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-line py-2 px-3 text-sm"
                 >
-                  <div>
-                    <p className="text-fg">{inv.email}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-fg truncate">{inv.email}</p>
                     <p className="text-fg-3 text-xs">
                       Sent{' '}
                       {new Date(inv.created_at).toLocaleDateString('en-CA', {
@@ -59,7 +63,7 @@ export default async function TeamInvitesPage() {
                       })}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-2">
                     {expired && <Badge variant="bad">Expired</Badge>}
                     <InviteRowActions invitationId={inv.id} email={inv.email} />
                   </div>

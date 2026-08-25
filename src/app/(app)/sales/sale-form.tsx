@@ -198,9 +198,20 @@ export function SaleForm({
         <Textarea id="notes" name="notes" defaultValue={defaultValues?.notes ?? ''} />
       </div>
 
-      <Button type="submit" variant="primary" className="w-full" disabled={pending}>
-        {pending ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Log sale'}
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          className="flex-1"
+          disabled={pending}
+          onClick={() => router.back()}
+        >
+          Cancel
+        </Button>
+        <Button type="submit" variant="primary" className="flex-1" disabled={pending}>
+          {pending ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Log sale'}
+        </Button>
+      </div>
     </form>
   );
 }

@@ -129,7 +129,7 @@ export default async function TeamPage({
             <Link href="/team/organization">Organization</Link>
           </Button>
           <Button variant="secondary" asChild>
-            <Link href="/team/targets">Targets</Link>
+            <Link href="/team/targets">Goals</Link>
           </Button>
           <Button variant="secondary" asChild>
             <Link href="/team/invites">Invites</Link>
@@ -212,7 +212,7 @@ export default async function TeamPage({
             pct: totalPremiumTarget ? Math.round((100 * totalPremium) / totalPremiumTarget) : 0,
           }}
         />
-        <KpiCard label="Agents On Target" value={`${onTarget} / ${visibleAgents.length}`} />
+        <KpiCard label="Agents On Goal" value={`${onTarget} / ${visibleAgents.length}`} />
         <Link href={withParam({ agents: quietIds.join(',') })}>
           <KpiCard label="Quiet Agents" value={String(quietRows.length)} />
         </Link>

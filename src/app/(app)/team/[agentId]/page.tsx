@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { requireLeader } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { FilterBar } from '@/components/shell/filter-bar';
+import { BackLink } from '@/components/shell/back-link';
 import type { DailyMetricsRow } from '@/lib/metrics';
 import { addDays, resolvePeriod, todayIso, weekStart, type PeriodPreset, PERIOD_PRESETS } from '@/lib/dates';
 import { buildDashboardViewModel } from '../../dashboard/dashboard-view-model';
@@ -82,9 +83,7 @@ export default async function TeamAgentPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <Link href="/team" className="text-xs text-fg-3 hover:text-fg">
-            ← Team
-          </Link>
+          <BackLink href="/team" label="Team" className="text-xs" />
           <h1 className="text-xl font-semibold tracking-heading-tight text-fg">{agent.full_name}</h1>
         </div>
         <Link href={`/team/${agentId}/daily`} className="text-sm text-acc hover:underline">
