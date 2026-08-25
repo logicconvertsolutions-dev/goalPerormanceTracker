@@ -16,6 +16,7 @@ export const SECONDARY_NAV: NavItem[] = [
   { href: '/appointments', label: 'Appointments' },
   { href: '/sales', label: 'Sales' },
   { href: '/recruiting', label: 'Recruiting' },
+  { href: '/notes', label: 'Meeting Notes' },
 ];
 
 export const LEADER_NAV: NavItem = { href: '/team', label: 'My Team' };
