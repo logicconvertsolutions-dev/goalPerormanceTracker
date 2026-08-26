@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.15"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -363,6 +363,7 @@ export type Database = {
           id?: string
           org_id: string
           phone?: string | null
+          phone_normalized?: string | null
         }
         Update: {
           agent_id?: string
@@ -371,6 +372,7 @@ export type Database = {
           id?: string
           org_id?: string
           phone?: string | null
+          phone_normalized?: string | null
         }
         Relationships: [
           {
@@ -1106,8 +1108,14 @@ export type Database = {
           org_id: string
         }[]
       }
-      send_roster_training_reminder: { Args: { p_roster_id: string }; Returns: undefined }
-      send_training_reminder: { Args: { p_agent_id: string }; Returns: undefined }
+      send_roster_training_reminder: {
+        Args: { p_roster_id: string }
+        Returns: undefined
+      }
+      send_training_reminder: {
+        Args: { p_agent_id: string }
+        Returns: undefined
+      }
       system_effective_target: {
         Args: { p_agent_id: string; p_week: string }
         Returns: {
