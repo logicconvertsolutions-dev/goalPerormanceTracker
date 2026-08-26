@@ -173,6 +173,26 @@ export function trainingReminderEmail(d: TrainingReminderData): EmailContent {
   };
 }
 
+export interface RosterTrainingReminderData {
+  fullName: string;
+  sentByName: string;
+}
+
+// Same copy as trainingReminderEmail, standalone (no wrap/footer) because the
+// recipient is a team_roster entry, not an agent -- no notification_prefs
+// row, no account to manage preferences on, same reasoning as inviteEmail.
+export function rosterTrainingReminderEmail(d: RosterTrainingReminderData): EmailContent {
+  const bodyHtml = `
+    <p>Hi ${firstName(d.fullName)},</p>
+    <p>${d.sentByName} sent you a reminder to complete your training.</p>`;
+  const bodyText = `Hi ${firstName(d.fullName)},\n\n${d.sentByName} sent you a reminder to complete your training.`;
+  return {
+    subject: `${d.sentByName} sent you a training reminder`,
+    html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;color:#111;">${bodyHtml}</div>`,
+    text: bodyText,
+  };
+}
+
 export interface NudgeData {
   agentId: string;
   fullName: string;

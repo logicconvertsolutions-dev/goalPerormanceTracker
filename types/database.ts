@@ -910,6 +910,7 @@ export type Database = {
           full_name: string
           id: string
           invitation_id: string | null
+          last_training_reminder_at: string | null
           notes: string | null
           org_id: string
           phone: string | null
@@ -922,6 +923,7 @@ export type Database = {
           full_name: string
           id?: string
           invitation_id?: string | null
+          last_training_reminder_at?: string | null
           notes?: string | null
           org_id: string
           phone?: string | null
@@ -934,6 +936,7 @@ export type Database = {
           full_name?: string
           id?: string
           invitation_id?: string | null
+          last_training_reminder_at?: string | null
           notes?: string | null
           org_id?: string
           phone?: string | null
@@ -1104,6 +1107,10 @@ export type Database = {
           invite_token: string
           org_id: string
         }[]
+      }
+      send_roster_training_reminder: {
+        Args: { p_roster_id: string }
+        Returns: undefined
       }
       send_training_reminder: {
         Args: { p_agent_id: string }

@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getSessionAgent } from '@/lib/auth/session';
 import { sendEmail } from '@/lib/notifications/send';
-import { inviteEmail } from '@/lib/notifications/templates';
+import { inviteEmail, rosterTrainingReminderEmail } from '@/lib/notifications/templates';
 import { appUrl } from '@/lib/notifications/app-url';
 
 const schema = z.object({ agentId: z.string().uuid() });
@@ -25,7 +25,9 @@ export async function deactivateAgentAction(agentId: string) {
 
 const addRosterSchema = z.object({
   fullName: z.string().min(1, 'Enter a name.').max(200),
-  email: z.string().email().optional().or(z.literal('')),
+  // Mandatory: a training reminder needs somewhere to send it, with no
+  // invite/signup required first (sendRosterTrainingReminderAction below).
+  email: z.string().email('Enter a valid email.'),
   phone: z.string().max(30).optional(),
 });
 
@@ -38,7 +40,7 @@ const addRosterSchema = z.object({
 export async function addRosterMemberAction(formData: FormData) {
   const parsed = addRosterSchema.safeParse({
     fullName: formData.get('fullName'),
-    email: formData.get('email') || '',
+    email: formData.get('email'),
     phone: formData.get('phone') || undefined,
   });
   if (!parsed.success) {
@@ -53,7 +55,7 @@ export async function addRosterMemberAction(formData: FormData) {
     upline_id: session!.agent!.id,
     created_by: session!.agent!.id,
     full_name: parsed.data.fullName,
-    email: parsed.data.email || null,
+    email: parsed.data.email.toLowerCase(),
     phone: parsed.data.phone || null,
   });
 
@@ -137,4 +139,45 @@ export async function inviteRosterMemberAction(formData: FormData) {
   revalidatePath('/team/members');
   revalidatePath('/team/invites');
   return { ok: true, inviteUrl };
+}
+
+/**
+ * Sends a training reminder straight to a roster member's email — no invite
+ * or app signup required first (send_roster_training_reminder rate-limits
+ * to 1/7 days per roster row, mirroring send_training_reminder's cooldown
+ * for real agents, 20260827090000_p9c).
+ */
+export async function sendRosterTrainingReminderAction(rosterId: string) {
+  const parsed = z.object({ rosterId: z.string().uuid() }).safeParse({ rosterId });
+  if (!parsed.success) return { ok: false, message: 'Invalid roster entry' };
+
+  const session = await getSessionAgent();
+  const supabase = await createClient();
+
+  const { data: member } = await supabase
+    .from('team_roster')
+    .select('full_name, email')
+    .eq('id', parsed.data.rosterId)
+    .maybeSingle();
+  if (!member?.email) return { ok: false, message: 'Add an email before sending a reminder.' };
+
+  const { error } = await supabase.rpc('send_roster_training_reminder', {
+    p_roster_id: parsed.data.rosterId,
+  });
+  revalidatePath('/team/members');
+  if (error) return { ok: false, message: error.message };
+
+  try {
+    await sendEmail({
+      to: member.email,
+      ...rosterTrainingReminderEmail({
+        fullName: member.full_name,
+        sentByName: session!.agent!.full_name,
+      }),
+    });
+  } catch (err) {
+    console.error('[notifications] failed to send roster training reminder email', err);
+  }
+
+  return { ok: true };
 }

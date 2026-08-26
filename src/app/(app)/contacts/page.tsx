@@ -2,9 +2,11 @@ import Link from 'next/link';
 import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/shell/page-header';
 import { formatDisplayDate } from '@/lib/dates';
+import { AddContactDialog } from './add-contact-dialog';
 
 interface ContactRow {
   id: string;
@@ -39,7 +41,17 @@ export default async function ContactsPage({
 
   return (
     <div className="max-w-3xl space-y-5">
-      <PageHeader title="Contacts" />
+      <PageHeader
+        title="Contacts"
+        action={
+          <div className="flex gap-2">
+            <Button asChild variant="secondary" size="sm">
+              <Link href="/import">Import from Excel</Link>
+            </Button>
+            <AddContactDialog />
+          </div>
+        }
+      />
 
       <form className="max-w-sm">
         <Input name="q" defaultValue={q ?? ''} placeholder="Search name" />

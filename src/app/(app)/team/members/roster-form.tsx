@@ -35,8 +35,8 @@ export function RosterForm() {
         <Input id="fullName" name="fullName" placeholder="Full name" required />
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="email">Email (optional)</Label>
-        <Input id="email" name="email" type="email" placeholder="name@example.com" />
+        <Label htmlFor="email">Email</Label>
+        <Input id="email" name="email" type="email" placeholder="name@example.com" required />
       </div>
       <div className="flex items-end gap-2">
         <div className="flex-1 space-y-1.5">

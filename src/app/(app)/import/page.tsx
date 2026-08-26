@@ -9,7 +9,7 @@ export default async function ImportPage() {
     <div className="max-w-2xl space-y-4">
       <PageHeader
         title="Import from spreadsheet"
-        subtitle="Upload your existing tracker workbook (.xlsx). We'll show you what would be imported before anything is saved — re-uploading the same file is always safe."
+        subtitle="Upload your existing tracker workbook (.xlsx) — Call Log, Appointment Log, Sales Log, and Recruiting Log sheets. Contacts are created automatically from any sheet; a Sales Log row also creates the client record. Matching is by phone first, then name, so re-uploading the same file (or a file with contacts you already have) never creates duplicates."
       />
       <ImportFlow />
     </div>

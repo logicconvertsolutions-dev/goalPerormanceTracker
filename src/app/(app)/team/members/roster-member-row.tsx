@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { inviteRosterMemberAction, removeRosterMemberAction } from './actions';
+import {
+  inviteRosterMemberAction,
+  removeRosterMemberAction,
+  sendRosterTrainingReminderAction,
+} from './actions';
 
 export interface RosterMember {
   id: string;
@@ -17,23 +20,29 @@ export interface RosterMember {
 
 export function RosterMemberRow({ member }: { member: RosterMember }) {
   const [pending, startTransition] = useTransition();
-  const [email, setEmail] = useState(member.email ?? '');
-  const [showEmailInput, setShowEmailInput] = useState(!member.email);
 
   function handleInvite() {
-    if (!email.trim()) {
-      setShowEmailInput(true);
-      return;
-    }
+    if (!member.email) return;
     const formData = new FormData();
     formData.set('rosterId', member.id);
-    formData.set('email', email.trim());
+    formData.set('email', member.email);
     startTransition(async () => {
       const result = await inviteRosterMemberAction(formData);
       if (result.ok) {
         toast.success(`Invited ${member.full_name}`);
       } else {
         toast.error(result.error ?? 'Could not send invite.');
+      }
+    });
+  }
+
+  function handleSendReminder() {
+    startTransition(async () => {
+      const result = await sendRosterTrainingReminderAction(member.id);
+      if (result.ok) {
+        toast.success(`Training reminder sent to ${member.full_name}`);
+      } else {
+        toast.error(result.message ?? 'Could not send reminder — try again');
       }
     });
   }
@@ -48,31 +57,22 @@ export function RosterMemberRow({ member }: { member: RosterMember }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-line py-2 px-3 text-sm">
       <div className="min-w-0">
-        <p className="text-fg">{member.full_name}</p>
-        <p className="text-fg-3 text-xs">{member.phone || member.email || '—'}</p>
+        <p className="truncate text-fg">{member.full_name}</p>
+        <p className="truncate text-fg-3 text-xs">{member.email}{member.phone ? ` · ${member.phone}` : ''}</p>
       </div>
-      <div className="flex items-center gap-2">
-        {member.invitation_id ? (
-          <Badge variant="ok">Invited</Badge>
-        ) : (
-          <>
-            {showEmailInput && (
-              <Input
-                type="email"
-                placeholder="Email to invite"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-9 w-44 text-xs"
-              />
-            )}
-            <Button variant="soft" size="sm" disabled={pending} onClick={handleInvite}>
-              Invite
-            </Button>
-            <Button variant="ghost" size="sm" disabled={pending} onClick={handleRemove}>
-              Remove
-            </Button>
-          </>
+      <div className="flex flex-wrap items-center gap-2">
+        {member.invitation_id && <Badge variant="ok">Invited</Badge>}
+        <Button variant="soft" size="sm" disabled={pending} onClick={handleSendReminder}>
+          Send reminder
+        </Button>
+        {!member.invitation_id && (
+          <Button variant="ghost" size="sm" disabled={pending} onClick={handleInvite}>
+            Invite
+          </Button>
         )}
+        <Button variant="ghost" size="sm" disabled={pending} onClick={handleRemove}>
+          Remove
+        </Button>
       </div>
     </div>
   );
