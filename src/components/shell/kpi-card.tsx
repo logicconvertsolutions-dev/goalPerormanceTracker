@@ -15,7 +15,7 @@ interface KpiCardProps {
  * cards. Shared by the Dashboard and Team overview. */
 export function KpiCard({ label, value, target, delta }: KpiCardProps) {
   return (
-    <div className="space-y-1.5 rounded-[10px] border border-line bg-panel px-3.5 py-3 shadow-card">
+    <div className="space-y-1.5 rounded border border-line bg-panel px-3.5 py-3 shadow-card">
       <p className="text-xs font-medium uppercase tracking-wide text-fg-3">{label}</p>
       <p className="text-2xl font-bold font-mono tabular-nums tracking-tighter text-fg">{value}</p>
       {target ? (

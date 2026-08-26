@@ -63,10 +63,13 @@ const config = {
         'line-2': 'rgba(20, 33, 61, 0.14)',
         'line-3': 'rgba(20, 33, 61, 0.22)',
       },
+      // Bumped up for a softer, more rounded feel across buttons, inputs,
+      // menus, and cards — every rounded-sm/DEFAULT/lg usage in the app
+      // picks this up automatically (rounded-full elements are unaffected).
       borderRadius: {
-        sm: '6px',
-        DEFAULT: '8px',
-        lg: '12px',
+        sm: '10px',
+        DEFAULT: '14px',
+        lg: '20px',
       },
       boxShadow: {
         // Everyday card/button elevation — a touch stronger than a hairline so

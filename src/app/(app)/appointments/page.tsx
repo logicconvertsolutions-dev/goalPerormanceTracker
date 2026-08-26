@@ -128,7 +128,7 @@ export default async function AppointmentsPage({
             <KpiCard label="Open premium" value={`$${(openPremium / 100).toLocaleString('en-CA')}`} />
           </div>
 
-          <div className="overflow-x-auto rounded-[12px] border border-line shadow-card">
+          <div className="overflow-x-auto rounded-lg border border-line shadow-card">
             <table className="w-full text-sm">
               <thead className="bg-bg-2 text-fg-3 text-xs uppercase tracking-wide">
                 <tr>
