@@ -12,9 +12,9 @@ function NavLink({ item, current }: { item: NavItem; current: boolean }) {
       href={item.href}
       aria-current={current}
       className={cn(
-        'flex items-center gap-2.5 rounded-sm px-3 py-2.5 text-sm text-fg-2 transition-smooth',
+        'flex items-center gap-2.5 rounded-sm border-l-2 border-transparent px-3 py-2.5 text-sm text-fg-2 transition-smooth',
         'hover:bg-hover hover:text-fg',
-        current && 'bg-panel-2 text-fg font-medium shadow-lift'
+        current && 'border-l-gold bg-hover text-fg font-medium'
       )}
     >
       <Icon className={cn('h-4 w-4 shrink-0', current && 'text-acc')} aria-hidden="true" />
