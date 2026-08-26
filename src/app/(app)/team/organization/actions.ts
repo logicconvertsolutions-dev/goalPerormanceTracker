@@ -42,7 +42,7 @@ export async function uploadOrgLogoAction(formData: FormData) {
     return { ok: false, error: 'Use a PNG, JPEG, WebP, or SVG image.' };
   }
   if (file.size > MAX_BYTES) {
-    return { ok: false, error: 'Image must be under 2MB.' };
+    return { ok: false, error: 'Image must be under 5MB.' };
   }
 
   const supabase = await createClient();

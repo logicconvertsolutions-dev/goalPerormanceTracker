@@ -12,7 +12,7 @@ import { ContactPicker } from '@/components/shell/contact-picker';
 import { cn } from '@/lib/utils';
 import { addDays, nextMonday, todayIso } from '@/lib/dates';
 import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
-import { logCallAction } from './actions';
+import { logCallAction, updateCallAction } from './actions';
 
 const SOURCES = [
   { value: 'warm_market', label: 'Warm market' },
@@ -57,21 +57,32 @@ function Chip({
 }
 
 export function LogForm({
+  mode = 'create',
   defaultContactName = '',
   defaultContactId = '',
   defaultDate,
+  defaultValues,
 }: {
+  mode?: 'create' | 'edit';
   defaultContactName?: string;
   defaultContactId?: string;
   defaultDate?: string;
+  defaultValues?: {
+    id: string;
+    callDate: string;
+    source: string;
+    outcome: string;
+    notes: string | null;
+    followUpOn: string | null;
+  };
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [callDate, setCallDate] = useState(defaultDate ?? todayIso());
-  const [showDatePicker, setShowDatePicker] = useState(Boolean(defaultDate));
-  const [source, setSource] = useState('warm_market');
-  const [outcome, setOutcome] = useState('');
-  const [followUpOn, setFollowUpOn] = useState('');
+  const [callDate, setCallDate] = useState(defaultValues?.callDate ?? defaultDate ?? todayIso());
+  const [showDatePicker, setShowDatePicker] = useState(Boolean(defaultValues ?? defaultDate));
+  const [source, setSource] = useState(defaultValues?.source ?? 'warm_market');
+  const [outcome, setOutcome] = useState(defaultValues?.outcome ?? '');
+  const [followUpOn, setFollowUpOn] = useState(defaultValues?.followUpOn ?? '');
   const [showFollowUpPicker, setShowFollowUpPicker] = useState(false);
 
   const isToday = callDate === todayIso();
@@ -81,9 +92,23 @@ export function LogForm({
     const formData = new FormData(e.currentTarget);
     formData.set('callDate', callDate);
     formData.set('source', source);
-    formData.set('clientRequestId', crypto.randomUUID());
     if (followUpOn) formData.set('followUpOn', followUpOn);
 
+    if (mode === 'edit') {
+      formData.set('id', defaultValues!.id);
+      startTransition(async () => {
+        const result = await updateCallAction(formData);
+        if (result.ok) {
+          toast.success('Call updated');
+          router.push('/logs');
+        } else {
+          toast.error(result.error ?? 'Could not save the call.');
+        }
+      });
+      return;
+    }
+
+    formData.set('clientRequestId', crypto.randomUUID());
     startTransition(async () => {
       const result = await submitWithOfflineFallback('call', formData, logCallAction);
       if (result.ok) {
@@ -124,11 +149,13 @@ export function LogForm({
         </div>
       </div>
 
-      <ContactPicker
-        label="Who did you call?"
-        defaultName={defaultContactName}
-        defaultId={defaultContactId}
-      />
+      {mode === 'create' && (
+        <ContactPicker
+          label="Who did you call?"
+          defaultName={defaultContactName}
+          defaultId={defaultContactId}
+        />
+      )}
 
       <div className="space-y-1.5">
         <Label htmlFor="source">Source</Label>
@@ -181,6 +208,11 @@ export function LogForm({
             <Chip active={showFollowUpPicker} onClick={() => setShowFollowUpPicker(true)}>
               Pick a date
             </Chip>
+            {followUpOn && (
+              <Chip active={false} onClick={() => { setFollowUpOn(''); setShowFollowUpPicker(false); }}>
+                Clear
+              </Chip>
+            )}
           </div>
           {showFollowUpPicker && (
             <Input
@@ -196,7 +228,12 @@ export function LogForm({
 
       <div className="space-y-1.5">
         <Label htmlFor="notes">Notes</Label>
-        <Textarea id="notes" name="notes" placeholder="What did you talk about?" />
+        <Textarea
+          id="notes"
+          name="notes"
+          placeholder="What did you talk about?"
+          defaultValue={defaultValues?.notes ?? ''}
+        />
       </div>
 
       <div className="flex gap-2">
@@ -210,7 +247,7 @@ export function LogForm({
           Cancel
         </Button>
         <Button type="submit" variant="primary" className="flex-1" disabled={pending}>
-          {pending ? 'Saving…' : 'Log call'}
+          {pending ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Log call'}
         </Button>
       </div>
     </form>

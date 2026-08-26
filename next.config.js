@@ -10,13 +10,20 @@ const supabaseWs = supabaseUrl.replace(/^http/, 'ws');
 // X-Frame-Options: DENY". unsafe-inline stays in (Next's hydration script
 // tags and Tailwind's inline styles both need it; a nonce-based CSP is a
 // bigger change than this phase's scope) -- unsafe-eval is the one this
-// phase is explicit about, and it's dropped.
+// phase is explicit about, and it's dropped in production. `next dev`'s
+// Fast Refresh/webpack dev runtime needs eval() to work at all, so it's
+// allowed back in only under NODE_ENV=development -- production builds
+// (Vercel included) never get it.
+const scriptSrc =
+  process.env.NODE_ENV === 'development'
+    ? `script-src 'self' 'unsafe-inline' 'unsafe-eval'`
+    : `script-src 'self' 'unsafe-inline'`;
 const csp = [
   `default-src 'self'`,
-  `script-src 'self' 'unsafe-inline'`,
+  scriptSrc,
   `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
   `font-src 'self' https://fonts.gstatic.com`,
-  `img-src 'self' data:`,
+  `img-src 'self' data: ${supabaseUrl}`,
   `connect-src 'self' ${supabaseUrl} ${supabaseWs}`,
   `frame-ancestors 'none'`,
   `base-uri 'self'`,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { MoreVertical } from 'lucide-react';
 import { toast } from 'sonner';
@@ -62,6 +63,9 @@ export function CallRow({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <Link href={`/log/${id}/edit`}>Edit</Link>
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={handleDelete} className="text-bad">
               Delete
             </DropdownMenuItem>

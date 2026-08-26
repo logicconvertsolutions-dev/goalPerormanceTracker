@@ -1,17 +1,9 @@
 import Link from 'next/link';
 import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { formatDisplayDate } from '@/lib/dates';
+import { Card, CardContent } from '@/components/ui/card';
 import { NotesContactPicker } from './notes-contact-picker';
-
-interface TimelineEntry {
-  date: string;
-  type: 'Call' | 'Appointment' | 'Sale';
-  summary: string;
-  notes: string | null;
-}
+import { NotesTable, type TimelineEntry } from './notes-table';
 
 export default async function NotesPage({
   searchParams,
@@ -38,17 +30,17 @@ export default async function NotesPage({
     const [{ data: calls }, { data: appointments }, { data: sales }] = await Promise.all([
       supabase
         .from('call_logs')
-        .select('call_date, outcome, notes')
+        .select('call_date, outcome, notes, follow_up_on, follow_up_done_at')
         .eq('contact_id', contact.id)
         .order('call_date', { ascending: false }),
       supabase
         .from('appointments')
-        .select('appt_date, appt_type, status, notes')
+        .select('appt_date, appt_type, status, notes, follow_up_on, follow_up_done_at')
         .eq('contact_id', contact.id)
         .order('appt_date', { ascending: false }),
       supabase
         .from('sales')
-        .select('sale_date, product_type, premium_cents, notes')
+        .select('sale_date, product_type, premium_cents, notes, follow_up_on, follow_up_done_at')
         .eq('contact_id', contact.id)
         .order('sale_date', { ascending: false }),
     ]);
@@ -59,25 +51,31 @@ export default async function NotesPage({
         type: 'Call' as const,
         summary: c.outcome.replace('_', ' '),
         notes: c.notes,
+        followUpOn: c.follow_up_on,
+        followUpDoneAt: c.follow_up_done_at,
       })),
       ...(appointments ?? []).map((a) => ({
         date: a.appt_date,
         type: 'Appointment' as const,
         summary: `${a.appt_type ?? 'Appointment'} · ${a.status.replace('_', ' ')}`,
         notes: a.notes,
+        followUpOn: a.follow_up_on,
+        followUpDoneAt: a.follow_up_done_at,
       })),
       ...(sales ?? []).map((s) => ({
         date: s.sale_date,
         type: 'Sale' as const,
         summary: `${s.product_type ?? 'Sale'} · $${(s.premium_cents / 100).toLocaleString('en-CA')}`,
         notes: s.notes,
+        followUpOn: s.follow_up_on,
+        followUpDoneAt: s.follow_up_done_at,
       })),
     ].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   }
 
   return (
-    <div className="space-y-4 max-w-2xl">
-      <div className="flex items-center justify-between">
+    <div className={contact ? 'space-y-4 max-w-4xl' : 'space-y-4 max-w-2xl'}>
+      <div className="flex items-center justify-between print:hidden">
         <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Meeting Notes</h1>
         {contact && (
           <Link href="/notes" className="text-sm text-acc hover:underline">
@@ -95,30 +93,14 @@ export default async function NotesPage({
             <NotesContactPicker />
           </CardContent>
         </Card>
-      ) : (
+      ) : entries.length === 0 ? (
         <Card>
-          <CardHeader>
-            <CardTitle>{contact.full_name}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {entries.length === 0 ? (
-              <p className="text-sm text-fg-3">Nothing logged for {contact.full_name} yet.</p>
-            ) : (
-              entries.map((e, i) => (
-                <div key={i} className="border-b border-line pb-3 last:border-0 last:pb-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="neutral">{e.type}</Badge>
-                      <span className="text-sm text-fg font-medium">{formatDisplayDate(e.date)}</span>
-                    </div>
-                    <span className="text-xs text-fg-3">{e.summary}</span>
-                  </div>
-                  {e.notes && <p className="text-sm text-fg-2 mt-1">{e.notes}</p>}
-                </div>
-              ))
-            )}
+          <CardContent className="pt-4">
+            <p className="text-sm text-fg-2">Nothing logged for {contact.full_name} yet.</p>
           </CardContent>
         </Card>
+      ) : (
+        <NotesTable contactName={contact.full_name} entries={entries} />
       )}
     </div>
   );
