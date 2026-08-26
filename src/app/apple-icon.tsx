@@ -15,14 +15,14 @@ export default function AppleIcon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#08090A',
+          background: '#0B1E3D',
         }}
       >
         <div
           style={{
             fontSize: 92,
             fontWeight: 700,
-            color: '#3D9AFF',
+            color: '#C9A227',
             fontFamily: 'sans-serif',
           }}
         >

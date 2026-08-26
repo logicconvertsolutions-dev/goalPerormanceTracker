@@ -1,9 +1,32 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --navy: #0B1E3D;
+  --navy-2: #122A54;
+  --canvas: #F7F5EF;
+  --surface: #FFFFFF;
+  --gold: #C9A227;
+  --gold-dark: #9C7C1A;
+  --gold-light: #FBF3D9;
+  --border: #E7E2D3;
+  --text-1: #14213D;
+  --text-2: #5C6580;
+  --text-3: #94A0B8;
+  --ok-fg: #1B7A43;
+  --ok-bg: #E4F5EA;
+  --warn-fg: #9C6A0A;
+  --warn-bg: #FBF0DA;
+  --bad-fg: #B0392A;
+  --bad-bg: #FBE6E2;
+
+  --font-ui: 'Plus Jakarta Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
 
 * {
   @apply m-0 p-0 box-border;
@@ -17,20 +40,20 @@ html {
 
 body {
   @apply bg-bg text-fg font-ui;
-  background-color: #08090A;
-  color: #EDEEF0;
+  background-color: var(--canvas);
+  color: var(--text-1);
 }
 
 /* Custom utility for the signature lift effect */
 .lift {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: 0 1px 2px 0 rgba(11, 30, 61, 0.06);
 }
 
 /* Focus ring styling */
 *:focus-visible {
-  outline: 2px solid #08090A;
+  outline: 2px solid var(--surface);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px #3D9AFF;
+  box-shadow: 0 0 0 4px var(--navy);
 }
 
 /* Disable outline on active focus for buttons */

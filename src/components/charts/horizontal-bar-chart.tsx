@@ -25,19 +25,19 @@ export function HorizontalBarChart({
       <div className="h-56 min-w-[280px] overflow-x-auto">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={sorted} layout="vertical" margin={{ left: 8, right: 16, top: 4, bottom: 4 }}>
-            <CartesianGrid horizontal={false} stroke="rgba(255,255,255,.065)" />
-            <XAxis type="number" tick={{ fill: '#666A73', fontSize: 11 }} axisLine={{ stroke: 'rgba(255,255,255,.065)' }} tickLine={false} />
+            <CartesianGrid horizontal={false} stroke="rgba(11,30,61,.08)" />
+            <XAxis type="number" tick={{ fill: '#94A0B8', fontSize: 11 }} axisLine={{ stroke: 'rgba(11,30,61,.08)' }} tickLine={false} />
             <YAxis
               type="category"
               dataKey="label"
-              tick={{ fill: '#9CA0A8', fontSize: 11 }}
+              tick={{ fill: '#5C6580', fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               width={90}
             />
-            <Bar dataKey="value" fill="#3D9AFF" radius={[0, 4, 4, 0]} maxBarSize={18} />
+            <Bar dataKey="value" fill="#0B1E3D" radius={[0, 4, 4, 0]} maxBarSize={18} />
             {target !== undefined && (
-              <ReferenceLine x={target} stroke="#9CA0A8" strokeDasharray="3 3" />
+              <ReferenceLine x={target} stroke="#94A0B8" strokeDasharray="3 3" />
             )}
           </BarChart>
         </ResponsiveContainer>
