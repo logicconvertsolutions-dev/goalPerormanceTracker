@@ -75,6 +75,28 @@ jobs:
         run: npm test -- --run
         continue-on-error: true
 
+      # 05-testing.md CI gate order: "typecheck -> lint -> vitest -> supabase
+      # db lint -> pgTAP -> build -> playwright. Any red blocks merge." Runs
+      # only against the local Supabase stack this job starts itself -- never
+      # the linked remote project, which has real customer data in it.
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase
+        run: supabase start
+
+      - name: Supabase db lint
+        run: supabase db lint
+
+      - name: pgTAP RLS suite
+        run: npm run test:rls
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop
+
       # 04-security.md: "Dependabot + npm audit in CI." Reporting, not
       # blocking -- gating hard on every transitive advisory would make CI
       # red on dependency churn this project doesn't control, independent

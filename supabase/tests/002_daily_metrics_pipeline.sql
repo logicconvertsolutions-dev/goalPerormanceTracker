@@ -11,17 +11,25 @@ create schema if not exists tests;
 
 select plan(9);
 
+-- handle_new_user() (p1j_invite_only_signup.sql) rejects any auth.users
+-- insert without a matching open invitation -- same reason
+-- 001_rls_and_hierarchy.sql seeds a throwaway org + invitation per email
+-- before the auth.users insert, rather than inserting into public.agents
+-- directly (the trigger already does that from the invitation).
+insert into public.organizations (id, name) values
+  ('00000000-0000-0000-0000-00000000ee09', 'org_metrics');
+
+insert into public.invitations (email, org_id, upline_id, role, token_hash, created_by) values
+  ('metrics_org@example.com',   '00000000-0000-0000-0000-00000000ee09', null, 'leader',    'seed-tok-f1', null),
+  ('metrics_agent@example.com', '00000000-0000-0000-0000-00000000ee09', null, 'associate', 'seed-tok-f2', null);
+
 insert into auth.users (id, email, aud, role) values
   ('00000000-0000-0000-0000-0000000000f1', 'metrics_org@example.com', 'authenticated', 'authenticated'),
   ('00000000-0000-0000-0000-0000000000f2', 'metrics_agent@example.com', 'authenticated', 'authenticated');
 
-insert into public.organizations (id, name) values
-  ('00000000-0000-0000-0000-00000000ee09', 'org_metrics');
-
-insert into public.agents (id, org_id, full_name, email, upline_id, role) values
-  ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000ee09', 'Metrics Leader', 'metrics_org@example.com', null, 'leader');
-insert into public.agents (id, org_id, full_name, email, upline_id, role) values
-  ('00000000-0000-0000-0000-0000000000f2', '00000000-0000-0000-0000-00000000ee09', 'Metrics Agent', 'metrics_agent@example.com', '00000000-0000-0000-0000-0000000000f1', 'associate');
+update public.agents set full_name = 'Metrics Leader' where id = '00000000-0000-0000-0000-0000000000f1';
+update public.agents set full_name = 'Metrics Agent', upline_id = '00000000-0000-0000-0000-0000000000f1'
+  where id = '00000000-0000-0000-0000-0000000000f2';
 
 insert into public.contacts (id, agent_id, full_name) values
   ('00000000-0000-0000-0000-0000000000f3', '00000000-0000-0000-0000-0000000000f2', 'Metrics Contact');
