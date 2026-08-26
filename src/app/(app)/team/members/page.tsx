@@ -44,7 +44,9 @@ export default async function TeamMembersPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-fg-3">
-            Add everyone on your team here — no email is sent until you invite them.
+            Add everyone on your team here — adding someone doesn&apos;t invite them to the app, but
+            you can send a training reminder to their email right away. Use Invite when they&apos;re
+            ready to sign in.
           </p>
           <RosterForm />
           {pendingRoster.length > 0 && (
@@ -68,13 +70,13 @@ export default async function TeamMembersPage() {
             members.map((m) => (
               <div
                 key={m.id}
-                className="flex items-center justify-between rounded-sm border border-line py-2 px-3 text-sm"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-line py-2 px-3 text-sm"
               >
-                <div>
-                  <p className="text-fg">{m.full_name}</p>
-                  <p className="text-fg-3 text-xs">{m.email}</p>
+                <div className="min-w-0">
+                  <p className="truncate text-fg">{m.full_name}</p>
+                  <p className="truncate text-fg-3 text-xs">{m.email}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="neutral">{m.role}</Badge>
                   {m.status === 'inactive' ? (
                     <Badge variant="bad">Deactivated</Badge>

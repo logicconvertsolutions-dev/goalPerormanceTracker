@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/shell/page-header';
 import { formatDisplayDate } from '@/lib/dates';
@@ -44,7 +45,15 @@ export default async function ClientsPage({
 
   return (
     <div className="max-w-3xl space-y-5">
-      <PageHeader title="Clients" subtitle="Contacts with at least one recorded sale" />
+      <PageHeader
+        title="Clients"
+        subtitle="Contacts with at least one recorded sale"
+        action={
+          <Button asChild variant="secondary" size="sm">
+            <Link href="/import">Import from Excel</Link>
+          </Button>
+        }
+      />
 
       <form className="max-w-sm">
         <Input name="q" defaultValue={q ?? ''} placeholder="Search name" />

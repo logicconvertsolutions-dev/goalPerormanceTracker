@@ -1,6 +1,6 @@
 import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
-import { Phone, CalendarDays, AlertTriangle, Plus, Sparkles, ArrowRight } from 'lucide-react';
+import { Phone, CalendarDays, AlertTriangle, Plus } from 'lucide-react';
 import { todayIso, formatFullDisplayDate } from '@/lib/dates';
 import { fetchRecentActivity } from '@/lib/recent-activity';
 import { LogActivityButton } from '@/components/shell/log-activity-button';
@@ -60,14 +60,10 @@ export default async function TodayPage() {
         />
 
         {!nextUp ? (
-          <div className="flex flex-col items-start gap-3 rounded-lg border border-line bg-panel px-4 py-4 shadow-card sm:flex-row sm:items-center sm:justify-between">
+          <div className="rounded-lg border border-line bg-panel px-4 py-4 shadow-card">
             <p className="text-sm text-fg-3">
               Nothing due today. Set a follow-up when you log a call and it&apos;ll show up here.
             </p>
-            <LogActivityButton variant="primary" size="sm" className="shrink-0">
-              Log a new call
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </LogActivityButton>
           </div>
         ) : (
           <>
@@ -80,7 +76,7 @@ export default async function TodayPage() {
               daysLate={nextUp.days_late}
             />
 
-            {remaining.length > 0 ? (
+            {remaining.length > 0 && (
               <div
                 id="today-queue"
                 className="scroll-mt-4 divide-y divide-line rounded-lg border border-line bg-panel px-4 shadow-card"
@@ -97,13 +93,6 @@ export default async function TodayPage() {
                     overdue={row.days_late > 0}
                   />
                 ))}
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 rounded-lg border border-line bg-panel px-4 py-3.5 shadow-card">
-                <p className="flex items-center gap-2 text-sm text-fg-2">
-                  <Sparkles className="h-4 w-4 text-gold" aria-hidden="true" />
-                  All caught up after this.
-                </p>
               </div>
             )}
           </>
