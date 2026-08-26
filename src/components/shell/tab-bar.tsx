@@ -23,11 +23,14 @@ export function TabBar({ isLeader }: { isLeader: boolean }) {
             href={item.href}
             aria-current={current}
             className={cn(
-              'flex flex-1 flex-col items-center justify-center gap-1 py-2.5 min-h-[44px] text-[11px] leading-none',
-              current ? 'text-acc' : 'text-fg-3'
+              'relative flex flex-1 flex-col items-center justify-center gap-1 py-2.5 min-h-[44px] text-[11px] leading-none transition-smooth',
+              current ? 'font-medium text-fg' : 'text-fg-3'
             )}
           >
-            <Icon className="h-5 w-5" aria-hidden="true" />
+            {current && (
+              <span className="absolute top-0 h-[3px] w-8 rounded-full bg-gold" aria-hidden="true" />
+            )}
+            <Icon className={cn('h-5 w-5', current ? 'text-acc' : 'text-fg-3')} aria-hidden="true" />
             {item.label}
           </Link>
         );

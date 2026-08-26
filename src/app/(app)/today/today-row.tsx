@@ -1,9 +1,8 @@
 'use client';
 
-import { useTransition } from 'react';
 import Link from 'next/link';
 import { MoreVertical } from 'lucide-react';
-import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -11,9 +10,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
-import { snoozeFollowUpAction, markFollowUpDoneAction } from './actions';
+import { useFollowUpActions } from './use-follow-up-actions';
 
+/** One row in the "rest of today's queue" list, below the featured Next Up
+ * card. Deliberately plain — no border/shadow of its own — so a run of these
+ * inside one bordered container reads as a scannable list, not a stack of cards. */
 export function TodayRow({
   callLogId,
   contactId,
@@ -31,45 +32,20 @@ export function TodayRow({
   daysLate: number;
   overdue?: boolean;
 }) {
-  const [pending, startTransition] = useTransition();
-
-  function handleSnooze(daysToAdd: number) {
-    startTransition(async () => {
-      const result = await snoozeFollowUpAction(callLogId, daysToAdd);
-      if (result.ok) toast.success('Snoozed');
-      else toast.error('Could not snooze — try again');
-    });
-  }
-
-  function handleMarkDone() {
-    startTransition(async () => {
-      const result = await markFollowUpDoneAction(callLogId);
-      if (result.ok) toast.success('Marked done');
-      else toast.error('Could not update — try again');
-    });
-  }
+  const { pending, handleSnooze, handleMarkDone } = useFollowUpActions(callLogId);
 
   return (
-    <div
-      className={cn(
-        'flex items-center justify-between gap-2 rounded-sm border border-line py-2.5 px-3 shadow-lift transition-smooth',
-        overdue && 'border-l-[3px] border-l-bad bg-bad-dim/30'
-      )}
-    >
+    <div className="flex items-center justify-between gap-2 py-3">
       <Link href={`/log?contact=${contactId}`} className="min-w-0 flex-1">
-        <p className={cn('text-sm font-medium truncate', overdue ? 'text-bad' : 'text-fg')}>
-          {contactName}
-        </p>
-        {lastNote && <p className="text-xs text-fg-3 truncate">{lastNote}</p>}
-        <p className="text-xs text-fg-4">
-          Called {timesCalled}x
-          {daysLate > 0 && ` · ${daysLate}d overdue`}
-        </p>
+        <p className="truncate text-[15px] font-semibold text-fg">{contactName}</p>
+        <p className="truncate text-sm text-fg-3">{lastNote || `Called ${timesCalled}x`}</p>
       </Link>
+
+      {overdue && <Badge variant="bad">{daysLate}d overdue</Badge>}
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" disabled={pending} aria-label="Row actions">
+          <Button variant="ghost" size="icon" disabled={pending} aria-label={`Actions for ${contactName}`}>
             <MoreVertical className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
