@@ -3,6 +3,7 @@ import { ListChecks } from 'lucide-react';
 import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/shell/page-header';
 import { FilterBar } from '@/components/shell/filter-bar';
 import { DailyBreakdownTable } from '@/components/shell/daily-breakdown-table';
 import type { DailyMetricsRow } from '@/lib/metrics';
@@ -87,17 +88,19 @@ export default async function DashboardPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">My Dashboard</h1>
-        {/* Desktop reaches this via the rail nav's secondary group; the
-            mobile tab bar has no room for it, so it needs a link here too. */}
-        <Button asChild variant="secondary" size="sm" className="md:hidden">
-          <Link href="/logs">
-            <ListChecks className="h-4 w-4" aria-hidden="true" />
-            Activity logs
-          </Link>
-        </Button>
-      </div>
+      <PageHeader
+        title="My Dashboard"
+        action={
+          // Desktop reaches this via the rail nav's secondary group; the
+          // mobile tab bar has no room for it, so it needs a link here too.
+          <Button asChild variant="secondary" size="sm" className="md:hidden">
+            <Link href="/logs">
+              <ListChecks className="h-4 w-4" aria-hidden="true" />
+              Activity logs
+            </Link>
+          </Button>
+        }
+      />
 
       <FilterBar preset={preset} customFrom={params.from} customTo={params.to}>
         <div className="flex rounded-sm border border-line-2 bg-sunken p-1">
