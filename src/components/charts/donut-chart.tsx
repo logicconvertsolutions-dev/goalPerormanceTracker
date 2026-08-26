@@ -1,16 +1,16 @@
 'use client';
 
 import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts';
+import { CATEGORICAL_ORDER } from '@/lib/chart-colors';
 
 export interface DonutSlice {
   label: string;
   value: number;
 }
 
-// Navy-family palette, darkest/most saturated first — matches the one-accent-plus-neutrals
-// direction in 03-ui.md rather than introducing new hues per slice. Values mirror the
-// navy/text tokens in globals.css (Recharts fills can't consume Tailwind classes).
-const COLORS = ['#0B1E3D', '#122A54', '#5C6580', '#94A0B8', '#E7E2D3'];
+// Fixed categorical order, pre-validated for colorblind-safe adjacent slices
+// (src/lib/chart-colors.ts) — Recharts fills can't consume Tailwind classes.
+const COLORS = CATEGORICAL_ORDER;
 
 /** Donut for 2-3 (or up to 5) slice breakdowns, total in the centre (08-screen-specs.md). */
 export function DonutChart({ title, slices }: { title: string; slices: DonutSlice[] }) {

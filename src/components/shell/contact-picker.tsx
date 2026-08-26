@@ -18,6 +18,7 @@ export function ContactPicker({
   placeholder = 'Contact name',
   fieldName = 'contactName',
   idFieldName = 'contactId',
+  phoneFieldName = 'contactPhone',
   defaultName = '',
   defaultId = '',
 }: {
@@ -25,11 +26,13 @@ export function ContactPicker({
   placeholder?: string;
   fieldName?: string;
   idFieldName?: string;
+  phoneFieldName?: string;
   defaultName?: string;
   defaultId?: string;
 }) {
   const [query, setQuery] = useState(defaultName);
   const [selectedId, setSelectedId] = useState(defaultId);
+  const [phone, setPhone] = useState('');
   const [options, setOptions] = useState<ContactSearchResult[]>([]);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -79,6 +82,16 @@ export function ContactPicker({
       />
       <input type="hidden" name={fieldName} value={query} />
       <input type="hidden" name={idFieldName} value={selectedId} />
+      {!selectedId && query.trim().length >= 2 && (
+        <Input
+          type="tel"
+          name={phoneFieldName}
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="Phone number (optional)"
+          className="mt-1.5"
+        />
+      )}
       {open && options.length > 0 && (
         <ul className="absolute z-10 mt-1 w-full max-h-48 overflow-auto rounded-sm border border-line-2 bg-panel shadow-lift">
           {options.map((o) => (

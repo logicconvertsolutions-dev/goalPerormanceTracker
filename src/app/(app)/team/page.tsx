@@ -319,6 +319,7 @@ export default async function TeamPage({
                     { label: 'Friend', value: breakdown?.[0]?.src_friend ?? 0 },
                     { label: 'Other', value: breakdown?.[0]?.src_other ?? 0 },
                   ]}
+                  categorical
                 />
               </CardContent>
             </Card>

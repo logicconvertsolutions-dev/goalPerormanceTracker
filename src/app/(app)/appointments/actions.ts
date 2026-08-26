@@ -12,6 +12,7 @@ const APPT_STATUSES = ['scheduled', 'held', 'no_show', 'rescheduled', 'cancelled
 const appointmentSchema = z.object({
   contactName: z.string().min(1, 'Enter who the appointment is with.').max(200),
   contactId: z.string().uuid().optional(),
+  contactPhone: z.string().max(30).optional(),
   apptDate: z
     .string()
     .refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.')
@@ -33,6 +34,7 @@ export async function createAppointmentAction(formData: FormData) {
   const parsed = appointmentSchema.safeParse({
     contactName: formData.get('contactName'),
     contactId: formData.get('contactId') || undefined,
+    contactPhone: formData.get('contactPhone') || undefined,
     apptDate: formData.get('apptDate') || todayIso(),
     apptType: formData.get('apptType') || undefined,
     status: formData.get('status') || 'scheduled',
@@ -57,7 +59,8 @@ export async function createAppointmentAction(formData: FormData) {
     agentId,
     orgId,
     parsed.data.contactName,
-    parsed.data.contactId
+    parsed.data.contactId,
+    parsed.data.contactPhone
   );
   if ('error' in contact) return { ok: false, error: contact.error };
 

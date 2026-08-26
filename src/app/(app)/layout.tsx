@@ -6,6 +6,7 @@ import { RailNav } from '@/components/shell/rail-nav';
 import { TabBar } from '@/components/shell/tab-bar';
 import { AccountMenu } from '@/components/shell/account-menu';
 import { OfflineSync } from '@/components/shell/offline-sync';
+import { LogActivityDialogProvider } from '@/components/shell/log-activity-dialog';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireAgent();
@@ -25,35 +26,37 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex min-h-screen bg-bg print:block">
-      <RailNav isLeader={isLeader} />
-      <div className="flex-1 flex flex-col min-w-0 print:block">
-        <header className="flex items-center justify-between border-b border-line px-4 py-3 md:px-6 print:hidden">
-          <Link
-            href="/today"
-            className="flex min-w-0 items-center gap-2.5 text-fg-2 transition-smooth hover:text-fg"
-          >
-            {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt="" className="h-8 w-8 shrink-0 rounded-sm object-contain" />
-            ) : (
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm bg-acc text-gold">
-                <Target className="h-4 w-4" aria-hidden="true" />
+    <LogActivityDialogProvider>
+      <div className="flex min-h-screen bg-bg print:block">
+        <RailNav isLeader={isLeader} />
+        <div className="flex-1 flex flex-col min-w-0 print:block">
+          <header className="flex items-center justify-between border-b border-line px-4 py-3 md:px-6 print:hidden">
+            <Link
+              href="/today"
+              className="flex min-w-0 items-center gap-2.5 text-fg-2 transition-smooth hover:text-fg"
+            >
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoUrl} alt="" className="h-11 w-11 shrink-0 rounded-sm object-contain" />
+              ) : (
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-sm bg-acc text-gold">
+                  <Target className="h-5 w-5" aria-hidden="true" />
+                </span>
+              )}
+              <span className="truncate text-lg font-semibold tracking-tight text-gold-dark">
+                {org?.name ?? 'Performance Tracker'}
               </span>
-            )}
-            <span className="truncate text-[15px] font-semibold tracking-tight text-gold-dark">
-              {org?.name ?? 'Performance Tracker'}
-            </span>
-          </Link>
-          <AccountMenu
-            fullName={session.agent!.full_name}
-            isAdmin={session.agent!.role === 'admin'}
-          />
-        </header>
-        <main className="flex-1 px-4 py-6 pb-24 md:px-6 md:pb-6 print:p-0">{children}</main>
+            </Link>
+            <AccountMenu
+              fullName={session.agent!.full_name}
+              isAdmin={session.agent!.role === 'admin'}
+            />
+          </header>
+          <main className="flex-1 px-4 py-6 pb-24 md:px-6 md:pb-6 print:p-0">{children}</main>
+        </div>
+        <TabBar isLeader={isLeader} />
+        <OfflineSync />
       </div>
-      <TabBar isLeader={isLeader} />
-      <OfflineSync />
-    </div>
+    </LogActivityDialogProvider>
   );
 }

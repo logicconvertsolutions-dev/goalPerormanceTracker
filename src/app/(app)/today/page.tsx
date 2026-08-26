@@ -1,10 +1,9 @@
 import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
-import { Button } from '@/components/ui/button';
-import Link from 'next/link';
 import { Phone, CalendarDays, AlertTriangle, Plus, Sparkles, ArrowRight } from 'lucide-react';
 import { todayIso, formatFullDisplayDate } from '@/lib/dates';
 import { fetchRecentActivity } from '@/lib/recent-activity';
+import { LogActivityButton } from '@/components/shell/log-activity-button';
 import { SectionHeader } from './section-header';
 import { KpiStat } from './kpi-stat';
 import { NextUpCard } from './next-up-card';
@@ -40,12 +39,10 @@ export default async function TodayPage() {
           </h1>
           <p className="mt-0.5 text-sm text-fg-3">{formatFullDisplayDate(todayIso())}</p>
         </div>
-        <Button asChild variant="primary" size="sm" className="mt-1.5 shrink-0">
-          <Link href="/log">
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Log Activity
-          </Link>
-        </Button>
+        <LogActivityButton variant="primary" size="sm" className="mt-1.5 shrink-0">
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Log Activity
+        </LogActivityButton>
       </div>
 
       <div className="flex gap-2.5">
@@ -67,12 +64,10 @@ export default async function TodayPage() {
             <p className="text-sm text-fg-3">
               Nothing due today. Set a follow-up when you log a call and it&apos;ll show up here.
             </p>
-            <Button asChild variant="primary" size="sm" className="shrink-0">
-              <Link href="/log">
-                Log a new call
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Link>
-            </Button>
+            <LogActivityButton variant="primary" size="sm" className="shrink-0">
+              Log a new call
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </LogActivityButton>
           </div>
         ) : (
           <>
@@ -104,17 +99,11 @@ export default async function TodayPage() {
                 ))}
               </div>
             ) : (
-              <div className="flex flex-col items-start gap-3 rounded-lg border border-line bg-panel px-4 py-3.5 shadow-card sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 rounded-lg border border-line bg-panel px-4 py-3.5 shadow-card">
                 <p className="flex items-center gap-2 text-sm text-fg-2">
                   <Sparkles className="h-4 w-4 text-gold" aria-hidden="true" />
                   All caught up after this.
                 </p>
-                <Button asChild variant="primary" size="sm" className="shrink-0">
-                  <Link href="/log">
-                    Log another activity
-                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                  </Link>
-                </Button>
               </div>
             )}
           </>

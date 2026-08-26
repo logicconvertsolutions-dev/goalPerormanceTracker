@@ -1,5 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { KpiCard } from '@/components/shell/kpi-card';
+import { LogActivityButton } from '@/components/shell/log-activity-button';
 import { DonutChart } from '@/components/charts/donut-chart';
 import { HorizontalBarChart } from '@/components/charts/horizontal-bar-chart';
 import { TrendChart } from '@/components/charts/trend-chart';
@@ -13,12 +14,11 @@ export function DashboardView({ vm }: { vm: DashboardViewModel }) {
       <Card>
         <CardContent className="pt-4">
           <p className="text-sm text-fg-2">
-            Nothing logged yet this week. Your dashboard fills in as you log calls — head to{' '}
-            <a href="/log" className="text-acc hover:underline">
-              /log
-            </a>{' '}
-            to get started.
+            Nothing logged yet this week. Your dashboard fills in as you log calls.
           </p>
+          <LogActivityButton variant="primary" size="sm" className="mt-3">
+            Log activity
+          </LogActivityButton>
         </CardContent>
       </Card>
     );
@@ -63,7 +63,7 @@ export function DashboardView({ vm }: { vm: DashboardViewModel }) {
         <Card>
           <CardContent className="pt-4">
             <h2 className="text-[16px] font-semibold text-fg mb-3">Call Source</h2>
-            <HorizontalBarChart title="Call Source" data={vm.callSource} />
+            <HorizontalBarChart title="Call Source" data={vm.callSource} categorical />
           </CardContent>
         </Card>
 

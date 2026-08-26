@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { Phone, MoreVertical } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useFollowUpActions } from './use-follow-up-actions';
+import { useLogActivityDialog } from '@/components/shell/log-activity-dialog';
 
 /** The single most urgent follow-up, featured above the rest of the queue —
  * answers "what should I do next" the moment the page opens. */
@@ -30,12 +30,17 @@ export function NextUpCard({
   daysLate: number;
 }) {
   const { pending, handleSnooze, handleMarkDone } = useFollowUpActions(callLogId);
+  const { open: openLog } = useLogActivityDialog();
   const overdue = daysLate > 0;
 
   return (
     <div className="flex items-stretch gap-3 rounded-lg border border-line bg-panel pr-2 shadow-card">
       <div className={overdue ? 'w-[3px] shrink-0 rounded-l-[12px] bg-bad' : 'w-[3px] shrink-0 rounded-l-[12px] bg-gold'} />
-      <Link href={`/log?contact=${contactId}`} className="flex min-w-0 flex-1 items-center gap-3 py-3.5">
+      <button
+        type="button"
+        onClick={() => openLog({ contactId, contactName })}
+        className="flex min-w-0 flex-1 items-center gap-3 py-3.5 text-left"
+      >
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acc-dim text-acc">
           <Phone className="h-[18px] w-[18px]" aria-hidden="true" />
         </span>
@@ -47,7 +52,7 @@ export function NextUpCard({
             <p className="truncate text-sm text-fg-3">Called {timesCalled}x</p>
           )}
         </div>
-      </Link>
+      </button>
       <div className="flex shrink-0 items-center gap-1.5 self-center">
         <Badge variant={overdue ? 'bad' : 'neutral'}>
           {overdue ? `${daysLate}d overdue` : 'Due today'}

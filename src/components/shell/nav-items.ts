@@ -6,6 +6,7 @@ import {
   UsersRound,
   ListChecks,
   NotebookText,
+  UserCheck,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -27,6 +28,7 @@ export const PRIMARY_NAV: NavItem[] = [
 export const SECONDARY_NAV: NavItem[] = [
   { href: '/logs', label: 'Activity Logs', icon: ListChecks },
   { href: '/notes', label: 'Meeting Notes', icon: NotebookText },
+  { href: '/clients', label: 'Clients', icon: UserCheck },
 ];
 
 export const LEADER_NAV: NavItem = { href: '/team', label: 'My Team', icon: UsersRound };

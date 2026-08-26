@@ -35,7 +35,7 @@ export function AccountMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="-m-1.5 flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none"
+        className="-m-1.5 flex h-12 w-12 items-center justify-center rounded-full focus-visible:outline-none"
         aria-label="Account menu"
       >
         <Avatar>

@@ -33,8 +33,13 @@ const STATUSES = [
 export function RecruitingForm({
   mode = 'create',
   defaultValues,
+  onSuccess,
+  onCancel,
 }: {
   mode?: 'create' | 'edit';
+  /** When set (e.g. inside a modal), called instead of navigating away on success/cancel. */
+  onSuccess?: () => void;
+  onCancel?: () => void;
   defaultValues?: {
     id: string;
     prospectName?: string;
@@ -74,7 +79,7 @@ export function RecruitingForm({
       const result = await submitWithOfflineFallback('recruiting', formData, createRecruitingLogAction);
       if (result.ok) {
         toast.success(result.queued ? 'Saved offline — will sync when back online' : 'Recruiting conversation logged');
-        router.push('/recruiting');
+        onSuccess ? onSuccess() : router.push('/recruiting');
       } else {
         toast.error(result.error ?? 'Could not save.');
       }
@@ -144,7 +149,7 @@ export function RecruitingForm({
           variant="secondary"
           className="flex-1"
           disabled={pending}
-          onClick={() => router.back()}
+          onClick={() => (onCancel ? onCancel() : router.back())}
         >
           Cancel
         </Button>

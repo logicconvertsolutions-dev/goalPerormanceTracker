@@ -27,6 +27,7 @@ const CALL_OUTCOMES = [
 const logCallSchema = z.object({
   contactName: z.string().min(1, 'Enter who you called.').max(200),
   contactId: z.string().uuid().optional(),
+  contactPhone: z.string().max(30).optional(),
   callDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
   source: z.enum(CALL_SOURCES),
   outcome: z.enum(CALL_OUTCOMES),
@@ -42,6 +43,7 @@ export async function logCallAction(formData: FormData) {
   const parsed = logCallSchema.safeParse({
     contactName: formData.get('contactName'),
     contactId: formData.get('contactId') || undefined,
+    contactPhone: formData.get('contactPhone') || undefined,
     callDate: formData.get('callDate') || todayIso(),
     source: formData.get('source'),
     outcome: formData.get('outcome'),
@@ -76,7 +78,8 @@ export async function logCallAction(formData: FormData) {
     agentId,
     orgId,
     parsed.data.contactName,
-    parsed.data.contactId
+    parsed.data.contactId,
+    parsed.data.contactPhone
   );
   if ('error' in contact) return { ok: false, error: contact.error };
 
@@ -152,6 +155,30 @@ export async function updateCallAction(formData: FormData) {
   revalidatePath('/today');
   revalidatePath('/logs');
   return { ok: true };
+}
+
+/** Contact name + recent call history for prefilling the quick-log dialog when opened from a contact. */
+export async function fetchLogPrefillAction(contactId: string) {
+  const session = await requireAgent();
+  const supabase = await createClient();
+
+  const { data: contact } = await supabase
+    .from('contacts')
+    .select('id, full_name')
+    .eq('id', contactId)
+    .eq('agent_id', session.agent!.id)
+    .maybeSingle();
+
+  if (!contact) return null;
+
+  const { data: pastCalls } = await supabase
+    .from('call_logs')
+    .select('call_date, outcome, notes')
+    .eq('contact_id', contact.id)
+    .order('call_date', { ascending: false })
+    .limit(3);
+
+  return { contact, history: pastCalls ?? [] };
 }
 
 export async function deleteCallAction(id: string) {

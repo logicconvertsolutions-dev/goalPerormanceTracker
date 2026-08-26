@@ -9,6 +9,7 @@ import {
   sundaySummaryEmail,
   mondayDigestEmail,
   nudgeEmail,
+  trainingReminderEmail,
   type EmailContent,
 } from './templates';
 
@@ -204,5 +205,19 @@ export async function composeNudge(
       streakDays,
       minCallsPerDay: target.min_calls_per_day,
     }),
+  };
+}
+
+/** The SMD's ad-hoc per-agent training reminder — distinct from composeNudge
+ * above (public.send_training_reminder rate-limits to 1/7 days, separately
+ * from nudge_agent's own cooldown). No target/streak lookup needed since
+ * this isn't about daily activity. */
+export async function composeTrainingReminder(
+  agent: NotifiableAgent,
+  sentByName: string
+): Promise<{ to: string; content: EmailContent }> {
+  return {
+    to: agent.email,
+    content: trainingReminderEmail({ agentId: agent.id, fullName: agent.full_name, sentByName }),
   };
 }

@@ -55,10 +55,15 @@ export function AppointmentForm({
   defaultValues,
   prefillContactName,
   prefillContactId,
+  onSuccess,
+  onCancel,
 }: {
   mode?: 'create' | 'edit';
   prefillContactName?: string;
   prefillContactId?: string;
+  /** When set (e.g. inside a modal), called instead of navigating away on success/cancel. */
+  onSuccess?: () => void;
+  onCancel?: () => void;
   defaultValues?: {
     id: string;
     contactName?: string;
@@ -109,7 +114,7 @@ export function AppointmentForm({
       const result = await submitWithOfflineFallback('appointment', formData, createAppointmentAction);
       if (result.ok) {
         toast.success(result.queued ? 'Saved offline — will sync when back online' : 'Appointment logged');
-        router.push('/appointments');
+        onSuccess ? onSuccess() : router.push('/appointments');
       } else {
         toast.error(result.error ?? 'Could not save the appointment.');
       }
@@ -234,7 +239,7 @@ export function AppointmentForm({
           variant="secondary"
           className="flex-1"
           disabled={pending}
-          onClick={() => router.back()}
+          onClick={() => (onCancel ? onCancel() : router.back())}
         >
           Cancel
         </Button>

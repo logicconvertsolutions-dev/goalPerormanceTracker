@@ -97,6 +97,28 @@ describe('parseWorkbook', () => {
     });
   });
 
+  it('parses an optional trailing Phone column without disturbing existing columns', () => {
+    const buf = buildWorkbook({
+      'Call Log': [
+        [...CALL_LOG_HEADER, 'Phone'],
+        ['2026-07-06', 'Jane Doe', 'Acme Inc.', 'Warm Market', 'Connected', 'note', '555-123-4567'],
+      ],
+    });
+
+    const result = parseWorkbook(buf);
+    expect(result.rows[0].errors).toEqual([]);
+    expect(result.rows[0].data).toMatchObject({ contactName: 'Jane Doe', contactPhone: '555-123-4567' });
+  });
+
+  it('leaves contactPhone null when the workbook has no Phone column at all', () => {
+    const buf = buildWorkbook({
+      'Call Log': [CALL_LOG_HEADER, ['2026-07-06', 'Jane Doe', null, 'Warm Market', 'Connected', null]],
+    });
+
+    const result = parseWorkbook(buf);
+    expect(result.rows[0].data).toMatchObject({ contactPhone: null });
+  });
+
   it('skips fully-blank rows without emitting them', () => {
     const buf = buildWorkbook({
       'Call Log': [
