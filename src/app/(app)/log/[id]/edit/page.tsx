@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
+import { PageHeader } from '@/components/shell/page-header';
 import { LogForm } from '../../log-form';
 
 export default async function EditCallPage({ params }: { params: { id: string } }) {
@@ -18,7 +19,7 @@ export default async function EditCallPage({ params }: { params: { id: string } 
 
   return (
     <div className="max-w-md space-y-4">
-      <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Edit call</h1>
+      <PageHeader title="Edit call" />
       <LogForm
         mode="edit"
         defaultValues={{

@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
+import { PageHeader } from '@/components/shell/page-header';
 import { AppointmentForm } from '../../appointment-form';
 
 export default async function EditAppointmentPage({ params }: { params: { id: string } }) {
@@ -20,7 +21,7 @@ export default async function EditAppointmentPage({ params }: { params: { id: st
 
   return (
     <div className="max-w-md space-y-4">
-      <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Edit appointment</h1>
+      <PageHeader title="Edit appointment" />
       <AppointmentForm
         mode="edit"
         defaultValues={{

@@ -3,6 +3,8 @@ import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/shell/page-header';
+import { KpiCard } from '@/components/shell/kpi-card';
 import { FilterBar, type FilterChip } from '@/components/shell/filter-bar';
 import { resolvePeriod, todayIso, type PeriodPreset, PERIOD_PRESETS } from '@/lib/dates';
 import { RecruitingRow } from './recruiting-row';
@@ -62,12 +64,14 @@ export default async function RecruitingPage({
 
   return (
     <div className="space-y-4 max-w-3xl">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Recruiting</h1>
-        <Button asChild variant="primary">
-          <Link href="/recruiting/new">Log conversation</Link>
-        </Button>
-      </div>
+      <PageHeader
+        title="Recruiting"
+        action={
+          <Button asChild variant="primary" size="sm">
+            <Link href="/recruiting/new">Log conversation</Link>
+          </Button>
+        }
+      />
 
       <FilterBar preset={preset} customFrom={params.from} customTo={params.to} chips={chips}>
         <form action="/recruiting" className="flex items-center gap-2">
@@ -104,13 +108,13 @@ export default async function RecruitingPage({
       ) : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <SummaryStat label="Conversations" value={String(conversations)} />
-            <SummaryStat label="Marketing Presented" value={String(marketingPresented)} />
-            <SummaryStat label="Recruited" value={String(recruited)} />
-            <SummaryStat label="Licensed" value={String(licensed)} />
+            <KpiCard label="Conversations" value={String(conversations)} />
+            <KpiCard label="Marketing Presented" value={String(marketingPresented)} />
+            <KpiCard label="Recruited" value={String(recruited)} />
+            <KpiCard label="Licensed" value={String(licensed)} />
           </div>
 
-          <div className="overflow-x-auto rounded-lg border border-line">
+          <div className="overflow-x-auto rounded-[12px] border border-line">
             <table className="w-full text-sm">
               <thead className="bg-bg-2 text-fg-3 text-xs uppercase tracking-wide">
                 <tr>
@@ -138,16 +142,5 @@ export default async function RecruitingPage({
         </>
       )}
     </div>
-  );
-}
-
-function SummaryStat({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="pt-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-fg-3">{label}</p>
-        <p className="text-lg font-medium font-mono tabular-nums tracking-tighter text-fg">{value}</p>
-      </CardContent>
-    </Card>
   );
 }
