@@ -12,11 +12,14 @@ export function ActivityRow({
   summary: string;
   createdAt: string;
 }) {
-  const Icon = ACTIVITY_META[kind].icon;
+  const { icon: Icon, color } = ACTIVITY_META[kind];
 
   return (
     <div className="flex items-center gap-3 py-3">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-acc-dim text-acc">
+      <span
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+        style={{ backgroundColor: `${color}1A`, color }}
+      >
         <Icon className="h-4 w-4" aria-hidden="true" />
       </span>
       <div className="min-w-0 flex-1">

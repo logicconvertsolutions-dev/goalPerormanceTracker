@@ -1,22 +1,32 @@
 'use client';
 
-import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from 'recharts';
+import { CATEGORICAL_ORDER, CHART_COLORS } from '@/lib/chart-colors';
 
 export interface BarDatum {
   label: string;
   value: number;
 }
 
-/** Horizontal bar, sorted descending — for ranking questions like "where are my leads from" (08-screen-specs.md). */
+/**
+ * Horizontal bar, sorted descending — for ranking questions like "where are my leads from"
+ * (08-screen-specs.md). When `categorical` is set each bar gets its own hue from the fixed
+ * palette (the data represents distinct categories, e.g. call source); otherwise every bar
+ * shares one accent — coloring a plain ranking bar-by-bar would encode rank as color, which
+ * isn't meaningful.
+ */
 export function HorizontalBarChart({
   title,
   data,
   target,
+  categorical = false,
 }: {
   title: string;
   data: BarDatum[];
   /** Optional reference line, e.g. the per-agent calls target on "Calls by Agent" (08-screen-specs.md). */
   target?: number;
+  /** Color each bar by category instead of a single accent — for genuinely categorical data. */
+  categorical?: boolean;
 }) {
   const sorted = [...data].sort((a, b) => b.value - a.value);
 
@@ -35,7 +45,12 @@ export function HorizontalBarChart({
               tickLine={false}
               width={90}
             />
-            <Bar dataKey="value" fill="#0B1E3D" radius={[0, 4, 4, 0]} maxBarSize={18} />
+            <Bar dataKey="value" fill={CHART_COLORS.blue} radius={[0, 4, 4, 0]} maxBarSize={18}>
+              {categorical &&
+                sorted.map((d, i) => (
+                  <Cell key={d.label} fill={CATEGORICAL_ORDER[i % CATEGORICAL_ORDER.length]} />
+                ))}
+            </Bar>
             {target !== undefined && (
               <ReferenceLine x={target} stroke="#94A0B8" strokeDasharray="3 3" />
             )}

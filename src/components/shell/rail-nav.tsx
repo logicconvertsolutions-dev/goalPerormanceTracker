@@ -4,21 +4,34 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { PRIMARY_NAV, SECONDARY_NAV, LEADER_NAV, type NavItem } from './nav-items';
+import { useLogActivityDialog } from './log-activity-dialog';
 
 function NavLink({ item, current }: { item: NavItem; current: boolean }) {
   const Icon = item.icon;
-  return (
-    <Link
-      href={item.href}
-      aria-current={current}
-      className={cn(
-        'flex items-center gap-2.5 rounded-sm border-l-2 border-transparent px-3 py-2.5 text-sm text-fg-2 transition-smooth',
-        'hover:bg-hover hover:text-fg',
-        current && 'border-l-gold bg-hover text-fg font-medium'
-      )}
-    >
+  const { open: openLog } = useLogActivityDialog();
+  const className = cn(
+    'flex items-center gap-2.5 rounded-sm border-l-2 border-transparent px-3 py-2.5 text-sm text-fg-2 transition-smooth',
+    'hover:bg-hover hover:text-fg',
+    current && 'border-l-gold bg-hover text-fg font-medium'
+  );
+  const inner = (
+    <>
       <Icon className={cn('h-4 w-4 shrink-0', current && 'text-acc')} aria-hidden="true" />
       {item.label}
+    </>
+  );
+
+  if (item.href === '/log') {
+    return (
+      <button type="button" onClick={() => openLog()} className={className}>
+        {inner}
+      </button>
+    );
+  }
+
+  return (
+    <Link href={item.href} aria-current={current} className={className}>
+      {inner}
     </Link>
   );
 }

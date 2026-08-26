@@ -148,6 +148,31 @@ export function inviteEmail(d: InviteData): EmailContent {
   };
 }
 
+export interface TrainingReminderData {
+  agentId: string;
+  fullName: string;
+  sentByName: string;
+}
+
+// A distinct notification from the ad-hoc "Nudge" above — that one is about
+// missed daily activity; this one is a leader pointing a teammate at their
+// training. No unsubscribe link for the same reason as nudgeEmail: it's a
+// one-off a leader sent by hand, not a standing preference (send_training_reminder
+// already rate-limits to 1/7 days per agent).
+export function trainingReminderEmail(d: TrainingReminderData): EmailContent {
+  const trainingUrl = appUrl('/today');
+  const bodyHtml = `
+    <p>Hi ${firstName(d.fullName)},</p>
+    <p>${d.sentByName} sent you a reminder to complete your training.</p>
+    <p><a href="${trainingUrl}" style="display:inline-block;padding:10px 16px;background:#111;color:#fff;text-decoration:none;border-radius:6px;">Open the app</a></p>`;
+  const bodyText = `Hi ${firstName(d.fullName)},\n\n${d.sentByName} sent you a reminder to complete your training.\n\nOpen the app: ${trainingUrl}`;
+  return {
+    subject: `${d.sentByName} sent you a training reminder`,
+    html: wrap(bodyHtml, d.agentId, null),
+    text: wrapText(bodyText, d.agentId, null),
+  };
+}
+
 export interface NudgeData {
   agentId: string;
   fullName: string;

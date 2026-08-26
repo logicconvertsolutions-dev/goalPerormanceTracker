@@ -80,6 +80,39 @@ export type Database = {
           },
         ]
       }
+      agent_training_reminders: {
+        Row: {
+          agent_id: string
+          sent_at: string
+          sent_by: string
+        }
+        Insert: {
+          agent_id: string
+          sent_at?: string
+          sent_by: string
+        }
+        Update: {
+          agent_id?: string
+          sent_at?: string
+          sent_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_training_reminders_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_training_reminders_sent_by_fkey"
+            columns: ["sent_by"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agents: {
         Row: {
           created_at: string
@@ -320,6 +353,8 @@ export type Database = {
           full_name: string
           id: string
           org_id: string
+          phone: string | null
+          phone_normalized: string | null
         }
         Insert: {
           agent_id: string
@@ -327,6 +362,7 @@ export type Database = {
           full_name: string
           id?: string
           org_id: string
+          phone?: string | null
         }
         Update: {
           agent_id?: string
@@ -334,6 +370,7 @@ export type Database = {
           full_name?: string
           id?: string
           org_id?: string
+          phone?: string | null
         }
         Relationships: [
           {
@@ -863,6 +900,74 @@ export type Database = {
           },
         ]
       }
+      team_roster: {
+        Row: {
+          created_at: string
+          created_by: string
+          email: string | null
+          full_name: string
+          id: string
+          invitation_id: string | null
+          notes: string | null
+          org_id: string
+          phone: string | null
+          upline_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          email?: string | null
+          full_name: string
+          id?: string
+          invitation_id?: string | null
+          notes?: string | null
+          org_id: string
+          phone?: string | null
+          upline_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          email?: string | null
+          full_name?: string
+          id?: string
+          invitation_id?: string | null
+          notes?: string | null
+          org_id?: string
+          phone?: string | null
+          upline_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_roster_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_roster_invitation_id_fkey"
+            columns: ["invitation_id"]
+            isOneToOne: false
+            referencedRelation: "invitations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_roster_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_roster_upline_id_fkey"
+            columns: ["upline_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -998,6 +1103,7 @@ export type Database = {
           org_id: string
         }[]
       }
+      send_training_reminder: { Args: { p_agent_id: string }; Returns: undefined }
       system_effective_target: {
         Args: { p_agent_id: string; p_week: string }
         Returns: {

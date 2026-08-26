@@ -6,14 +6,19 @@ import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/shell/page-header';
 import { formatDisplayDate } from '@/lib/dates';
 
-interface ContactRow {
+interface ClientRow {
   id: string;
   full_name: string;
   phone: string | null;
-  call_logs: { call_date: string; outcome: string; follow_up_on: string | null; follow_up_done_at: string | null }[];
+  sales: { sale_date: string; premium_cents: number }[];
 }
 
-export default async function ContactsPage({
+/**
+ * A "client" isn't a separate entity — it's any contact with at least one
+ * recorded sale (`sales!inner` below makes that the join condition). No new
+ * schema: this page is a filtered, sale-aggregated view over `contacts`.
+ */
+export default async function ClientsPage({
   searchParams,
 }: {
   searchParams: { q?: string };
@@ -24,7 +29,7 @@ export default async function ContactsPage({
 
   let query = supabase
     .from('contacts')
-    .select('id, full_name, phone, call_logs(call_date, outcome, follow_up_on, follow_up_done_at)')
+    .select('id, full_name, phone, sales!inner(sale_date, premium_cents)')
     .eq('agent_id', session.agent!.id);
 
   if (q) {
@@ -32,14 +37,14 @@ export default async function ContactsPage({
     query = query.ilike('full_name', `%${escaped}%`);
   }
 
-  const { data: contacts } = await query
+  const { data: clients } = await query
     .order('full_name', { ascending: true })
-    .returns<ContactRow[]>();
-  const rows = contacts ?? [];
+    .returns<ClientRow[]>();
+  const rows = clients ?? [];
 
   return (
     <div className="max-w-3xl space-y-5">
-      <PageHeader title="Contacts" />
+      <PageHeader title="Clients" subtitle="Contacts with at least one recorded sale" />
 
       <form className="max-w-sm">
         <Input name="q" defaultValue={q ?? ''} placeholder="Search name" />
@@ -49,37 +54,28 @@ export default async function ContactsPage({
         <Card>
           <CardContent className="pt-4">
             <p className="text-sm text-fg-2">
-              {q
-                ? `No contacts matching "${q}".`
-                : 'No contacts yet. They appear automatically when you log a call.'}
+              {q ? `No clients matching "${q}".` : 'No clients yet. They appear here once a sale is logged.'}
             </p>
           </CardContent>
         </Card>
       ) : (
         <>
-          {/* Mobile: a divided list, same visual language as My Day's Recent
-              Activity — a table's horizontal scroll doesn't work well on a
-              small screen. */}
+          {/* Mobile: a divided list, same pattern as Contacts. */}
           <div className="divide-y divide-line rounded-lg border border-line bg-panel px-4 shadow-card md:hidden">
             {rows.map((c) => {
-              const calls = [...c.call_logs].sort((a, b) => (a.call_date < b.call_date ? 1 : -1));
-              const last = calls[0];
-              const nextFollowUp = c.call_logs
-                .filter((cl) => cl.follow_up_on && !cl.follow_up_done_at)
-                .sort((a, b) => (a.follow_up_on! < b.follow_up_on! ? -1 : 1))[0]?.follow_up_on;
-
+              const totalCents = c.sales.reduce((sum, s) => sum + s.premium_cents, 0);
+              const mostRecent = [...c.sales].sort((a, b) => (a.sale_date < b.sale_date ? 1 : -1))[0];
               return (
                 <Link key={c.id} href={`/contacts/${c.id}`} className="block py-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="truncate text-[15px] font-semibold text-fg">{c.full_name}</p>
-                    <span className="shrink-0 text-xs text-fg-3">{calls.length} calls</span>
+                    <span className="shrink-0 text-xs font-medium text-ok">
+                      ${(totalCents / 100).toLocaleString('en-CA')}
+                    </span>
                   </div>
-                  {c.phone && <p className="mt-0.5 truncate text-sm text-fg-2">{c.phone}</p>}
                   <p className="mt-0.5 truncate text-sm text-fg-3">
-                    {last
-                      ? `${formatDisplayDate(last.call_date)} · ${last.outcome.replace('_', ' ')}`
-                      : 'No calls yet'}
-                    {nextFollowUp && ` · Follow-up ${formatDisplayDate(nextFollowUp)}`}
+                    {c.sales.length} sale{c.sales.length === 1 ? '' : 's'}
+                    {mostRecent && ` · last ${formatDisplayDate(mostRecent.sale_date)}`}
                   </p>
                 </Link>
               );
@@ -91,22 +87,17 @@ export default async function ContactsPage({
             <table className="w-full text-sm">
               <thead className="bg-bg-2 text-fg-3 text-xs uppercase tracking-wide">
                 <tr>
-                  <th className="text-left font-medium px-4 py-2.5">Contact</th>
+                  <th className="text-left font-medium px-4 py-2.5">Client</th>
                   <th className="text-left font-medium px-4 py-2.5">Phone</th>
-                  <th className="text-left font-medium px-4 py-2.5">Times called</th>
-                  <th className="text-left font-medium px-4 py-2.5">Last called</th>
-                  <th className="text-left font-medium px-4 py-2.5">Last outcome</th>
-                  <th className="text-left font-medium px-4 py-2.5">Next follow-up</th>
+                  <th className="text-left font-medium px-4 py-2.5">Sales</th>
+                  <th className="text-left font-medium px-4 py-2.5">Last sale</th>
+                  <th className="text-right font-medium px-4 py-2.5">Total premium</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((c) => {
-                  const calls = [...c.call_logs].sort((a, b) => (a.call_date < b.call_date ? 1 : -1));
-                  const last = calls[0];
-                  const nextFollowUp = c.call_logs
-                    .filter((cl) => cl.follow_up_on && !cl.follow_up_done_at)
-                    .sort((a, b) => (a.follow_up_on! < b.follow_up_on! ? -1 : 1))[0]?.follow_up_on;
-
+                  const totalCents = c.sales.reduce((sum, s) => sum + s.premium_cents, 0);
+                  const mostRecent = [...c.sales].sort((a, b) => (a.sale_date < b.sale_date ? 1 : -1))[0];
                   return (
                     <tr key={c.id} className="border-t border-line hover:bg-hover">
                       <td className="px-4 py-2.5">
@@ -115,15 +106,12 @@ export default async function ContactsPage({
                         </Link>
                       </td>
                       <td className="px-4 py-2.5 text-fg-2">{c.phone ?? '—'}</td>
-                      <td className="px-4 py-2.5 text-fg-2">{calls.length}</td>
+                      <td className="px-4 py-2.5 text-fg-2">{c.sales.length}</td>
                       <td className="px-4 py-2.5 text-fg-2">
-                        {last ? formatDisplayDate(last.call_date) : '—'}
+                        {mostRecent ? formatDisplayDate(mostRecent.sale_date) : '—'}
                       </td>
-                      <td className="px-4 py-2.5 text-fg-2">
-                        {last ? last.outcome.replace('_', ' ') : '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-fg-2">
-                        {nextFollowUp ? formatDisplayDate(nextFollowUp) : '—'}
+                      <td className="px-4 py-2.5 text-right font-medium text-ok">
+                        ${(totalCents / 100).toLocaleString('en-CA')}
                       </td>
                     </tr>
                   );

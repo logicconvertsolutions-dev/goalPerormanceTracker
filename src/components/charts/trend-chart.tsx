@@ -1,6 +1,7 @@
 'use client';
 
 import { Bar, ComposedChart, Line, CartesianGrid, ResponsiveContainer, XAxis, YAxis } from 'recharts';
+import { CHART_COLORS } from '@/lib/chart-colors';
 
 export interface TrendWeek {
   weekStart: string;
@@ -25,8 +26,10 @@ export function TrendChart({ weeks, metric }: { weeks: TrendWeek[]; metric: 'cal
             <CartesianGrid vertical={false} stroke="rgba(11,30,61,.08)" />
             <XAxis dataKey="label" tick={{ fill: '#94A0B8', fontSize: 11 }} axisLine={{ stroke: 'rgba(11,30,61,.08)' }} tickLine={false} />
             <YAxis tick={{ fill: '#94A0B8', fontSize: 11 }} axisLine={false} tickLine={false} />
-            <Bar dataKey="value" fill="#0B1E3D" radius={[4, 4, 0, 0]} maxBarSize={28} />
-            {metric === 'calls' && <Line type="monotone" dataKey="target" stroke="#94A0B8" strokeWidth={1.5} dot={false} />}
+            <Bar dataKey="value" fill={CHART_COLORS.blue} radius={[4, 4, 0, 0]} maxBarSize={28} />
+            {metric === 'calls' && (
+              <Line type="monotone" dataKey="target" stroke={CHART_COLORS.orange} strokeWidth={1.5} dot={false} />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
