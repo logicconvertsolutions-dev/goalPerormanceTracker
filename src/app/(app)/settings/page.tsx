@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { weekStart } from '@/lib/dates';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/shell/page-header';
 import { NotificationToggles } from './notification-toggles';
 import { TimeZoneSelect } from './time-zone-select';
 import { DataActions } from './data-actions';
@@ -25,7 +26,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-4 max-w-lg">
-      <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Settings</h1>
+      <PageHeader title="Settings" />
 
       <Card>
         <CardHeader>

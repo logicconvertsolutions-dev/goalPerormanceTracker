@@ -1,6 +1,7 @@
 import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/shell/page-header';
 import { FullNameForm } from './full-name-form';
 import { PasswordForm } from './password-form';
 import { SignOutEverywhereButton } from './sign-out-everywhere-button';
@@ -12,7 +13,7 @@ export default async function ProfilePage() {
 
   return (
     <div className="space-y-4 max-w-lg">
-      <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Profile</h1>
+      <PageHeader title="Profile" />
 
       <Card>
         <CardHeader>

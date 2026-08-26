@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/shell/page-header';
 import { formatDisplayDate } from '@/lib/dates';
 import { outcomeBadgeVariant } from '@/lib/call-outcomes';
 
@@ -42,21 +43,19 @@ export default async function ContactDetailPage({ params }: { params: { id: stri
 
   return (
     <div className="space-y-4 max-w-2xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-heading-tight text-fg">
-            {contact.full_name}
-          </h1>
-        </div>
-        <div className="flex gap-2">
-          <Button asChild variant="secondary">
-            <Link href={`/appointments/new?contact=${contact.id}`}>Log appointment</Link>
-          </Button>
-          <Button asChild variant="primary">
-            <Link href={`/log?contact=${contact.id}`}>Log a call</Link>
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title={contact.full_name}
+        action={
+          <div className="flex gap-2">
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`/appointments/new?contact=${contact.id}`}>Log appointment</Link>
+            </Button>
+            <Button asChild variant="primary" size="sm">
+              <Link href={`/log?contact=${contact.id}`}>Log a call</Link>
+            </Button>
+          </div>
+        }
+      />
 
       {(appointments?.length || sale) && (
         <Card>

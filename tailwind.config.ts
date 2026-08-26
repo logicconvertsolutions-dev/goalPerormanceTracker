@@ -17,13 +17,15 @@ const config = {
         // var() reference. The same values are declared as CSS custom properties in
         // globals.css :root as the source of truth / for use outside Tailwind classes.
         //
-        // Ground — recessed/chrome tones (page background, nav chrome, inputs, hover states)
-        bg: '#F7F5EF',
-        'bg-2': '#F7F5EF',
+        // Ground — page background & chrome now match the white surface tone.
+        // hover/sunken stay a hair off pure white so row-hover feedback and
+        // input fields remain visible against a white page.
+        bg: '#FFFFFF',
+        'bg-2': '#FFFFFF',
         panel: '#FFFFFF',
         'panel-2': '#FFFFFF',
-        hover: '#F7F5EF',
-        sunken: '#F7F5EF',
+        hover: '#F4F4F5',
+        sunken: '#F4F4F5',
         // Text
         fg: '#14213D',
         'fg-2': '#5C6580',
@@ -44,7 +46,7 @@ const config = {
         'gold-light': '#FBF3D9',
         navy: '#0B1E3D',
         'navy-2': '#122A54',
-        canvas: '#F7F5EF',
+        canvas: '#FFFFFF',
         surface: '#FFFFFF',
         // Attainment
         ok: '#1B7A43',
@@ -61,10 +63,13 @@ const config = {
         'line-2': 'rgba(20, 33, 61, 0.14)',
         'line-3': 'rgba(20, 33, 61, 0.22)',
       },
+      // Bumped up for a softer, more rounded feel across buttons, inputs,
+      // menus, and cards — every rounded-sm/DEFAULT/lg usage in the app
+      // picks this up automatically (rounded-full elements are unaffected).
       borderRadius: {
-        sm: '6px',
-        DEFAULT: '8px',
-        lg: '12px',
+        sm: '10px',
+        DEFAULT: '14px',
+        lg: '20px',
       },
       boxShadow: {
         // Everyday card/button elevation — a touch stronger than a hairline so
@@ -73,6 +78,12 @@ const config = {
         // Heavier elevation for things that should visually float above the
         // page — popovers, dropdowns, toasts, the mobile tab bar.
         float: '0 8px 24px -4px rgba(11, 30, 61, 0.16), 0 2px 8px -2px rgba(11, 30, 61, 0.10)',
+        // Pronounced "floating card" elevation — every Card and card-style
+        // surface (KPI tiles, the Next Up card, list/table containers).
+        // Deliberately heavier than `float` per an explicit request for more
+        // shadow on cards specifically, without changing buttons, menus, or
+        // toasts, which stay on `lift`/`float`.
+        card: '0 14px 32px -8px rgba(11, 30, 61, 0.20), 0 4px 12px -2px rgba(11, 30, 61, 0.12)',
       },
       fontFamily: {
         ui: [

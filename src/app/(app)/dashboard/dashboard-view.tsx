@@ -48,35 +48,35 @@ export function DashboardView({ vm }: { vm: DashboardViewModel }) {
       <div className="grid md:grid-cols-2 gap-4">
         <Card>
           <CardContent className="pt-4">
-            <h2 className="text-sm font-medium text-fg mb-3">Call Outcomes</h2>
+            <h2 className="text-[16px] font-semibold text-fg mb-3">Call Outcomes</h2>
             <DonutChart title="Call Outcomes" slices={vm.callOutcomes} />
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="pt-4">
-            <h2 className="text-sm font-medium text-fg mb-3">Appointment Status</h2>
+            <h2 className="text-[16px] font-semibold text-fg mb-3">Appointment Status</h2>
             <DonutChart title="Appointment Status" slices={vm.appointmentStatus} />
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="pt-4">
-            <h2 className="text-sm font-medium text-fg mb-3">Call Source</h2>
+            <h2 className="text-[16px] font-semibold text-fg mb-3">Call Source</h2>
             <HorizontalBarChart title="Call Source" data={vm.callSource} />
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="pt-4">
-            <h2 className="text-sm font-medium text-fg mb-3">8-Week Trend</h2>
+            <h2 className="text-[16px] font-semibold text-fg mb-3">8-Week Trend</h2>
             <TrendChart weeks={vm.trendWeeks} metric="calls" />
           </CardContent>
         </Card>
 
         <Card className="md:col-span-2">
           <CardContent className="pt-4">
-            <h2 className="text-sm font-medium text-fg mb-3">Conversion Funnel</h2>
+            <h2 className="text-[16px] font-semibold text-fg mb-3">Conversion Funnel</h2>
             <FunnelChart funnel={vm.funnel} />
           </CardContent>
         </Card>
