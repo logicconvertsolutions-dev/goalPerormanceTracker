@@ -59,6 +59,7 @@ export const RECRUIT_STATUS_LABEL_MAP: Record<string, RecruitStatus> = {
 
 export interface CallLogImportData {
   contactName: string;
+  contactPhone: string | null;
   callDate: string;
   source: CallSource;
   outcome: CallOutcome;
@@ -67,6 +68,7 @@ export interface CallLogImportData {
 
 export interface AppointmentImportData {
   contactName: string;
+  contactPhone: string | null;
   apptDate: string;
   apptType: string | null;
   status: ApptStatus;
@@ -77,6 +79,7 @@ export interface AppointmentImportData {
 
 export interface SalesImportData {
   clientName: string;
+  contactPhone: string | null;
   saleDate: string;
   productType: string | null;
   premiumCents: number;
@@ -85,6 +88,7 @@ export interface SalesImportData {
 
 export interface RecruitingImportData {
   prospectName: string;
+  contactPhone: string | null;
   logDate: string;
   source: CallSource | null;
   status: RecruitStatus;
@@ -169,7 +173,9 @@ function parseCallLogRow(cells: unknown[]): { data: CallLogImportData | null; er
   // Company was column index 2 in the source workbook layout — still
   // skipped positionally so existing import templates don't need to change,
   // just no longer read into the app (company isn't collected anymore).
-  const [dateCell, contactName, , sourceLabel, outcomeLabel, notes] = cells;
+  // Phone is a new *trailing* column (index 6) for the same reason — appending
+  // rather than inserting keeps every existing column index unchanged.
+  const [dateCell, contactName, , sourceLabel, outcomeLabel, notes, phone] = cells;
   const errors: string[] = [];
 
   const callDate = parseWorkbookDate(dateCell);
@@ -187,13 +193,20 @@ function parseCallLogRow(cells: unknown[]): { data: CallLogImportData | null; er
   if (errors.length > 0 || !callDate || !name || !source || !outcome) return { data: null, errors };
 
   return {
-    data: { contactName: name, callDate, source, outcome, notes: toTextOrNull(notes) },
+    data: {
+      contactName: name,
+      contactPhone: toTextOrNull(phone),
+      callDate,
+      source,
+      outcome,
+      notes: toTextOrNull(notes),
+    },
     errors: [],
   };
 }
 
 function parseAppointmentRow(cells: unknown[]): { data: AppointmentImportData | null; errors: string[] } {
-  const [dateCell, contactName, apptType, statusLabel, expectedPremium, referralsGiven, notes] = cells;
+  const [dateCell, contactName, apptType, statusLabel, expectedPremium, referralsGiven, notes, phone] = cells;
   const errors: string[] = [];
 
   const apptDate = parseWorkbookDate(dateCell);
@@ -210,6 +223,7 @@ function parseAppointmentRow(cells: unknown[]): { data: AppointmentImportData | 
   return {
     data: {
       contactName: name,
+      contactPhone: toTextOrNull(phone),
       apptDate,
       apptType: toTextOrNull(apptType),
       status,
@@ -222,7 +236,7 @@ function parseAppointmentRow(cells: unknown[]): { data: AppointmentImportData | 
 }
 
 function parseSalesRow(cells: unknown[]): { data: SalesImportData | null; errors: string[] } {
-  const [dateCell, clientName, productType, premium, notes] = cells;
+  const [dateCell, clientName, productType, premium, notes, phone] = cells;
   const errors: string[] = [];
 
   const saleDate = parseWorkbookDate(dateCell);
@@ -236,6 +250,7 @@ function parseSalesRow(cells: unknown[]): { data: SalesImportData | null; errors
   return {
     data: {
       clientName: name,
+      contactPhone: toTextOrNull(phone),
       saleDate,
       productType: toTextOrNull(productType),
       premiumCents: toMoneyCents(premium),
@@ -246,7 +261,7 @@ function parseSalesRow(cells: unknown[]): { data: SalesImportData | null; errors
 }
 
 function parseRecruitingRow(cells: unknown[]): { data: RecruitingImportData | null; errors: string[] } {
-  const [dateCell, prospectName, sourceLabel, statusLabel, notes] = cells;
+  const [dateCell, prospectName, sourceLabel, statusLabel, notes, phone] = cells;
   const errors: string[] = [];
 
   const logDate = parseWorkbookDate(dateCell);
@@ -267,7 +282,7 @@ function parseRecruitingRow(cells: unknown[]): { data: RecruitingImportData | nu
   if (errors.length > 0 || !logDate || !name || !status) return { data: null, errors };
 
   return {
-    data: { prospectName: name, logDate, source, status, notes: toTextOrNull(notes) },
+    data: { prospectName: name, contactPhone: toTextOrNull(phone), logDate, source, status, notes: toTextOrNull(notes) },
     errors: [],
   };
 }

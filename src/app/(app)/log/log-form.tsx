@@ -62,6 +62,8 @@ export function LogForm({
   defaultContactId = '',
   defaultDate,
   defaultValues,
+  onSuccess,
+  onCancel,
 }: {
   mode?: 'create' | 'edit';
   defaultContactName?: string;
@@ -75,6 +77,9 @@ export function LogForm({
     notes: string | null;
     followUpOn: string | null;
   };
+  /** When set (e.g. inside a modal), called instead of navigating away on success/cancel. */
+  onSuccess?: () => void;
+  onCancel?: () => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -113,7 +118,7 @@ export function LogForm({
       const result = await submitWithOfflineFallback('call', formData, logCallAction);
       if (result.ok) {
         toast.success(result.queued ? 'Saved offline — will sync when back online' : 'Call logged');
-        router.push('/today');
+        onSuccess ? onSuccess() : router.push('/today');
       } else {
         toast.error(result.error ?? 'Could not save the call.');
       }
@@ -242,7 +247,7 @@ export function LogForm({
           variant="secondary"
           className="flex-1"
           disabled={pending}
-          onClick={() => router.back()}
+          onClick={() => (onCancel ? onCancel() : router.back())}
         >
           Cancel
         </Button>

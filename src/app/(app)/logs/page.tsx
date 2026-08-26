@@ -2,9 +2,9 @@ import Link from 'next/link';
 import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/shell/page-header';
+import { LogActivityButton } from '@/components/shell/log-activity-button';
 import { FilterBar } from '@/components/shell/filter-bar';
 import { ACTIVITY_META, type ActivityKind } from '@/components/shell/activity-icons';
 import { resolvePeriod, todayIso, type PeriodPreset, PERIOD_PRESETS } from '@/lib/dates';
@@ -92,9 +92,9 @@ export default async function LogsPage({
       <PageHeader
         title="Activity Logs"
         action={
-          <Button asChild variant="primary" size="sm">
-            <Link href="/log">Log activity</Link>
-          </Button>
+          <LogActivityButton variant="primary" size="sm">
+            Log activity
+          </LogActivityButton>
         }
       />
 
@@ -109,13 +109,18 @@ export default async function LogsPage({
               href={tabHref(kind)}
               className={
                 active
-                  ? 'inline-flex items-center gap-1.5 rounded-sm bg-panel px-3 py-1.5 text-sm font-medium text-fg shadow-lift'
+                  ? 'inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-medium shadow-lift'
                   : 'inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-medium text-fg-2 hover:text-fg transition-smooth'
               }
+              style={active ? { backgroundColor: `${meta.color}1A`, color: meta.color } : undefined}
             >
               <Icon className="h-4 w-4" aria-hidden="true" />
               {meta.label}s
-              <Badge variant={active ? 'default' : 'neutral'} className="ml-0.5 px-1.5 py-0 text-[10px]">
+              <Badge
+                variant={active ? 'default' : 'neutral'}
+                className="ml-0.5 px-1.5 py-0 text-[10px]"
+                style={active ? { backgroundColor: meta.color, color: '#fff' } : undefined}
+              >
                 {counts[kind]}
               </Badge>
             </Link>

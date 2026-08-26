@@ -48,8 +48,13 @@ function Chip({
 export function SaleForm({
   mode = 'create',
   defaultValues,
+  onSuccess,
+  onCancel,
 }: {
   mode?: 'create' | 'edit';
+  /** When set (e.g. inside a modal), called instead of navigating away on success/cancel. */
+  onSuccess?: () => void;
+  onCancel?: () => void;
   defaultValues?: {
     id: string;
     clientName?: string;
@@ -102,7 +107,7 @@ export function SaleForm({
       const result = await submitWithOfflineFallback('sale', formData, createSaleAction);
       if (result.ok) {
         toast.success(result.queued ? 'Saved offline — will sync when back online' : 'Sale logged');
-        router.push('/sales');
+        onSuccess ? onSuccess() : router.push('/sales');
       } else {
         toast.error(result.error ?? 'Could not save the sale.');
       }
@@ -204,7 +209,7 @@ export function SaleForm({
           variant="secondary"
           className="flex-1"
           disabled={pending}
-          onClick={() => router.back()}
+          onClick={() => (onCancel ? onCancel() : router.back())}
         >
           Cancel
         </Button>

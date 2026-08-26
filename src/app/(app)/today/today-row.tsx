@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { MoreVertical } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useFollowUpActions } from './use-follow-up-actions';
+import { useLogActivityDialog } from '@/components/shell/log-activity-dialog';
 
 /** One row in the "rest of today's queue" list, below the featured Next Up
  * card. Deliberately plain — no border/shadow of its own — so a run of these
@@ -33,13 +33,18 @@ export function TodayRow({
   overdue?: boolean;
 }) {
   const { pending, handleSnooze, handleMarkDone } = useFollowUpActions(callLogId);
+  const { open: openLog } = useLogActivityDialog();
 
   return (
     <div className="flex items-center justify-between gap-2 py-3">
-      <Link href={`/log?contact=${contactId}`} className="min-w-0 flex-1">
+      <button
+        type="button"
+        onClick={() => openLog({ contactId, contactName })}
+        className="min-w-0 flex-1 text-left"
+      >
         <p className="truncate text-[15px] font-semibold text-fg">{contactName}</p>
         <p className="truncate text-sm text-fg-3">{lastNote || `Called ${timesCalled}x`}</p>
-      </Link>
+      </button>
 
       {overdue && <Badge variant="bad">{daysLate}d overdue</Badge>}
 

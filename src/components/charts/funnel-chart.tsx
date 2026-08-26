@@ -1,8 +1,11 @@
 import type { FunnelResult } from '@/lib/metrics';
+import { BLUE_ORDINAL_RAMP } from '@/lib/chart-colors';
 
 /**
  * Horizontal stepped bars, conversion % printed between stages — the point of
- * the funnel is the percentage, not the raw counts (08-screen-specs.md).
+ * the funnel is the percentage, not the raw counts (08-screen-specs.md). Each
+ * stage steps through the blue ordinal ramp (light -> dark) since these are
+ * ordered stages of one funnel, not distinct unrelated categories.
  */
 export function FunnelChart({ funnel }: { funnel: FunnelResult }) {
   const stages = [
@@ -15,7 +18,7 @@ export function FunnelChart({ funnel }: { funnel: FunnelResult }) {
 
   return (
     <div className="space-y-2.5">
-      {stages.map((s) => (
+      {stages.map((s, i) => (
         <div key={s.label}>
           <div className="flex items-baseline justify-between text-xs mb-1">
             <span className="text-fg-2">{s.label}</span>
@@ -26,8 +29,11 @@ export function FunnelChart({ funnel }: { funnel: FunnelResult }) {
           </div>
           <div className="h-2 w-full rounded-full bg-panel-2 overflow-hidden">
             <div
-              className="h-full rounded-full bg-acc"
-              style={{ width: `${Math.min(100, (s.value / max) * 100)}%` }}
+              className="h-full rounded-full"
+              style={{
+                width: `${Math.min(100, (s.value / max) * 100)}%`,
+                background: BLUE_ORDINAL_RAMP[i % BLUE_ORDINAL_RAMP.length],
+              }}
             />
           </div>
         </div>

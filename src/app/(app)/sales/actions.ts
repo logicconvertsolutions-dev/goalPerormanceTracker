@@ -10,6 +10,7 @@ import { todayIso } from '@/lib/dates';
 const saleSchema = z.object({
   clientName: z.string().min(1, 'Enter the client name.').max(200),
   contactId: z.string().uuid().optional(),
+  contactPhone: z.string().max(30).optional(),
   saleDate: z
     .string()
     .refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.')
@@ -29,6 +30,7 @@ export async function createSaleAction(formData: FormData) {
   const parsed = saleSchema.safeParse({
     clientName: formData.get('clientName'),
     contactId: formData.get('contactId') || undefined,
+    contactPhone: formData.get('contactPhone') || undefined,
     saleDate: formData.get('saleDate') || todayIso(),
     productType: formData.get('productType') || undefined,
     premiumCents: formData.get('premiumCents') || 0,
@@ -51,7 +53,8 @@ export async function createSaleAction(formData: FormData) {
     agentId,
     orgId,
     parsed.data.clientName,
-    parsed.data.contactId
+    parsed.data.contactId,
+    parsed.data.contactPhone
   );
   if ('error' in contact) return { ok: false, error: contact.error };
 

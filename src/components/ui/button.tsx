@@ -4,7 +4,10 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-sm font-medium tracking-tight transition-smooth disabled:pointer-events-none disabled:opacity-50 min-h-[44px] px-4',
+  // Buttons round more than the app's default rounded-sm — bumped a step to
+  // rounded-lg (see size:lg below for the next step up) for a softer, more
+  // pill-like feel, scoped to buttons only rather than the shared radius scale.
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium tracking-tight transition-smooth disabled:pointer-events-none disabled:opacity-50 min-h-[44px] px-4',
   {
     variants: {
       variant: {
@@ -22,7 +25,7 @@ const buttonVariants = cva(
       size: {
         default: 'h-11',
         sm: 'h-9 px-3 text-xs',
-        lg: 'h-12 px-6 text-base rounded-lg',
+        lg: 'h-12 px-6 text-base rounded-xl',
         icon: 'h-11 w-11 p-0',
       },
     },

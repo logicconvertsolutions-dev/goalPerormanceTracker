@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/shell/page-header';
+import { LogActivityButton } from '@/components/shell/log-activity-button';
 import { formatDisplayDate } from '@/lib/dates';
 import { outcomeBadgeVariant } from '@/lib/call-outcomes';
 
@@ -15,14 +16,14 @@ export default async function ContactDetailPage({ params }: { params: { id: stri
 
   const { data: contact } = await supabase
     .from('contacts')
-    .select('id, full_name, created_at')
+    .select('id, full_name, phone, created_at')
     .eq('id', params.id)
     .eq('agent_id', session.agent!.id)
     .maybeSingle();
 
   if (!contact) notFound();
 
-  const [{ data: calls }, { data: appointments }, { data: sale }] = await Promise.all([
+  const [{ data: calls }, { data: appointments }, { data: sales }] = await Promise.all([
     supabase
       .from('call_logs')
       .select('id, call_date, source, outcome, notes, follow_up_on, follow_up_done_at')
@@ -33,34 +34,36 @@ export default async function ContactDetailPage({ params }: { params: { id: stri
       .select('id, appt_date, status, appt_type')
       .eq('contact_id', contact.id)
       .order('appt_date', { ascending: false }),
+    // A contact can have more than one sale — fetch every one, not just the
+    // most recent (an earlier .maybeSingle() here would throw on a 2nd sale).
     supabase
       .from('sales')
       .select('id, sale_date, product_type, premium_cents')
       .eq('contact_id', contact.id)
-      .order('sale_date', { ascending: false })
-      .maybeSingle(),
+      .order('sale_date', { ascending: false }),
   ]);
 
   return (
     <div className="space-y-4 max-w-2xl">
       <PageHeader
         title={contact.full_name}
+        subtitle={contact.phone ?? undefined}
         action={
           <div className="flex gap-2">
             <Button asChild variant="secondary" size="sm">
               <Link href={`/appointments/new?contact=${contact.id}`}>Log appointment</Link>
             </Button>
-            <Button asChild variant="primary" size="sm">
-              <Link href={`/log?contact=${contact.id}`}>Log a call</Link>
-            </Button>
+            <LogActivityButton variant="primary" size="sm" contactId={contact.id} contactName={contact.full_name}>
+              Log a call
+            </LogActivityButton>
           </div>
         }
       />
 
-      {(appointments?.length || sale) && (
+      {(appointments?.length || sales?.length) && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Appointments &amp; sale</CardTitle>
+            <CardTitle className="text-sm">Appointments &amp; sales</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {appointments?.map((a) => (
@@ -71,8 +74,8 @@ export default async function ContactDetailPage({ params }: { params: { id: stri
                 <Badge variant="neutral">{a.status.replace('_', ' ')}</Badge>
               </div>
             ))}
-            {sale && (
-              <div className="flex items-center justify-between text-sm">
+            {sales?.map((sale) => (
+              <div key={sale.id} className="flex items-center justify-between text-sm">
                 <span className="text-fg-2">
                   {formatDisplayDate(sale.sale_date)} · {sale.product_type ?? 'Sale'}
                 </span>
@@ -80,7 +83,7 @@ export default async function ContactDetailPage({ params }: { params: { id: stri
                   ${(sale.premium_cents / 100).toLocaleString('en-CA')}
                 </span>
               </div>
-            )}
+            ))}
           </CardContent>
         </Card>
       )}

@@ -91,7 +91,7 @@ async function commitCallLog(
   data: CallLogImportData,
   rowHash: string
 ): Promise<CommitOutcome> {
-  const contact = await findOrCreateContact(supabase, agentId, orgId, data.contactName);
+  const contact = await findOrCreateContact(supabase, agentId, orgId, data.contactName, null, data.contactPhone);
   if ('error' in contact) return { message: contact.error };
 
   const { error } = await supabase.from('call_logs').insert({
@@ -145,7 +145,7 @@ async function commitSale(
   data: SalesImportData,
   rowHash: string
 ): Promise<CommitOutcome> {
-  const contact = await findOrCreateContact(supabase, agentId, orgId, data.clientName);
+  const contact = await findOrCreateContact(supabase, agentId, orgId, data.clientName, null, data.contactPhone);
   if ('error' in contact) return { message: contact.error };
 
   const { error } = await supabase.from('sales').insert({
@@ -171,7 +171,7 @@ async function commitRecruitingLog(
   data: RecruitingImportData,
   rowHash: string
 ): Promise<CommitOutcome> {
-  const contact = await findOrCreateContact(supabase, agentId, orgId, data.prospectName);
+  const contact = await findOrCreateContact(supabase, agentId, orgId, data.prospectName, null, data.contactPhone);
   if ('error' in contact) return { message: contact.error };
 
   const { error } = await supabase.from('recruiting_logs').insert({

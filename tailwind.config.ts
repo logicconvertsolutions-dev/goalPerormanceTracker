@@ -70,6 +70,10 @@ const config = {
         sm: '10px',
         DEFAULT: '14px',
         lg: '20px',
+        // Extra step for buttons specifically (see button.tsx) — deliberately
+        // not part of the sm/DEFAULT/lg cascade so it doesn't touch cards,
+        // inputs, or menus.
+        xl: '28px',
       },
       boxShadow: {
         // Everyday card/button elevation — a touch stronger than a hairline so
