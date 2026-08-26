@@ -11,34 +11,55 @@ const config = {
   theme: {
     extend: {
       colors: {
-        // Ground
-        bg: '#08090A',
-        'bg-2': '#0E0F11',
-        panel: '#141518',
-        'panel-2': '#1A1B1F',
-        hover: '#1F2024',
-        sunken: '#0B0C0D',
+        // Values are kept as literal hex (not var(--x)) so Tailwind's built-in opacity
+        // modifiers (bg-ok/15, bg-bad/20, ...) keep working — Tailwind can only derive
+        // an alpha-channel variant from a color it can parse itself, not from an opaque
+        // var() reference. The same values are declared as CSS custom properties in
+        // globals.css :root as the source of truth / for use outside Tailwind classes.
+        //
+        // Ground — recessed/chrome tones (page background, nav chrome, inputs, hover states)
+        bg: '#F7F5EF',
+        'bg-2': '#F7F5EF',
+        panel: '#FFFFFF',
+        'panel-2': '#FFFFFF',
+        hover: '#F7F5EF',
+        sunken: '#F7F5EF',
         // Text
-        fg: '#EDEEF0',
-        'fg-2': '#9CA0A8',
-        'fg-3': '#666A73',
-        'fg-4': '#4A4D55',
-        // Accent
-        acc: '#3D9AFF',
-        'acc-2': '#7FBBFF',
-        'acc-dim': 'rgba(61, 154, 255, 0.13)',
-        'acc-line': 'rgba(61, 154, 255, 0.32)',
+        fg: '#14213D',
+        'fg-2': '#5C6580',
+        'fg-3': '#94A0B8',
+        // fg-4: no --text-4 token in the spec; derived as a washed-out --text-3 for the
+        // most muted/disabled labels (e.g. strikethrough list items).
+        'fg-4': 'rgba(148, 160, 184, 0.7)',
+        // Accent — primary actions use navy, never gold (see brand-mark exception below)
+        acc: '#0B1E3D',
+        'acc-2': '#122A54',
+        // acc-dim/acc-line: no dedicated tokens given; derived from --navy at low opacity,
+        // same pattern the spec already uses for warn-dim/bad-dim.
+        'acc-dim': 'rgba(11, 30, 61, 0.07)',
+        'acc-line': 'rgba(11, 30, 61, 0.28)',
+        // Brand mark & "filed/complete" status only — never a general accent/button color
+        gold: '#C9A227',
+        'gold-dark': '#9C7C1A',
+        'gold-light': '#FBF3D9',
+        navy: '#0B1E3D',
+        'navy-2': '#122A54',
+        canvas: '#F7F5EF',
+        surface: '#FFFFFF',
         // Attainment
-        ok: '#3FB950',
-        warn: '#D29922',
-        bad: '#F85149',
-        'warn-dim': 'rgba(210, 153, 34, 0.13)',
-        'bad-dim': 'rgba(248, 81, 73, 0.13)',
+        ok: '#1B7A43',
+        'ok-dim': '#E4F5EA',
+        warn: '#9C6A0A',
+        'warn-dim': '#FBF0DA',
+        bad: '#B0392A',
+        'bad-dim': '#FBE6E2',
       },
       borderColor: {
-        line: 'rgba(255, 255, 255, 0.065)',
-        'line-2': 'rgba(255, 255, 255, 0.11)',
-        'line-3': 'rgba(255, 255, 255, 0.18)',
+        line: '#E7E2D3',
+        // line-2/line-3: no escalated-emphasis border tokens given; derived from --text-1
+        // (navy-ish) at increasing opacity, mirroring the acc-dim/acc-line derivation above.
+        'line-2': 'rgba(20, 33, 61, 0.14)',
+        'line-3': 'rgba(20, 33, 61, 0.22)',
       },
       borderRadius: {
         sm: '6px',
@@ -46,11 +67,11 @@ const config = {
         lg: '12px',
       },
       boxShadow: {
-        lift: 'inset 0 1px 0 rgba(255, 255, 255, 0.04)',
+        lift: '0 1px 2px 0 rgba(11, 30, 61, 0.06)',
       },
       fontFamily: {
         ui: [
-          'Inter',
+          'Plus Jakarta Sans',
           '-apple-system',
           'BlinkMacSystemFont',
           'Segoe UI',

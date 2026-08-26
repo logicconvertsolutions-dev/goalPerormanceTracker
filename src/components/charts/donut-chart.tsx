@@ -7,9 +7,10 @@ export interface DonutSlice {
   value: number;
 }
 
-// Accent-family palette, brightest first — matches the one-accent-plus-neutrals
-// direction in 03-ui.md rather than introducing new hues per slice.
-const COLORS = ['#3D9AFF', '#7FBBFF', '#9CA0A8', '#666A73', '#4A4D55'];
+// Navy-family palette, darkest/most saturated first — matches the one-accent-plus-neutrals
+// direction in 03-ui.md rather than introducing new hues per slice. Values mirror the
+// navy/text tokens in globals.css (Recharts fills can't consume Tailwind classes).
+const COLORS = ['#0B1E3D', '#122A54', '#5C6580', '#94A0B8', '#E7E2D3'];
 
 /** Donut for 2-3 (or up to 5) slice breakdowns, total in the centre (08-screen-specs.md). */
 export function DonutChart({ title, slices }: { title: string; slices: DonutSlice[] }) {

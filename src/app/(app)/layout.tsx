@@ -40,7 +40,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 className="h-11 w-11 shrink-0 rounded-sm object-contain sm:h-12 sm:w-12"
               />
             )}
-            <span className="truncate">{org?.name ?? 'Performance Tracker'}</span>
+            <span className="truncate text-gold-dark font-semibold">
+              {org?.name ?? 'Performance Tracker'}
+            </span>
           </Link>
           <AccountMenu
             fullName={session.agent!.full_name}

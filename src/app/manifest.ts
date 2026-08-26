@@ -10,8 +10,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Callback queue and activity tracker for WFG teams.',
     start_url: '/today',
     display: 'standalone',
-    background_color: '#08090A',
-    theme_color: '#08090A',
+    background_color: '#F7F5EF',
+    theme_color: '#0B1E3D',
     icons: [
       { src: '/icon', sizes: '512x512', type: 'image/png' },
       { src: '/apple-icon', sizes: '180x180', type: 'image/png' },

@@ -22,11 +22,11 @@ export function TrendChart({ weeks, metric }: { weeks: TrendWeek[]; metric: 'cal
       <div className="h-56">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ left: -16, right: 8, top: 4, bottom: 4 }}>
-            <CartesianGrid vertical={false} stroke="rgba(255,255,255,.065)" />
-            <XAxis dataKey="label" tick={{ fill: '#666A73', fontSize: 11 }} axisLine={{ stroke: 'rgba(255,255,255,.065)' }} tickLine={false} />
-            <YAxis tick={{ fill: '#666A73', fontSize: 11 }} axisLine={false} tickLine={false} />
-            <Bar dataKey="value" fill="#3D9AFF" radius={[4, 4, 0, 0]} maxBarSize={28} />
-            {metric === 'calls' && <Line type="monotone" dataKey="target" stroke="#7FBBFF" strokeWidth={1.5} dot={false} />}
+            <CartesianGrid vertical={false} stroke="rgba(11,30,61,.08)" />
+            <XAxis dataKey="label" tick={{ fill: '#94A0B8', fontSize: 11 }} axisLine={{ stroke: 'rgba(11,30,61,.08)' }} tickLine={false} />
+            <YAxis tick={{ fill: '#94A0B8', fontSize: 11 }} axisLine={false} tickLine={false} />
+            <Bar dataKey="value" fill="#0B1E3D" radius={[4, 4, 0, 0]} maxBarSize={28} />
+            {metric === 'calls' && <Line type="monotone" dataKey="target" stroke="#94A0B8" strokeWidth={1.5} dot={false} />}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
