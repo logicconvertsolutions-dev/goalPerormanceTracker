@@ -106,6 +106,54 @@ export async function logCallAction(formData: FormData) {
   return { ok: true };
 }
 
+const updateCallSchema = z.object({
+  id: z.string().uuid(),
+  callDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
+  source: z.enum(CALL_SOURCES),
+  outcome: z.enum(CALL_OUTCOMES),
+  notes: z.string().max(2000).optional(),
+  followUpOn: z.string().optional(),
+});
+
+export async function updateCallAction(formData: FormData) {
+  const parsed = updateCallSchema.safeParse({
+    id: formData.get('id'),
+    callDate: formData.get('callDate'),
+    source: formData.get('source'),
+    outcome: formData.get('outcome'),
+    notes: formData.get('notes') || undefined,
+    followUpOn: formData.get('followUpOn') || undefined,
+  });
+
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input.' };
+  }
+
+  const session = await requireAgent();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('call_logs')
+    .update({
+      call_date: parsed.data.callDate,
+      source: parsed.data.source,
+      outcome: parsed.data.outcome,
+      notes: parsed.data.notes || null,
+      follow_up_on: parsed.data.followUpOn || null,
+    })
+    .eq('id', parsed.data.id)
+    .eq('agent_id', session.agent!.id);
+
+  if (error) {
+    console.error('updateCallAction: update failed', error);
+    return { ok: false, error: 'Could not update the call.' };
+  }
+
+  revalidatePath('/today');
+  revalidatePath('/logs');
+  return { ok: true };
+}
+
 export async function deleteCallAction(id: string) {
   const session = await requireAgent();
   const supabase = await createClient();

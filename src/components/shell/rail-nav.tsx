@@ -29,7 +29,7 @@ export function RailNav({ isLeader }: { isLeader: boolean }) {
 
   return (
     <nav
-      className="hidden md:flex md:flex-col md:w-[212px] md:shrink-0 md:border-r md:border-line md:bg-bg-2 md:p-3 md:gap-1"
+      className="hidden md:flex md:flex-col md:w-[212px] md:shrink-0 md:border-r md:border-line md:bg-bg-2 md:p-3 md:gap-1 print:hidden"
       aria-label="Primary"
     >
       {items.map((item) => (

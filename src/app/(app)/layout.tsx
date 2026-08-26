@@ -24,26 +24,30 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex min-h-screen bg-bg">
+    <div className="flex min-h-screen bg-bg print:block">
       <RailNav isLeader={isLeader} />
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="flex items-center justify-between border-b border-line px-4 py-3 md:px-6">
+      <div className="flex-1 flex flex-col min-w-0 print:block">
+        <header className="flex items-center justify-between border-b border-line px-4 py-4 md:px-6 print:hidden">
           <Link
             href="/today"
-            className="flex items-center gap-2 text-sm font-medium text-fg-2 transition-smooth hover:text-fg"
+            className="flex items-center gap-3 min-w-0 text-lg font-medium text-fg-2 transition-smooth hover:text-fg sm:text-xl"
           >
             {logoUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt="" className="h-6 w-6 rounded-sm object-contain" />
+              <img
+                src={logoUrl}
+                alt=""
+                className="h-11 w-11 shrink-0 rounded-sm object-contain sm:h-12 sm:w-12"
+              />
             )}
-            {org?.name ?? 'Performance Tracker'}
+            <span className="truncate">{org?.name ?? 'Performance Tracker'}</span>
           </Link>
           <AccountMenu
             fullName={session.agent!.full_name}
             isAdmin={session.agent!.role === 'admin'}
           />
         </header>
-        <main className="flex-1 px-4 py-6 pb-24 md:px-6 md:pb-6">{children}</main>
+        <main className="flex-1 px-4 py-6 pb-24 md:px-6 md:pb-6 print:p-0">{children}</main>
       </div>
       <TabBar isLeader={isLeader} />
       <OfflineSync />

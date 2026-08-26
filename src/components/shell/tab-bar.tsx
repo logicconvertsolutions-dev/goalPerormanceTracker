@@ -11,7 +11,7 @@ export function TabBar({ isLeader }: { isLeader: boolean }) {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex border-t border-line bg-bg-2 pb-[env(safe-area-inset-bottom)]"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex border-t border-line bg-bg-2 pb-[env(safe-area-inset-bottom)] print:hidden"
       aria-label="Primary"
     >
       {items.map((item) => {
