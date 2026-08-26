@@ -33,7 +33,7 @@ export function NextUpCard({
   const overdue = daysLate > 0;
 
   return (
-    <div className="flex items-stretch gap-3 rounded-[12px] border border-line bg-panel pr-2">
+    <div className="flex items-stretch gap-3 rounded-[12px] border border-line bg-panel pr-2 shadow-card">
       <div className={overdue ? 'w-[3px] shrink-0 rounded-l-[12px] bg-bad' : 'w-[3px] shrink-0 rounded-l-[12px] bg-gold'} />
       <Link href={`/log?contact=${contactId}`} className="flex min-w-0 flex-1 items-center gap-3 py-3.5">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acc-dim text-acc">

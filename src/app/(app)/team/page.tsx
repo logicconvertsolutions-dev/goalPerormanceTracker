@@ -240,7 +240,7 @@ export default async function TeamPage({
         <DailyBreakdownTable rows={dailyBreakdown ?? []} />
       ) : (
         <>
-          <div className="overflow-x-auto rounded-[12px] border border-line hidden md:block">
+          <div className="overflow-x-auto rounded-[12px] border border-line shadow-card hidden md:block">
             <table className="w-full text-sm">
               <thead className="bg-bg-2 text-fg-3 text-xs uppercase tracking-wide">
                 <tr>

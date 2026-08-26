@@ -59,7 +59,7 @@ export default async function ContactsPage({
           {/* Mobile: a divided list, same visual language as My Day's Recent
               Activity — a table's horizontal scroll doesn't work well on a
               small screen. */}
-          <div className="divide-y divide-line rounded-[12px] border border-line bg-panel px-4 md:hidden">
+          <div className="divide-y divide-line rounded-[12px] border border-line bg-panel px-4 shadow-card md:hidden">
             {rows.map((c) => {
               const calls = [...c.call_logs].sort((a, b) => (a.call_date < b.call_date ? 1 : -1));
               const last = calls[0];
@@ -85,7 +85,7 @@ export default async function ContactsPage({
           </div>
 
           {/* Desktop / tablet: full table. */}
-          <div className="hidden overflow-x-auto rounded-[12px] border border-line md:block">
+          <div className="hidden overflow-x-auto rounded-[12px] border border-line shadow-card md:block">
             <table className="w-full text-sm">
               <thead className="bg-bg-2 text-fg-3 text-xs uppercase tracking-wide">
                 <tr>

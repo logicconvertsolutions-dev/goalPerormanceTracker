@@ -75,6 +75,12 @@ const config = {
         // Heavier elevation for things that should visually float above the
         // page — popovers, dropdowns, toasts, the mobile tab bar.
         float: '0 8px 24px -4px rgba(11, 30, 61, 0.16), 0 2px 8px -2px rgba(11, 30, 61, 0.10)',
+        // Pronounced "floating card" elevation — every Card and card-style
+        // surface (KPI tiles, the Next Up card, list/table containers).
+        // Deliberately heavier than `float` per an explicit request for more
+        // shadow on cards specifically, without changing buttons, menus, or
+        // toasts, which stay on `lift`/`float`.
+        card: '0 14px 32px -8px rgba(11, 30, 61, 0.20), 0 4px 12px -2px rgba(11, 30, 61, 0.12)',
       },
       fontFamily: {
         ui: [

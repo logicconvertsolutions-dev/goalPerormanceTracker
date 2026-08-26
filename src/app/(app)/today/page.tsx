@@ -63,7 +63,7 @@ export default async function TodayPage() {
         />
 
         {!nextUp ? (
-          <div className="flex flex-col items-start gap-3 rounded-[12px] border border-line bg-panel px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col items-start gap-3 rounded-[12px] border border-line bg-panel px-4 py-4 shadow-card sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-fg-3">
               Nothing due today. Set a follow-up when you log a call and it&apos;ll show up here.
             </p>
@@ -88,7 +88,7 @@ export default async function TodayPage() {
             {remaining.length > 0 ? (
               <div
                 id="today-queue"
-                className="scroll-mt-4 divide-y divide-line rounded-[12px] border border-line bg-panel px-4"
+                className="scroll-mt-4 divide-y divide-line rounded-[12px] border border-line bg-panel px-4 shadow-card"
               >
                 {remaining.map((row) => (
                   <TodayRow
@@ -104,7 +104,7 @@ export default async function TodayPage() {
                 ))}
               </div>
             ) : (
-              <div className="flex flex-col items-start gap-3 rounded-[12px] border border-line bg-panel px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col items-start gap-3 rounded-[12px] border border-line bg-panel px-4 py-3.5 shadow-card sm:flex-row sm:items-center sm:justify-between">
                 <p className="flex items-center gap-2 text-sm text-fg-2">
                   <Sparkles className="h-4 w-4 text-gold" aria-hidden="true" />
                   All caught up after this.
@@ -123,7 +123,7 @@ export default async function TodayPage() {
 
       <div className="space-y-3">
         <SectionHeader title="Recent activity" action={{ label: 'View all', href: '/logs' }} />
-        <div className="rounded-[16px] border border-line bg-panel px-4">
+        <div className="rounded-[16px] border border-line bg-panel px-4 shadow-card">
           {recentActivity.length === 0 ? (
             <p className="py-4 text-sm text-fg-3">Nothing logged yet.</p>
           ) : (
