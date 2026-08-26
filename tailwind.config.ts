@@ -17,13 +17,15 @@ const config = {
         // var() reference. The same values are declared as CSS custom properties in
         // globals.css :root as the source of truth / for use outside Tailwind classes.
         //
-        // Ground — recessed/chrome tones (page background, nav chrome, inputs, hover states)
-        bg: '#F7F5EF',
-        'bg-2': '#F7F5EF',
+        // Ground — page background & chrome now match the white surface tone.
+        // hover/sunken stay a hair off pure white so row-hover feedback and
+        // input fields remain visible against a white page.
+        bg: '#FFFFFF',
+        'bg-2': '#FFFFFF',
         panel: '#FFFFFF',
         'panel-2': '#FFFFFF',
-        hover: '#F7F5EF',
-        sunken: '#F7F5EF',
+        hover: '#F4F4F5',
+        sunken: '#F4F4F5',
         // Text
         fg: '#14213D',
         'fg-2': '#5C6580',
@@ -44,7 +46,7 @@ const config = {
         'gold-light': '#FBF3D9',
         navy: '#0B1E3D',
         'navy-2': '#122A54',
-        canvas: '#F7F5EF',
+        canvas: '#FFFFFF',
         surface: '#FFFFFF',
         // Attainment
         ok: '#1B7A43',
