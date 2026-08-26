@@ -30,7 +30,9 @@ export default async function TodayPage() {
     <div className="space-y-4 max-w-lg">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold tracking-heading-tight text-fg">My Day</h1>
-        <p className="text-sm text-fg-3">{callsToday ?? 0} calls logged today</p>
+        <p className="text-sm text-fg-3">
+          <span className="font-semibold text-fg">{callsToday ?? 0}</span> calls logged today
+        </p>
       </div>
 
       {rows.length === 0 ? (
@@ -48,7 +50,8 @@ export default async function TodayPage() {
       ) : (
         <>
           <p className="text-sm text-fg-3">
-            {overdue.length} overdue · {dueToday.length} due today
+            <span className="font-semibold text-bad">{overdue.length}</span> overdue ·{' '}
+            <span className="font-semibold text-fg">{dueToday.length}</span> due today
           </p>
 
           {overdue.length > 0 && (
@@ -95,7 +98,7 @@ export default async function TodayPage() {
           )}
 
           <div className="text-center pt-2">
-            <Button asChild variant="ghost">
+            <Button asChild variant="soft">
               <Link href="/log">Nothing else due. Log a new call →</Link>
             </Button>
           </div>
@@ -117,7 +120,7 @@ export default async function TodayPage() {
               const Icon = ACTIVITY_META[item.kind].icon;
               return (
                 <div key={`${item.kind}-${item.id}`} className="flex items-center gap-3 text-sm">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-panel-2 text-fg-2">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-acc-dim text-acc">
                     <Icon className="h-4 w-4" aria-hidden="true" />
                   </span>
                   <div className="min-w-0 flex-1">

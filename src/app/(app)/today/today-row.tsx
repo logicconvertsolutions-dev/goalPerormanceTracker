@@ -52,8 +52,8 @@ export function TodayRow({
   return (
     <div
       className={cn(
-        'flex items-center justify-between gap-2 rounded-sm border border-line py-2.5 px-3',
-        overdue && 'border-bad/40'
+        'flex items-center justify-between gap-2 rounded-sm border border-line py-2.5 px-3 shadow-lift transition-smooth',
+        overdue && 'border-l-[3px] border-l-bad bg-bad-dim/30'
       )}
     >
       <Link href={`/log?contact=${contactId}`} className="min-w-0 flex-1">
