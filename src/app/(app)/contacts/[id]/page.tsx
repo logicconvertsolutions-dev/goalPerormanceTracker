@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatDisplayDate } from '@/lib/dates';
+import { outcomeBadgeVariant } from '@/lib/call-outcomes';
 
 export default async function ContactDetailPage({ params }: { params: { id: string } }) {
   const session = await requireVerifiedAgent();
@@ -95,7 +96,7 @@ export default async function ContactDetailPage({ params }: { params: { id: stri
               <div key={c.id} className="border-b border-line pb-3 last:border-0 last:pb-0">
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-fg font-medium">{formatDisplayDate(c.call_date)}</p>
-                  <Badge variant="neutral">{c.outcome.replace('_', ' ')}</Badge>
+                  <Badge variant={outcomeBadgeVariant(c.outcome)}>{c.outcome.replace('_', ' ')}</Badge>
                 </div>
                 {c.notes && <p className="text-sm text-fg-2 mt-1">{c.notes}</p>}
                 {c.follow_up_on && (

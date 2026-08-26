@@ -44,9 +44,10 @@ body {
   color: var(--text-1);
 }
 
-/* Custom utility for the signature lift effect */
+/* Custom utility for the signature lift effect (kept in sync with the
+   `lift` boxShadow token in tailwind.config.ts) */
 .lift {
-  box-shadow: 0 1px 2px 0 rgba(11, 30, 61, 0.06);
+  box-shadow: 0 1px 3px 0 rgba(11, 30, 61, 0.1), 0 1px 2px -1px rgba(11, 30, 61, 0.08);
 }
 
 /* Focus ring styling */

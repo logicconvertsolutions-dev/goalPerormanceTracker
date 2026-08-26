@@ -67,7 +67,12 @@ const config = {
         lg: '12px',
       },
       boxShadow: {
-        lift: '0 1px 2px 0 rgba(11, 30, 61, 0.06)',
+        // Everyday card/button elevation — a touch stronger than a hairline so
+        // surfaces read as raised off the canvas instead of flat cutouts.
+        lift: '0 1px 3px 0 rgba(11, 30, 61, 0.10), 0 1px 2px -1px rgba(11, 30, 61, 0.08)',
+        // Heavier elevation for things that should visually float above the
+        // page — popovers, dropdowns, toasts, the mobile tab bar.
+        float: '0 8px 24px -4px rgba(11, 30, 61, 0.16), 0 2px 8px -2px rgba(11, 30, 61, 0.10)',
       },
       fontFamily: {
         ui: [

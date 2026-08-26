@@ -96,7 +96,7 @@ export function ImportFlow() {
             </div>
 
             {withErrors.length > 0 && (
-              <div className="rounded-sm border border-bad/40 bg-bad-dim p-3 text-xs text-bad space-y-1 max-h-48 overflow-y-auto">
+              <div className="rounded-sm border border-bad bg-bad-dim p-3 text-xs text-bad space-y-1 max-h-48 overflow-y-auto">
                 {withErrors.map((r, i) => (
                   <p key={i}>
                     {r.sheet} row {r.rowNumber}: {r.errors.join(' ')}

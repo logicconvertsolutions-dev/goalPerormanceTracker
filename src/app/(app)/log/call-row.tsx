@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { formatDisplayDate } from '@/lib/dates';
+import { outcomeBadgeVariant } from '@/lib/call-outcomes';
 import { deleteCallAction } from './actions';
 
 export function CallRow({
@@ -52,7 +53,7 @@ export function CallRow({
       <td className="px-4 py-2.5 text-fg font-medium">{contactName}</td>
       <td className="px-4 py-2.5 text-fg-2">{source.replace('_', ' ')}</td>
       <td className="px-4 py-2.5">
-        <Badge variant="neutral">{outcome.replace('_', ' ')}</Badge>
+        <Badge variant={outcomeBadgeVariant(outcome)}>{outcome.replace('_', ' ')}</Badge>
       </td>
       <td className="px-4 py-2.5 text-fg-3 max-w-[16rem] truncate">{notes ?? '—'}</td>
       <td className="px-4 py-2.5 text-right">

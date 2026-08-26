@@ -8,9 +8,13 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: 'bg-acc text-bg shadow-lift hover:bg-acc-2',
+        primary: 'bg-acc text-bg shadow-lift hover:bg-acc-2 hover:shadow-float',
         secondary:
           'bg-panel-2 text-fg border border-line-2 shadow-lift hover:bg-hover',
+        // Tinted navy — a middle weight between ghost and primary for
+        // secondary-but-still-visible actions (e.g. a trailing CTA below
+        // a list, not the page's main action).
+        soft: 'bg-acc/10 text-acc border border-acc/25 hover:bg-acc/15',
         ghost: 'text-fg-2 hover:bg-hover hover:text-fg',
         destructive: 'bg-bad-dim text-bad border border-bad hover:bg-bad/20',
         link: 'text-acc underline-offset-4 hover:underline min-h-0 px-0',
