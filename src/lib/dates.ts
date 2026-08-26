@@ -24,6 +24,28 @@ export function formatDisplayDate(iso: string): string {
   });
 }
 
+/** Same as {@link formatDisplayDate} with the full weekday name, e.g. "Tuesday, Aug 26" — used for the My Day page header. */
+export function formatFullDisplayDate(iso: string): string {
+  const d = new Date(iso + 'T00:00:00Z');
+  return d.toLocaleDateString('en-CA', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  });
+}
+
+/** Formats a timestamptz as a UTC time (e.g. "10:30 AM"). The app has no client-side
+ * timezone conversion yet (dates elsewhere are UTC-rendered too), so this stays UTC
+ * for consistency rather than silently guessing the viewer's zone. */
+export function formatDisplayTime(isoTimestamp: string): string {
+  return new Date(isoTimestamp).toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'UTC',
+  });
+}
+
 /** Adds `days` (may be negative) to an ISO date string, returning an ISO date string. */
 export function addDays(iso: string, days: number): string {
   const d = new Date(iso + 'T00:00:00Z');

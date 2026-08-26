@@ -1,19 +1,24 @@
 import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { todayIso, formatDisplayDate } from '@/lib/dates';
+import { Phone, CalendarDays, AlertTriangle, Plus, Sparkles, ArrowRight } from 'lucide-react';
+import { todayIso, formatFullDisplayDate } from '@/lib/dates';
 import { fetchRecentActivity } from '@/lib/recent-activity';
-import { ACTIVITY_META } from '@/components/shell/activity-icons';
+import { SectionHeader } from './section-header';
+import { KpiStat } from './kpi-stat';
+import { NextUpCard } from './next-up-card';
 import { TodayRow } from './today-row';
+import { ActivityRow } from './activity-row';
 
 export default async function TodayPage() {
   const session = await requireVerifiedAgent();
   const supabase = await createClient();
 
   const { data: followUps } = await supabase.rpc('my_followups');
+  // Already ordered by follow_up_on ascending (most overdue first) by the RPC.
   const rows = followUps ?? [];
+  const [nextUp, ...remaining] = rows;
 
   const { count: callsToday } = await supabase
     .from('call_logs')
@@ -23,119 +28,119 @@ export default async function TodayPage() {
 
   const recentActivity = await fetchRecentActivity(supabase, session.agent!.id, 7);
 
-  const overdue = rows.filter((r) => r.days_late > 0);
-  const dueToday = rows.filter((r) => r.days_late === 0);
+  const overdueCount = rows.filter((r) => r.days_late > 0).length;
+  const dueTodayCount = rows.filter((r) => r.days_late === 0).length;
 
   return (
-    <div className="space-y-4 max-w-lg">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">My Day</h1>
-        <p className="text-sm text-fg-3">
-          <span className="font-semibold text-fg">{callsToday ?? 0}</span> calls logged today
-        </p>
+    <div className="mx-auto max-w-lg space-y-7">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-[34px] font-bold leading-[40px] tracking-heading-tight text-fg">
+            My Day
+          </h1>
+          <p className="mt-0.5 text-sm text-fg-3">{formatFullDisplayDate(todayIso())}</p>
+        </div>
+        <Button asChild variant="primary" size="sm" className="mt-1.5 shrink-0">
+          <Link href="/log">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Log Activity
+          </Link>
+        </Button>
       </div>
 
-      {rows.length === 0 ? (
-        <Card>
-          <CardContent className="pt-4 space-y-3">
-            <p className="text-sm text-fg-2">
-              Nothing due today. Set a follow-up when you log a call and it&apos;ll show
-              up here.
+      <div className="flex gap-2.5">
+        <KpiStat icon={Phone} value={callsToday ?? 0} label="Calls logged" />
+        <KpiStat icon={CalendarDays} value={dueTodayCount} label="Due today" />
+        <KpiStat icon={AlertTriangle} value={overdueCount} label="Overdue" warn={overdueCount > 0} />
+      </div>
+
+      <div className="space-y-3">
+        <SectionHeader
+          title="Next up"
+          dot
+          subtitle="Due today"
+          action={remaining.length > 0 ? { label: `View all (${rows.length})`, href: '#today-queue' } : undefined}
+        />
+
+        {!nextUp ? (
+          <div className="flex flex-col items-start gap-3 rounded-[12px] border border-line bg-panel px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-fg-3">
+              Nothing due today. Set a follow-up when you log a call and it&apos;ll show up here.
             </p>
-            <Button asChild variant="primary">
-              <Link href="/log">Log a new call</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          <p className="text-sm text-fg-3">
-            <span className="font-semibold text-bad">{overdue.length}</span> overdue ·{' '}
-            <span className="font-semibold text-fg">{dueToday.length}</span> due today
-          </p>
-
-          {overdue.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm text-bad">Overdue</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {overdue.map((row) => (
-                  <TodayRow
-                    key={row.call_id}
-                    callLogId={row.call_id}
-                    contactId={row.contact_id}
-                    contactName={row.contact_name}
-                    lastNote={row.last_note}
-                    timesCalled={row.times_called}
-                    daysLate={row.days_late}
-                    overdue
-                  />
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {dueToday.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Due today</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {dueToday.map((row) => (
-                  <TodayRow
-                    key={row.call_id}
-                    callLogId={row.call_id}
-                    contactId={row.contact_id}
-                    contactName={row.contact_name}
-                    lastNote={row.last_note}
-                    timesCalled={row.times_called}
-                    daysLate={row.days_late}
-                  />
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          <div className="text-center pt-2">
-            <Button asChild variant="soft">
-              <Link href="/log">Nothing else due. Log a new call →</Link>
+            <Button asChild variant="primary" size="sm" className="shrink-0">
+              <Link href="/log">
+                Log a new call
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
             </Button>
           </div>
-        </>
-      )}
+        ) : (
+          <>
+            <NextUpCard
+              callLogId={nextUp.call_id}
+              contactId={nextUp.contact_id}
+              contactName={nextUp.contact_name}
+              lastNote={nextUp.last_note}
+              timesCalled={nextUp.times_called}
+              daysLate={nextUp.days_late}
+            />
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-sm">Recent activity</CardTitle>
-          <Link href="/logs" className="text-xs text-acc hover:underline">
-            View all →
-          </Link>
-        </CardHeader>
-        <CardContent className="space-y-3">
+            {remaining.length > 0 ? (
+              <div
+                id="today-queue"
+                className="scroll-mt-4 divide-y divide-line rounded-[12px] border border-line bg-panel px-4"
+              >
+                {remaining.map((row) => (
+                  <TodayRow
+                    key={row.call_id}
+                    callLogId={row.call_id}
+                    contactId={row.contact_id}
+                    contactName={row.contact_name}
+                    lastNote={row.last_note}
+                    timesCalled={row.times_called}
+                    daysLate={row.days_late}
+                    overdue={row.days_late > 0}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-start gap-3 rounded-[12px] border border-line bg-panel px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+                <p className="flex items-center gap-2 text-sm text-fg-2">
+                  <Sparkles className="h-4 w-4 text-gold" aria-hidden="true" />
+                  All caught up after this.
+                </p>
+                <Button asChild variant="primary" size="sm" className="shrink-0">
+                  <Link href="/log">
+                    Log another activity
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Link>
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        <SectionHeader title="Recent activity" action={{ label: 'View all', href: '/logs' }} />
+        <div className="rounded-[16px] border border-line bg-panel px-4">
           {recentActivity.length === 0 ? (
-            <p className="text-sm text-fg-3">Nothing logged yet.</p>
+            <p className="py-4 text-sm text-fg-3">Nothing logged yet.</p>
           ) : (
-            recentActivity.map((item) => {
-              const Icon = ACTIVITY_META[item.kind].icon;
-              return (
-                <div key={`${item.kind}-${item.id}`} className="flex items-center gap-3 text-sm">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-acc-dim text-acc">
-                    <Icon className="h-4 w-4" aria-hidden="true" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-fg font-medium">{item.contactName}</p>
-                    <p className="truncate text-xs text-fg-3">{item.summary}</p>
-                  </div>
-                  <span className="shrink-0 text-xs text-fg-4">
-                    {formatDisplayDate(item.createdAt.slice(0, 10))}
-                  </span>
-                </div>
-              );
-            })
+            <div className="divide-y divide-line">
+              {recentActivity.map((item) => (
+                <ActivityRow
+                  key={`${item.kind}-${item.id}`}
+                  kind={item.kind}
+                  contactName={item.contactName}
+                  summary={item.summary}
+                  createdAt={item.createdAt}
+                />
+              ))}
+            </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
