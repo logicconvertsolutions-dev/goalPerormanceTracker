@@ -68,7 +68,7 @@ export default async function TeamAgentDailyPage({
       <div className="flex items-center justify-between">
         <div>
           <BackLink href={`/team/${agentId}`} label={agent.full_name} className="text-xs" />
-          <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Daily grid</h1>
+          <h1 className="text-[28px] font-bold leading-[34px] tracking-heading-tight text-fg">Daily grid</h1>
         </div>
         <Link
           href={`/team/${agentId}/daily/export?${exportParams.toString()}`}

@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
+import { PageHeader } from '@/components/shell/page-header';
 import { RecruitingForm } from '../../recruiting-form';
 
 export default async function EditRecruitingLogPage({ params }: { params: { id: string } }) {
@@ -18,7 +19,7 @@ export default async function EditRecruitingLogPage({ params }: { params: { id: 
 
   return (
     <div className="max-w-md space-y-4">
-      <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Edit recruiting log</h1>
+      <PageHeader title="Edit recruiting log" />
       <RecruitingForm
         mode="edit"
         defaultValues={{

@@ -18,7 +18,7 @@ export default async function TeamMembersPage() {
 
   return (
     <div className="space-y-4 max-w-2xl">
-      <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Members</h1>
+      <h1 className="text-[28px] font-bold leading-[34px] tracking-heading-tight text-fg">Members</h1>
       <Card>
         <CardHeader>
           <CardTitle>Downline roster</CardTitle>

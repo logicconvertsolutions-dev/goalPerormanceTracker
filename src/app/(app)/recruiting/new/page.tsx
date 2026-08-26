@@ -1,4 +1,5 @@
 import { requireVerifiedAgent } from '@/lib/auth/guards';
+import { PageHeader } from '@/components/shell/page-header';
 import { RecruitingForm } from '../recruiting-form';
 
 export default async function NewRecruitingLogPage() {
@@ -6,7 +7,7 @@ export default async function NewRecruitingLogPage() {
 
   return (
     <div className="max-w-md space-y-4">
-      <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Log conversation</h1>
+      <PageHeader title="Log conversation" />
       <RecruitingForm mode="create" />
     </div>
   );

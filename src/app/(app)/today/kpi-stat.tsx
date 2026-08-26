@@ -16,7 +16,7 @@ export function KpiStat({ icon: Icon, value, label, warn }: KpiStatProps) {
   return (
     <div
       className={cn(
-        'flex flex-1 flex-col gap-1.5 rounded-[10px] border border-line bg-panel px-3 py-3',
+        'flex flex-1 flex-col gap-1.5 rounded border border-line bg-panel px-3 py-3 shadow-card',
         warn && 'border-bad/30 bg-bad-dim/40'
       )}
     >

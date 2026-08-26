@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/shell/page-header';
+import { KpiCard } from '@/components/shell/kpi-card';
 import { FilterBar, type FilterChip } from '@/components/shell/filter-bar';
 import { resolvePeriod, todayIso, type PeriodPreset, PERIOD_PRESETS } from '@/lib/dates';
 import { AppointmentRow } from './appointment-row';
@@ -68,12 +70,14 @@ export default async function AppointmentsPage({
 
   return (
     <div className="space-y-4 max-w-3xl">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Appointments</h1>
-        <Button asChild variant="primary">
-          <Link href="/appointments/new">Log appointment</Link>
-        </Button>
-      </div>
+      <PageHeader
+        title="Appointments"
+        action={
+          <Button asChild variant="primary" size="sm">
+            <Link href="/appointments/new">Log appointment</Link>
+          </Button>
+        }
+      />
 
       <FilterBar preset={preset} customFrom={params.from} customTo={params.to} chips={chips}>
         <form action="/appointments" className="flex items-center gap-2">
@@ -118,13 +122,13 @@ export default async function AppointmentsPage({
       ) : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <SummaryStat label="Scheduled" value={String(scheduled.length)} />
-            <SummaryStat label="Held" value={String(held)} />
-            <SummaryStat label="No-show rate" value={`${noShowRatePct}%`} />
-            <SummaryStat label="Open premium" value={`$${(openPremium / 100).toLocaleString('en-CA')}`} />
+            <KpiCard label="Scheduled" value={String(scheduled.length)} />
+            <KpiCard label="Held" value={String(held)} />
+            <KpiCard label="No-show rate" value={`${noShowRatePct}%`} />
+            <KpiCard label="Open premium" value={`$${(openPremium / 100).toLocaleString('en-CA')}`} />
           </div>
 
-          <div className="overflow-x-auto rounded-lg border border-line">
+          <div className="overflow-x-auto rounded-lg border border-line shadow-card">
             <table className="w-full text-sm">
               <thead className="bg-bg-2 text-fg-3 text-xs uppercase tracking-wide">
                 <tr>
@@ -156,16 +160,5 @@ export default async function AppointmentsPage({
         </>
       )}
     </div>
-  );
-}
-
-function SummaryStat({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="pt-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-fg-3">{label}</p>
-        <p className="text-lg font-medium font-mono tabular-nums tracking-tighter text-fg">{value}</p>
-      </CardContent>
-    </Card>
   );
 }

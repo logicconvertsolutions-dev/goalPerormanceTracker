@@ -1,4 +1,5 @@
 import { requireVerifiedAgent } from '@/lib/auth/guards';
+import { PageHeader } from '@/components/shell/page-header';
 import { SaleForm } from '../sale-form';
 
 export default async function NewSalePage() {
@@ -6,7 +7,7 @@ export default async function NewSalePage() {
 
   return (
     <div className="max-w-md space-y-4">
-      <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Log sale</h1>
+      <PageHeader title="Log sale" />
       <SaleForm mode="create" />
     </div>
   );

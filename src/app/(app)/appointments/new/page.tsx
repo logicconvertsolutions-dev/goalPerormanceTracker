@@ -1,5 +1,6 @@
 import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
+import { PageHeader } from '@/components/shell/page-header';
 import { AppointmentForm } from '../appointment-form';
 
 export default async function NewAppointmentPage({
@@ -23,7 +24,7 @@ export default async function NewAppointmentPage({
 
   return (
     <div className="max-w-md space-y-4">
-      <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Log appointment</h1>
+      <PageHeader title="Log appointment" />
       <AppointmentForm
         mode="create"
         prefillContactName={prefill?.full_name}

@@ -84,7 +84,9 @@ export default async function TeamAgentPage({
       <div className="flex items-center justify-between">
         <div>
           <BackLink href="/team" label="Team" className="text-xs" />
-          <h1 className="text-xl font-semibold tracking-heading-tight text-fg">{agent.full_name}</h1>
+          <h1 className="text-[28px] font-bold leading-[34px] tracking-heading-tight text-fg">
+            {agent.full_name}
+          </h1>
         </div>
         <Link href={`/team/${agentId}/daily`} className="text-sm text-acc hover:underline">
           Daily grid →
