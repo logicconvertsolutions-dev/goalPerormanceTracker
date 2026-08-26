@@ -27,7 +27,7 @@ export default async function OrganizationSettingsPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Organization</h1>
+        <h1 className="text-[28px] font-bold leading-[34px] tracking-heading-tight text-fg">Organization</h1>
         <BackLink href="/team" label="Team" />
       </div>
 

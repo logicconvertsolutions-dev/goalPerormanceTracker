@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent } from '@/components/ui/card';
+import { PageHeader } from '@/components/shell/page-header';
 import { NotesContactPicker } from './notes-contact-picker';
 import { NotesTable, type TimelineEntry } from './notes-table';
 
@@ -75,14 +76,17 @@ export default async function NotesPage({
 
   return (
     <div className={contact ? 'space-y-4 max-w-4xl' : 'space-y-4 max-w-2xl'}>
-      <div className="flex items-center justify-between print:hidden">
-        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Meeting Notes</h1>
-        {contact && (
-          <Link href="/notes" className="text-sm text-acc hover:underline">
-            Change contact
-          </Link>
-        )}
-      </div>
+      <PageHeader
+        title="Meeting Notes"
+        className="print:hidden"
+        action={
+          contact && (
+            <Link href="/notes" className="text-sm text-acc hover:underline">
+              Change contact
+            </Link>
+          )
+        }
+      />
 
       {!contact ? (
         <Card>

@@ -58,7 +58,7 @@ export default async function TeamPage({
   if (allAgents.length === 0) {
     return (
       <div className="space-y-4">
-        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">My Team</h1>
+        <h1 className="text-[28px] font-bold leading-[34px] tracking-heading-tight text-fg">My Team</h1>
         <Card>
           <CardContent className="pt-4">
             <p className="text-sm text-fg-2">
@@ -123,21 +123,21 @@ export default async function TeamPage({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-y-2">
-        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">My Team</h1>
+        <h1 className="text-[28px] font-bold leading-[34px] tracking-heading-tight text-fg">My Team</h1>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" asChild>
+          <Button variant="secondary" size="sm" asChild>
             <Link href="/team/organization">Organization</Link>
           </Button>
-          <Button variant="secondary" asChild>
+          <Button variant="secondary" size="sm" asChild>
             <Link href="/team/targets">Goals</Link>
           </Button>
-          <Button variant="secondary" asChild>
+          <Button variant="secondary" size="sm" asChild>
             <Link href="/team/invites">Invites</Link>
           </Button>
-          <Button variant="secondary" asChild>
+          <Button variant="secondary" size="sm" asChild>
             <Link href="/team/members">Members</Link>
           </Button>
-          <Button variant="secondary" asChild>
+          <Button variant="secondary" size="sm" asChild>
             <Link href="/team/audit">Audit</Link>
           </Button>
         </div>
@@ -221,7 +221,7 @@ export default async function TeamPage({
       {quietRows.length > 0 && (
         <Card>
           <CardContent className="pt-4 space-y-2">
-            <h2 className="text-sm font-medium text-fg">Quiet — nothing logged in 7+ days</h2>
+            <h2 className="text-[16px] font-semibold text-fg">Quiet — nothing logged in 7+ days</h2>
             {quietRows.map((q) => (
               <div key={q.agent_id} className="flex items-center justify-between text-sm py-1">
                 <Link href={`/team/${q.agent_id}`} className="text-fg hover:text-acc">
@@ -240,7 +240,7 @@ export default async function TeamPage({
         <DailyBreakdownTable rows={dailyBreakdown ?? []} />
       ) : (
         <>
-          <div className="overflow-x-auto rounded-lg border border-line hidden md:block">
+          <div className="overflow-x-auto rounded-[12px] border border-line hidden md:block">
             <table className="w-full text-sm">
               <thead className="bg-bg-2 text-fg-3 text-xs uppercase tracking-wide">
                 <tr>
@@ -281,7 +281,7 @@ export default async function TeamPage({
           <div className="grid md:grid-cols-2 gap-4">
             <Card>
               <CardContent className="pt-4">
-                <h2 className="text-sm font-medium text-fg mb-3">Calls by Agent</h2>
+                <h2 className="text-[16px] font-semibold text-fg mb-3">Calls by Agent</h2>
                 <HorizontalBarChart
                   title="Calls by Agent"
                   data={visibleAgents.map((a) => ({ label: a.full_name, value: a.calls_made }))}
@@ -292,7 +292,7 @@ export default async function TeamPage({
 
             <Card>
               <CardContent className="pt-4">
-                <h2 className="text-sm font-medium text-fg mb-3">Team Call Outcomes</h2>
+                <h2 className="text-[16px] font-semibold text-fg mb-3">Team Call Outcomes</h2>
                 <DonutChart
                   title="Team Call Outcomes"
                   slices={[
@@ -308,7 +308,7 @@ export default async function TeamPage({
 
             <Card>
               <CardContent className="pt-4">
-                <h2 className="text-sm font-medium text-fg mb-3">Team Call Source</h2>
+                <h2 className="text-[16px] font-semibold text-fg mb-3">Team Call Source</h2>
                 <HorizontalBarChart
                   title="Team Call Source"
                   data={[
@@ -325,7 +325,7 @@ export default async function TeamPage({
 
             <Card>
               <CardContent className="pt-4">
-                <h2 className="text-sm font-medium text-fg mb-3">8-Week Team Trend</h2>
+                <h2 className="text-[16px] font-semibold text-fg mb-3">8-Week Team Trend</h2>
                 <TrendChart weeks={trendWeeks} metric="calls" />
               </CardContent>
             </Card>

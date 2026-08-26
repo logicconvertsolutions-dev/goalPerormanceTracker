@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/shell/page-header';
 import { FilterBar } from '@/components/shell/filter-bar';
 import { ACTIVITY_META, type ActivityKind } from '@/components/shell/activity-icons';
 import { resolvePeriod, todayIso, type PeriodPreset, PERIOD_PRESETS } from '@/lib/dates';
@@ -88,12 +89,14 @@ export default async function LogsPage({
 
   return (
     <div className="space-y-4 max-w-3xl">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Activity Logs</h1>
-        <Button asChild variant="primary">
-          <Link href="/log">Log activity</Link>
-        </Button>
-      </div>
+      <PageHeader
+        title="Activity Logs"
+        action={
+          <Button asChild variant="primary" size="sm">
+            <Link href="/log">Log activity</Link>
+          </Button>
+        }
+      />
 
       <div className="flex flex-wrap gap-1 rounded-sm border border-line bg-panel-2 p-1">
         {TABS.map((kind) => {
@@ -262,7 +265,7 @@ export default async function LogsPage({
 
 function ListTable({ headers, children }: { headers: string[]; children: React.ReactNode }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-line">
+    <div className="overflow-x-auto rounded-[12px] border border-line">
       <table className="w-full text-sm">
         <thead className="bg-bg-2 text-fg-3 text-xs uppercase tracking-wide">
           <tr>
