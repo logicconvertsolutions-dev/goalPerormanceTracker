@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { signOutAction } from '@/app/(app)/logout/actions';
+import { SECONDARY_NAV } from './nav-items';
 
 function initials(name: string) {
   return name
@@ -41,6 +42,17 @@ export function AccountMenu({
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>{fullName}</DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {/* The rail nav's "secondary" group (Activity Logs, Meeting Notes) has
+            no equivalent on the mobile tab bar — there's no room for a 5th/6th
+            tab — so it needs a reachable spot on mobile. This menu is the one
+            thing present on every page regardless of screen size. Hidden on
+            desktop since the rail nav already covers it there. */}
+        {SECONDARY_NAV.map((item) => (
+          <DropdownMenuItem key={item.href} asChild className="md:hidden">
+            <Link href={item.href}>{item.label}</Link>
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator className="md:hidden" />
         <DropdownMenuItem asChild>
           <Link href="/profile">Profile</Link>
         </DropdownMenuItem>
