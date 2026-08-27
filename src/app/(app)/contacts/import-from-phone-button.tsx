@@ -7,9 +7,11 @@ import { Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { importDeviceContactsAction } from './actions';
 
-// Not yet in lib.dom.d.ts -- Chromium's Contact Picker API (Android
-// Chrome/Edge only; no Safari/iOS or desktop support at all, see
-// https://developer.mozilla.org/en-US/docs/Web/API/Contact_Picker_API).
+// Not yet in lib.dom.d.ts -- the Contact Picker API. Shipped by default on
+// Android Chrome/Edge; WebKit has an experimental implementation too (behind
+// Settings -> Safari -> Advanced -> Feature Flags -> "Contact Picker API",
+// off by default) so a small slice of iOS users may have it on. No desktop
+// browser supports it. See https://developer.mozilla.org/en-US/docs/Web/API/Contact_Picker_API.
 interface DeviceContact {
   name?: string[];
   tel?: string[];
@@ -25,9 +27,11 @@ declare global {
 
 /**
  * Renders nothing on any browser that doesn't support the Contact Picker
- * API — today that's everything except Android Chrome/Edge (see the
- * interface comment above). No file, no template: the OS's own contact
- * picker hands back name+phone pairs directly.
+ * API. Feature-detected against the actual method being called (not a
+ * Chromium-specific global like `window.ContactsManager`), so it also picks
+ * up WebKit's flag-gated implementation on the iOS devices that have it on.
+ * No file, no template: the OS's own contact picker hands back name+phone
+ * pairs directly.
  */
 export function ImportFromPhoneButton() {
   const router = useRouter();
@@ -35,7 +39,7 @@ export function ImportFromPhoneButton() {
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
-    setSupported(typeof navigator !== 'undefined' && 'contacts' in navigator && 'ContactsManager' in window);
+    setSupported(typeof navigator !== 'undefined' && typeof navigator.contacts?.select === 'function');
   }, []);
 
   if (!supported) return null;
