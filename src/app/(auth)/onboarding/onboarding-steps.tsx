@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -109,8 +110,8 @@ export function OnboardingSteps({ target }: { target: Target | null }) {
               Import your existing tracker once, or start fresh.
             </p>
             <div className="flex flex-col gap-2">
-              <Button variant="secondary" disabled>
-                Import spreadsheet (coming soon)
+              <Button variant="secondary" asChild>
+                <Link href="/import">Import spreadsheet</Link>
               </Button>
               <Button variant="ghost" onClick={finish}>
                 Start fresh

@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git mv *)",
+      "Bash(mv src/lib/import/__tests__/golden-file.test.ts src/lib/import/__tests__/golden-file.test.tsx)",
+      "Bash(node -e \"console.log\\(process.version\\)\")",
+      "Bash(npm info *)",
+      "Bash(node -e \"const v=JSON.parse\\(require\\('fs'\\).readFileSync\\(0,'utf8'\\)\\); console.log\\(v.filter\\(x=>x.startsWith\\('24.'\\)||x.startsWith\\('25.'\\)||x.startsWith\\('26.'\\)\\).slice\\(-15\\)\\)\")",
+      "Bash(export SUPABASE_ACCESS_TOKEN=*)",
+      "Bash(unset SUPABASE_ACCESS_TOKEN)",
+      "Bash(tasklist)",
+      "Bash(tasklist /v)",
+      "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \\\\\"name='node.exe'\\\\\" | Select-Object ProcessId, CommandLine | Format-List\")",
+      "Bash(powershell -Command \"Stop-Process -Id 12692,28592,26164,27632,30496,19568,24264 -Force -ErrorAction SilentlyContinue\")",
+      "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \\\\\"name='node.exe'\\\\\" | Select-Object ProcessId, CommandLine\")",
+      "Bash(git restore *)",
+      "Bash(npx eslint *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/team)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -L http://localhost:3000/team --max-time 30)",
+      "Bash(curl -s -c /tmp/cookies.txt http://localhost:3000/login --max-time 15 -o /dev/null -w \"login page: %{http_code}\\\\n\")",
+      "Bash(rm -f /tmp/cookies.txt)",
+      "PowerShell(Stop-Process -Name node -Force -ErrorAction SilentlyContinue)",
+      "Bash(tee /tmp/build_output.log)",
+      "Bash(grep -n \"CompositeTypeName\\\\]$\" types/database.ts)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
+    ]
+  }
+}

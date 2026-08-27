@@ -9,7 +9,8 @@ Two customer organizations share one database; they must never see each other.
 ## Stack (locked — do not re-litigate)
 Next.js 14 App Router · TypeScript strict · Supabase (Auth + Postgres + RLS)
 · Tailwind + shadcn/ui · Recharts · Zod · Vercel
-**Dark theme only.** No light mode, no theme toggle in v1.
+**Light theme only** (see `docs/03-ui.md` — supersedes an earlier dark-theme
+direction shipped through P0–P2). No second theme, no theme toggle in v1.
 
 ## Non-negotiable rules
 1. **RLS is the security boundary.** Never rely on client filtering. Every
@@ -49,8 +50,8 @@ Next.js 14 App Router · TypeScript strict · Supabase (Auth + Postgres + RLS)
 |---|---|
 | Scope, roles, user stories | `docs/01-requirements.md` |
 | Schema, RLS, RPCs | `docs/02-data-model.md` |
-| Visual direction, dark tokens, routes | `docs/03-ui.md` |
-| Rendered reference for all screens | `ui-mockup.html` (repo root) |
+| Visual direction, tokens, routes | `docs/03-ui.md` |
+| Rendered reference for all screens | `ui-mockup.html` (repo root) — **stale, still shows the old dark theme; the live app is the light navy/gold theme in `docs/03-ui.md`. Regenerate before relying on it.** |
 | Per-page KPIs, filters, charts | `docs/08-screen-specs.md` |
 | Auth, profile, settings, app shell | `docs/09-account-and-auth.md` |
 | User journeys and empty states | `docs/10-journeys.md` |
