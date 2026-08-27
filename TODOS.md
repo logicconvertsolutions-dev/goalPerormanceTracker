@@ -2,6 +2,23 @@
 
 Design debt and deferred work surfaced by review. Newest first.
 
+## 2026-08-27 — Activity Logs tab URL query param lags one click behind
+
+**What:** On `/logs`, the `?type=` query param always reflects the
+*previously* selected tab, not the one just clicked (e.g. clicking
+"Sales" navigates to `?type=appointment`). The UI itself is always
+correct — right tab highlighted, right table/empty-state shown — only
+the URL is one step stale.
+
+**Why deferred:** Low severity (ISSUE-005 from `/qa`,
+`.gstack/qa-reports/qa-report-localhost-2026-08-27.md`) — cosmetic
+URL-state bug, not a functional break. Standard tier fixes
+critical/high/medium; low severity is deferred by default.
+
+**Impact:** Breaks bookmarking/sharing a specific tab's URL and could
+cause a mismatch on browser back/forward. No data-correctness or
+visible-UI impact.
+
 ## 2026-08-26 — Regenerate ui-mockup.html for the light theme
 
 **What:** Regenerate `.github/Spec Sheets/ui-mockup.html` to match the light
