@@ -49,9 +49,14 @@ export default async function ClientsPage({
         title="Clients"
         subtitle="Contacts with at least one recorded sale"
         action={
-          <Button asChild variant="secondary" size="sm">
-            <Link href="/import">Import from Excel</Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/import/template?type=clients">Download template</Link>
+            </Button>
+            <Button asChild variant="secondary" size="sm">
+              <Link href="/import">Import from Excel</Link>
+            </Button>
+          </div>
         }
       />
 

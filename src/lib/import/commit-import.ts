@@ -5,6 +5,7 @@ import { findOrCreateContact } from '@/lib/contacts';
 import type {
   AppointmentImportData,
   CallLogImportData,
+  ContactOnlyImportData,
   ParsedRow,
   RecruitingImportData,
   SalesImportData,
@@ -73,6 +74,8 @@ async function commitOne(
   row: ParsedRow
 ): Promise<CommitOutcome> {
   switch (row.sheet) {
+    case 'Contacts':
+      return commitContactOnly(supabase, agentId, orgId, row.data as ContactOnlyImportData);
     case 'Call Log':
       return commitCallLog(supabase, agentId, orgId, row.data as CallLogImportData, row.rowHash);
     case 'Appointment Log':
@@ -82,6 +85,20 @@ async function commitOne(
     case 'Recruiting Log':
       return commitRecruitingLog(supabase, agentId, orgId, row.data as RecruitingImportData, row.rowHash);
   }
+}
+
+// No activity row, so no import_row_hash to dedupe on -- idempotency instead
+// comes entirely from findOrCreateContact's phone/name matching (re-uploading
+// the same contact list just resolves to the same rows, never duplicates).
+async function commitContactOnly(
+  supabase: SupabaseClient<Database>,
+  agentId: string,
+  orgId: string,
+  data: ContactOnlyImportData
+): Promise<CommitOutcome> {
+  const contact = await findOrCreateContact(supabase, agentId, orgId, data.fullName, null, data.phone);
+  if ('error' in contact) return { message: contact.error };
+  return 'imported';
 }
 
 async function commitCallLog(
@@ -117,7 +134,7 @@ async function commitAppointment(
   data: AppointmentImportData,
   rowHash: string
 ): Promise<CommitOutcome> {
-  const contact = await findOrCreateContact(supabase, agentId, orgId, data.contactName);
+  const contact = await findOrCreateContact(supabase, agentId, orgId, data.contactName, null, data.contactPhone);
   if ('error' in contact) return { message: contact.error };
 
   const { error } = await supabase.from('appointments').insert({

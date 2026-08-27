@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/shell/page-header';
 import { formatDisplayDate } from '@/lib/dates';
 import { AddContactDialog } from './add-contact-dialog';
+import { ImportFromPhoneButton } from './import-from-phone-button';
 
 interface ContactRow {
   id: string;
@@ -44,7 +45,11 @@ export default async function ContactsPage({
       <PageHeader
         title="Contacts"
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <ImportFromPhoneButton />
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/import/template?type=contacts">Download template</Link>
+            </Button>
             <Button asChild variant="secondary" size="sm">
               <Link href="/import">Import from Excel</Link>
             </Button>
