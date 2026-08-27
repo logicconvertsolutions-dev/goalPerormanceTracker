@@ -95,13 +95,29 @@ export interface RecruitingImportData {
   notes: string | null;
 }
 
-export type ImportSheetName = 'Call Log' | 'Appointment Log' | 'Sales Log' | 'Recruiting Log';
+// The simple "just my contacts" sheet — no activity, no dedicated sheet type
+// elsewhere handles phone this directly. Phone is required here (unlike the
+// four activity sheets' trailing Phone column, which stays optional for
+// backward compatibility with existing templates) since this sheet's whole
+// point is capturing it.
+export interface ContactOnlyImportData {
+  fullName: string;
+  phone: string;
+}
+
+export type ImportSheetName = 'Contacts' | 'Call Log' | 'Appointment Log' | 'Sales Log' | 'Recruiting Log';
 
 export interface ParsedRow {
   sheet: ImportSheetName;
   rowNumber: number;
   rowHash: string;
-  data: CallLogImportData | AppointmentImportData | SalesImportData | RecruitingImportData | null;
+  data:
+    | ContactOnlyImportData
+    | CallLogImportData
+    | AppointmentImportData
+    | SalesImportData
+    | RecruitingImportData
+    | null;
   errors: string[];
 }
 
@@ -112,6 +128,7 @@ export interface ParseResult {
 }
 
 const IMPORTED_SHEETS: ImportSheetName[] = [
+  'Contacts',
   'Call Log',
   'Appointment Log',
   'Sales Log',
@@ -167,6 +184,21 @@ function toTextOrNull(cell: unknown): string | null {
 
 function rowHashFor(fileHash: string, sheet: string, rowNumber: number): string {
   return createHash('sha256').update(`${fileHash}|${sheet}|${rowNumber}`).digest('hex');
+}
+
+function parseContactRow(cells: unknown[]): { data: ContactOnlyImportData | null; errors: string[] } {
+  const [contactName, phoneCell] = cells;
+  const errors: string[] = [];
+
+  const name = toTextOrNull(contactName);
+  if (!name) errors.push('Missing contact name.');
+
+  const phone = toTextOrNull(phoneCell);
+  if (!phone) errors.push('Missing phone number.');
+
+  if (errors.length > 0 || !name || !phone) return { data: null, errors };
+
+  return { data: { fullName: name, phone }, errors: [] };
 }
 
 function parseCallLogRow(cells: unknown[]): { data: CallLogImportData | null; errors: string[] } {
@@ -291,6 +323,7 @@ const PARSERS: Record<
   ImportSheetName,
   (cells: unknown[]) => { data: ParsedRow['data']; errors: string[] }
 > = {
+  Contacts: parseContactRow,
   'Call Log': parseCallLogRow,
   'Appointment Log': parseAppointmentRow,
   'Sales Log': parseSalesRow,
@@ -298,9 +331,9 @@ const PARSERS: Record<
 };
 
 /**
- * Parses the workbook's four activity sheets into importable rows. The
- * "Daily Log" and "Dashboard" sheets are the workbook's own read model /
- * gold-cell targets, never imported as activity rows.
+ * Parses the workbook's Contacts sheet plus its four activity sheets into
+ * importable rows. The "Daily Log" and "Dashboard" sheets are the workbook's
+ * own read model / gold-cell targets, never imported.
  */
 export function parseWorkbook(buffer: Buffer): ParseResult {
   const fileHash = createHash('sha256').update(buffer).digest('hex');

@@ -11,6 +11,7 @@ function buildWorkbook(sheets: Record<string, unknown[][]>): Buffer {
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
 }
 
+const CONTACTS_HEADER = ['Contact Name', 'Phone Number'];
 const CALL_LOG_HEADER = ['Date', 'Contact Name', 'Company', 'Source', 'Outcome', 'Notes'];
 const APPT_HEADER = ['Date', 'Contact Name', 'Type', 'Status', 'Expected Premium ($)', 'Referrals Given', 'Notes'];
 const SALES_HEADER = ['Date', 'Client Name', 'Product Type', 'Premium Amount', 'Notes'];
@@ -95,6 +96,27 @@ describe('parseWorkbook', () => {
       source: 'referral',
       status: 'marketing_presented',
     });
+  });
+
+  it('parses the simple Contacts sheet (name + required phone)', () => {
+    const buf = buildWorkbook({
+      Contacts: [CONTACTS_HEADER, ['Jane Doe', '555-123-4567']],
+    });
+
+    const result = parseWorkbook(buf);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].errors).toEqual([]);
+    expect(result.rows[0].data).toEqual({ fullName: 'Jane Doe', phone: '555-123-4567' });
+  });
+
+  it('requires a phone number on the Contacts sheet', () => {
+    const buf = buildWorkbook({
+      Contacts: [CONTACTS_HEADER, ['Jane Doe', null]],
+    });
+
+    const result = parseWorkbook(buf);
+    expect(result.rows[0].data).toBeNull();
+    expect(result.rows[0].errors).toContain('Missing phone number.');
   });
 
   it('parses an optional trailing Phone column without disturbing existing columns', () => {

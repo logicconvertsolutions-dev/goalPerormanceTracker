@@ -24,17 +24,24 @@ const CALL_OUTCOMES = [
   'not_interested',
 ] as const;
 
-const logCallSchema = z.object({
-  contactName: z.string().min(1, 'Enter who you called.').max(200),
-  contactId: z.string().uuid().optional(),
-  contactPhone: z.string().max(30).optional(),
-  callDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
-  source: z.enum(CALL_SOURCES),
-  outcome: z.enum(CALL_OUTCOMES),
-  notes: z.string().max(2000).optional(),
-  followUpOn: z.string().optional(),
-  clientRequestId: z.string().optional(),
-});
+const logCallSchema = z
+  .object({
+    contactName: z.string().min(1, 'Enter who you called.').max(200),
+    contactId: z.string().uuid().optional(),
+    contactPhone: z.string().max(30).optional(),
+    callDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
+    source: z.enum(CALL_SOURCES),
+    outcome: z.enum(CALL_OUTCOMES),
+    notes: z.string().max(2000).optional(),
+    followUpOn: z.string().optional(),
+    clientRequestId: z.string().optional(),
+  })
+  // Phone is only required when creating a brand-new contact (no contactId
+  // picked from the autocomplete) -- an existing contact's phone is already on file.
+  .refine((d) => d.contactId || d.contactPhone?.trim(), {
+    message: 'Enter a phone number for a new contact.',
+    path: ['contactPhone'],
+  });
 
 // Postgres unique-violation error code.
 const UNIQUE_VIOLATION = '23505';
