@@ -3,11 +3,11 @@ import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/shell/page-header';
 import { formatDisplayDate } from '@/lib/dates';
 import { AddContactDialog } from './add-contact-dialog';
 import { ImportFromPhoneButton } from './import-from-phone-button';
+import { ContactsSearch } from './contacts-search';
 
 interface ContactRow {
   id: string;
@@ -58,9 +58,7 @@ export default async function ContactsPage({
         }
       />
 
-      <form className="max-w-sm">
-        <Input name="q" defaultValue={q ?? ''} placeholder="Search name" />
-      </form>
+      <ContactsSearch initialQuery={q ?? ''} />
 
       {rows.length === 0 ? (
         <Card>
