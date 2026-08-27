@@ -28,7 +28,7 @@ export async function findOrCreateContact(
   fullName: string,
   contactId?: string | null,
   phone?: string | null
-): Promise<{ id: string } | { error: string }> {
+): Promise<{ id: string; created: boolean } | { error: string }> {
   if (contactId) {
     const { data: existing } = await supabase
       .from('contacts')
@@ -36,7 +36,7 @@ export async function findOrCreateContact(
       .eq('id', contactId)
       .eq('agent_id', agentId)
       .maybeSingle();
-    if (existing) return { id: existing.id };
+    if (existing) return { id: existing.id, created: false };
     // Picked id no longer belongs to this agent (stale/tampered) — fall
     // through to name matching rather than failing the whole submission.
   }
@@ -53,7 +53,7 @@ export async function findOrCreateContact(
       .eq('agent_id', agentId)
       .eq('phone_normalized', normalizedPhone)
       .maybeSingle();
-    if (byPhone) return { id: byPhone.id };
+    if (byPhone) return { id: byPhone.id, created: false };
   }
 
   // Match the unique index's semantics exactly (lower(full_name) equality) —
@@ -69,7 +69,7 @@ export async function findOrCreateContact(
     if (normalizedPhone && !existing.phone) {
       await supabase.from('contacts').update({ phone }).eq('id', existing.id);
     }
-    return { id: existing.id };
+    return { id: existing.id, created: false };
   }
 
   const { data: created, error } = await supabase
@@ -82,5 +82,5 @@ export async function findOrCreateContact(
     console.error('findOrCreateContact: insert failed', error);
     return { error: 'Could not save contact.' };
   }
-  return { id: created.id };
+  return { id: created.id, created: true };
 }

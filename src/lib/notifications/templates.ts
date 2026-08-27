@@ -15,6 +15,19 @@ function firstName(fullName: string): string {
   return fullName.trim().split(/\s+/)[0] ?? fullName;
 }
 
+// fullName, roster names, and sentByName are all free-text, user-settable
+// fields (agents.full_name, team_roster.full_name) that flow unescaped into
+// bodyHtml below -- escape before interpolating into HTML anywhere in this
+// file. Not needed for the *Text variants, which are plain text.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function formatMoney(cents: number): string {
   return `$${(cents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
@@ -59,7 +72,7 @@ export function eveningNudgeEmail(d: EveningNudgeData): EmailContent {
       ? `${d.minCallsPerDay} calls keeps your ${d.streakDays}-day streak alive.`
       : `${d.minCallsPerDay} calls starts your streak.`;
   const bodyHtml = `
-    <p>Hi ${firstName(d.fullName)},</p>
+    <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
     <p>You haven't logged any calls today. ${streakLine}</p>
     <p><a href="${logUrl}" style="display:inline-block;padding:10px 16px;background:#111;color:#fff;text-decoration:none;border-radius:6px;">Log a call</a></p>`;
   const bodyText = `Hi ${firstName(d.fullName)},\n\nYou haven't logged any calls today. ${streakLine}\n\nLog a call: ${logUrl}`;
@@ -82,7 +95,7 @@ export interface SundaySummaryData {
 export function sundaySummaryEmail(d: SundaySummaryData): EmailContent {
   const dashboardUrl = appUrl('/dashboard');
   const bodyHtml = `
-    <p>Hi ${firstName(d.fullName)},</p>
+    <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
     <p>Your week: <strong>${d.callsMade} of ${d.callsTarget}</strong> calls, a
     <strong>${d.streakDays}-day</strong> streak, and
     <strong>${d.followUpsDueNextWeek}</strong> follow-up${d.followUpsDueNextWeek === 1 ? '' : 's'} due next week.</p>
@@ -112,11 +125,17 @@ export function mondayDigestEmail(d: MondayDigestData): EmailContent {
       ? `Quiet this week: ${d.quietAgentNames.join(', ')}.`
       : 'Everyone logged something this week.';
   const moversLine = d.moverNames.length > 0 ? `Biggest movers: ${d.moverNames.join(', ')}.` : '';
+  const quietLineHtml =
+    d.quietAgentNames.length > 0
+      ? `Quiet this week: ${d.quietAgentNames.map(escapeHtml).join(', ')}.`
+      : 'Everyone logged something this week.';
+  const moversLineHtml =
+    d.moverNames.length > 0 ? `Biggest movers: ${d.moverNames.map(escapeHtml).join(', ')}.` : '';
   const bodyHtml = `
-    <p>Hi ${firstName(d.fullName)},</p>
+    <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
     <p>Team so far: <strong>${d.totalCalls} of ${d.totalCallsTarget}</strong> calls,
     ${formatMoney(d.totalPremiumCents)} in premium.</p>
-    <p>${quietLine}${moversLine ? ` ${moversLine}` : ''}</p>
+    <p>${quietLineHtml}${moversLineHtml ? ` ${moversLineHtml}` : ''}</p>
     <p><a href="${teamUrl}" style="display:inline-block;padding:10px 16px;background:#111;color:#fff;text-decoration:none;border-radius:6px;">View team dashboard</a></p>`;
   const bodyText = `Hi ${firstName(d.fullName)},\n\nTeam so far: ${d.totalCalls} of ${d.totalCallsTarget} calls, ${formatMoney(d.totalPremiumCents)} in premium.\n\n${quietLine}${moversLine ? ` ${moversLine}` : ''}\n\nView team dashboard: ${teamUrl}`;
   return {
@@ -137,7 +156,7 @@ export interface InviteData {
 export function inviteEmail(d: InviteData): EmailContent {
   const bodyHtml = `
     <p>Hi,</p>
-    <p>${firstName(d.inviterName)} invited you to join <strong>${d.orgName}</strong> on the team tracker.</p>
+    <p>${escapeHtml(firstName(d.inviterName))} invited you to join <strong>${escapeHtml(d.orgName)}</strong> on the team tracker.</p>
     <p><a href="${d.inviteUrl}" style="display:inline-block;padding:10px 16px;background:#111;color:#fff;text-decoration:none;border-radius:6px;">Accept invitation</a></p>
     <p style="font-size:12px;color:#888;">This link expires in 7 days.</p>`;
   const bodyText = `Hi,\n\n${firstName(d.inviterName)} invited you to join ${d.orgName} on the team tracker.\n\nAccept invitation: ${d.inviteUrl}\n\nThis link expires in 7 days.`;
@@ -162,8 +181,8 @@ export interface TrainingReminderData {
 export function trainingReminderEmail(d: TrainingReminderData): EmailContent {
   const trainingUrl = appUrl('/today');
   const bodyHtml = `
-    <p>Hi ${firstName(d.fullName)},</p>
-    <p>${d.sentByName} sent you a reminder to complete your training.</p>
+    <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
+    <p>${escapeHtml(d.sentByName)} sent you a reminder to complete your training.</p>
     <p><a href="${trainingUrl}" style="display:inline-block;padding:10px 16px;background:#111;color:#fff;text-decoration:none;border-radius:6px;">Open the app</a></p>`;
   const bodyText = `Hi ${firstName(d.fullName)},\n\n${d.sentByName} sent you a reminder to complete your training.\n\nOpen the app: ${trainingUrl}`;
   return {
@@ -183,8 +202,8 @@ export interface RosterTrainingReminderData {
 // row, no account to manage preferences on, same reasoning as inviteEmail.
 export function rosterTrainingReminderEmail(d: RosterTrainingReminderData): EmailContent {
   const bodyHtml = `
-    <p>Hi ${firstName(d.fullName)},</p>
-    <p>${d.sentByName} sent you a reminder to complete your training.</p>`;
+    <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
+    <p>${escapeHtml(d.sentByName)} sent you a reminder to complete your training.</p>`;
   const bodyText = `Hi ${firstName(d.fullName)},\n\n${d.sentByName} sent you a reminder to complete your training.`;
   return {
     subject: `${d.sentByName} sent you a training reminder`,
@@ -211,8 +230,8 @@ export function nudgeEmail(d: NudgeData): EmailContent {
       ? `${d.minCallsPerDay} calls keeps your ${d.streakDays}-day streak alive.`
       : `${d.minCallsPerDay} calls starts your streak.`;
   const bodyHtml = `
-    <p>Hi ${firstName(d.fullName)},</p>
-    <p>${d.sentByName} noticed you haven't logged anything today. ${streakLine}</p>
+    <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
+    <p>${escapeHtml(d.sentByName)} noticed you haven't logged anything today. ${streakLine}</p>
     <p><a href="${logUrl}" style="display:inline-block;padding:10px 16px;background:#111;color:#fff;text-decoration:none;border-radius:6px;">Log a call</a></p>`;
   const bodyText = `Hi ${firstName(d.fullName)},\n\n${d.sentByName} noticed you haven't logged anything today. ${streakLine}\n\nLog a call: ${logUrl}`;
   return {

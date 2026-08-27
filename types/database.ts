@@ -50,30 +50,30 @@ export type Database = {
       agent_nudges: {
         Row: {
           agent_id: string
-          sent_at: string
-          sent_by: string
+          last_sent_at: string
+          last_sent_by: string
         }
         Insert: {
           agent_id: string
-          sent_at?: string
-          sent_by: string
+          last_sent_at: string
+          last_sent_by: string
         }
         Update: {
           agent_id?: string
-          sent_at?: string
-          sent_by?: string
+          last_sent_at?: string
+          last_sent_by?: string
         }
         Relationships: [
           {
             foreignKeyName: "agent_nudges_agent_id_fkey"
             columns: ["agent_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "agents"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "agent_nudges_sent_by_fkey"
-            columns: ["sent_by"]
+            foreignKeyName: "agent_nudges_last_sent_by_fkey"
+            columns: ["last_sent_by"]
             isOneToOne: false
             referencedRelation: "agents"
             referencedColumns: ["id"]
@@ -83,30 +83,30 @@ export type Database = {
       agent_training_reminders: {
         Row: {
           agent_id: string
-          sent_at: string
-          sent_by: string
+          last_sent_at: string
+          last_sent_by: string
         }
         Insert: {
           agent_id: string
-          sent_at?: string
-          sent_by: string
+          last_sent_at: string
+          last_sent_by: string
         }
         Update: {
           agent_id?: string
-          sent_at?: string
-          sent_by?: string
+          last_sent_at?: string
+          last_sent_by?: string
         }
         Relationships: [
           {
             foreignKeyName: "agent_training_reminders_agent_id_fkey"
             columns: ["agent_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "agents"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "agent_training_reminders_sent_by_fkey"
-            columns: ["sent_by"]
+            foreignKeyName: "agent_training_reminders_last_sent_by_fkey"
+            columns: ["last_sent_by"]
             isOneToOne: false
             referencedRelation: "agents"
             referencedColumns: ["id"]

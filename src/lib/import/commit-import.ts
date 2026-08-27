@@ -101,6 +101,21 @@ async function commitContactOnly(
   return 'imported';
 }
 
+// Same rule as the manual "log call/appointment/sale" forms
+// (contactId || contactPhone): a phone is required for a brand-new contact,
+// optional when the row resolves to an existing one. The parser can't know
+// which case applies (no DB access), so this check lives here, after
+// findOrCreateContact reports whether it inserted a new row.
+function requirePhoneForNewContact(
+  contact: { id: string; created: boolean },
+  phone: string | null
+): CommitOutcome | null {
+  if (contact.created && !phone?.trim()) {
+    return { message: 'Missing phone number (required for a new contact).' };
+  }
+  return null;
+}
+
 async function commitCallLog(
   supabase: SupabaseClient<Database>,
   agentId: string,
@@ -110,6 +125,8 @@ async function commitCallLog(
 ): Promise<CommitOutcome> {
   const contact = await findOrCreateContact(supabase, agentId, orgId, data.contactName, null, data.contactPhone);
   if ('error' in contact) return { message: contact.error };
+  const phoneError = requirePhoneForNewContact(contact, data.contactPhone);
+  if (phoneError) return phoneError;
 
   const { error } = await supabase.from('call_logs').insert({
     agent_id: agentId,
@@ -136,6 +153,8 @@ async function commitAppointment(
 ): Promise<CommitOutcome> {
   const contact = await findOrCreateContact(supabase, agentId, orgId, data.contactName, null, data.contactPhone);
   if ('error' in contact) return { message: contact.error };
+  const phoneError = requirePhoneForNewContact(contact, data.contactPhone);
+  if (phoneError) return phoneError;
 
   const { error } = await supabase.from('appointments').insert({
     agent_id: agentId,
@@ -164,6 +183,8 @@ async function commitSale(
 ): Promise<CommitOutcome> {
   const contact = await findOrCreateContact(supabase, agentId, orgId, data.clientName, null, data.contactPhone);
   if ('error' in contact) return { message: contact.error };
+  const phoneError = requirePhoneForNewContact(contact, data.contactPhone);
+  if (phoneError) return phoneError;
 
   const { error } = await supabase.from('sales').insert({
     agent_id: agentId,
@@ -190,6 +211,8 @@ async function commitRecruitingLog(
 ): Promise<CommitOutcome> {
   const contact = await findOrCreateContact(supabase, agentId, orgId, data.prospectName, null, data.contactPhone);
   if ('error' in contact) return { message: contact.error };
+  const phoneError = requirePhoneForNewContact(contact, data.contactPhone);
+  if (phoneError) return phoneError;
 
   const { error } = await supabase.from('recruiting_logs').insert({
     agent_id: agentId,
