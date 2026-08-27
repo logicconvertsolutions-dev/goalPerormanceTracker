@@ -6,17 +6,18 @@ import { AppointmentForm } from '../appointment-form';
 export default async function NewAppointmentPage({
   searchParams,
 }: {
-  searchParams: { contact?: string };
+  searchParams: Promise<{ contact?: string }>;
 }) {
+  const { contact: contactId } = await searchParams;
   const session = await requireVerifiedAgent();
 
   let prefill: { id: string; full_name: string } | null = null;
-  if (searchParams.contact) {
+  if (contactId) {
     const supabase = await createClient();
     const { data: contact } = await supabase
       .from('contacts')
       .select('id, full_name')
-      .eq('id', searchParams.contact)
+      .eq('id', contactId)
       .eq('agent_id', session.agent!.id)
       .maybeSingle();
     prefill = contact;

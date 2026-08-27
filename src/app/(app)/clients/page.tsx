@@ -22,11 +22,12 @@ interface ClientRow {
 export default async function ClientsPage({
   searchParams,
 }: {
-  searchParams: { q?: string };
+  searchParams: Promise<{ q?: string }>;
 }) {
   const session = await requireVerifiedAgent();
   const supabase = await createClient();
-  const q = searchParams.q?.trim();
+  const { q: qRaw } = await searchParams;
+  const q = qRaw?.trim();
 
   let query = supabase
     .from('contacts')

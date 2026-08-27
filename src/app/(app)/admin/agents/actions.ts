@@ -15,6 +15,9 @@ async function requireAdminActor(): Promise<{ id: string } | { error: string }> 
   if (!session?.agent || session.agent.role !== 'admin') {
     return { error: 'Admin access required.' };
   }
+  if (!session.mfaVerified) {
+    return { error: 'MFA verification required.' };
+  }
   return { id: session.agent.id };
 }
 

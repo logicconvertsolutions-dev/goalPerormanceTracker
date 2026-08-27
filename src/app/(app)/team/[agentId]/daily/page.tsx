@@ -17,12 +17,12 @@ export default async function TeamAgentDailyPage({
   params: routeParams,
   searchParams,
 }: {
-  params: { agentId: string };
-  searchParams: Record<string, string | undefined>;
+  params: Promise<{ agentId: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
   await requireLeader();
   const supabase = await createClient();
-  const agentId = routeParams.agentId;
+  const { agentId } = await routeParams;
 
   const { data: agent } = await supabase
     .from('agents')
@@ -31,7 +31,7 @@ export default async function TeamAgentDailyPage({
     .maybeSingle();
   if (!agent) notFound();
 
-  const params = searchParams;
+  const params = await searchParams;
   const today = todayIso();
   const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'this_week';
   const { from, to } = resolvePeriod(preset, today, params.from, params.to);

@@ -15,11 +15,11 @@ function csvField(v: string | number): string {
 // CSV export of one agent's daily grid (08-screen-specs.md: "/team ... CSV
 // export of ... a single agent's daily grid"). Counts only, via
 // agent_daily_activity — same is_upline_of gate as the on-screen grid.
-export async function GET(request: NextRequest, { params }: { params: { agentId: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ agentId: string }> }) {
   await requireLeader();
   const supabase = await createClient();
   const url = new URL(request.url);
-  const agentId = params.agentId;
+  const { agentId } = await params;
 
   const { data: agent } = await supabase
     .from('agents')

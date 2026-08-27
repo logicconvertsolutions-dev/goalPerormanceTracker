@@ -46,8 +46,9 @@ export async function requireLeader(): Promise<SessionAgent> {
   return session;
 }
 
+/** Admin, with MFA verified (see requireVerifiedAgent). */
 export async function requireAdmin(): Promise<SessionAgent> {
-  const session = await requireAgent();
+  const session = await requireVerifiedAgent();
 
   if (session.agent!.role !== 'admin') {
     redirect('/dashboard?toast=admin-restricted');

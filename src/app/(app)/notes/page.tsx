@@ -9,19 +9,20 @@ import { NotesTable, type TimelineEntry } from './notes-table';
 export default async function NotesPage({
   searchParams,
 }: {
-  searchParams: { contact?: string };
+  searchParams: Promise<{ contact?: string }>;
 }) {
   const session = await requireVerifiedAgent();
   const supabase = await createClient();
+  const { contact: contactId } = await searchParams;
 
   let contact: { id: string; full_name: string } | null = null;
   let entries: TimelineEntry[] = [];
 
-  if (searchParams.contact) {
+  if (contactId) {
     const { data } = await supabase
       .from('contacts')
       .select('id, full_name')
-      .eq('id', searchParams.contact)
+      .eq('id', contactId)
       .eq('agent_id', session.agent!.id)
       .maybeSingle();
     contact = data;

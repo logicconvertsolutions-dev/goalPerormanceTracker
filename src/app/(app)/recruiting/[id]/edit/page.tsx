@@ -4,14 +4,15 @@ import { createClient } from '@/lib/supabase/server';
 import { PageHeader } from '@/components/shell/page-header';
 import { RecruitingForm } from '../../recruiting-form';
 
-export default async function EditRecruitingLogPage({ params }: { params: { id: string } }) {
+export default async function EditRecruitingLogPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await requireVerifiedAgent();
   const supabase = await createClient();
 
   const { data: log } = await supabase
     .from('recruiting_logs')
     .select('id, log_date, source, status, notes')
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('agent_id', session.agent!.id)
     .maybeSingle();
 

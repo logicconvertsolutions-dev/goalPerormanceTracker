@@ -10,14 +10,15 @@ import { LogActivityButton } from '@/components/shell/log-activity-button';
 import { formatDisplayDate } from '@/lib/dates';
 import { outcomeBadgeVariant } from '@/lib/call-outcomes';
 
-export default async function ContactDetailPage({ params }: { params: { id: string } }) {
+export default async function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await requireVerifiedAgent();
   const supabase = await createClient();
 
   const { data: contact } = await supabase
     .from('contacts')
     .select('id, full_name, phone, created_at')
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('agent_id', session.agent!.id)
     .maybeSingle();
 

@@ -18,9 +18,9 @@ function isPeriodPreset(v: string | undefined): v is PeriodPreset {
 export default async function SalesPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | undefined>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  const params = searchParams;
+  const params = await searchParams;
   const session = await requireVerifiedAgent();
   const supabase = await createClient();
 

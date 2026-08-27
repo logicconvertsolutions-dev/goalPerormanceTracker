@@ -29,9 +29,9 @@ const TABS: ActivityKind[] = ['call', 'appointment', 'sale', 'recruiting'];
 export default async function LogsPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | undefined>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  const params = searchParams;
+  const params = await searchParams;
   const session = await requireVerifiedAgent();
   const agentId = session.agent!.id;
   const supabase = await createClient();

@@ -21,12 +21,12 @@ export default async function TeamAgentPage({
   params: routeParams,
   searchParams,
 }: {
-  params: { agentId: string };
-  searchParams: Record<string, string | undefined>;
+  params: Promise<{ agentId: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
   await requireLeader();
   const supabase = await createClient();
-  const agentId = routeParams.agentId;
+  const { agentId } = await routeParams;
 
   // RPCs already self-check is_upline_of, but a direct 404 beats a silent
   // blank dashboard (05-testing.md E2E test 3).
@@ -37,7 +37,7 @@ export default async function TeamAgentPage({
     .maybeSingle();
   if (!agent) notFound();
 
-  const params = searchParams;
+  const params = await searchParams;
   const today = todayIso();
   const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'this_week';
   const { from, to } = resolvePeriod(preset, today, params.from, params.to);

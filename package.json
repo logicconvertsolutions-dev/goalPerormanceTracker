@@ -31,7 +31,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.408.0",
-    "next": "^14.2.3",
+    "next": "^15.5.24",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^2.14.0",
@@ -39,7 +39,7 @@
     "sonner": "^2.0.8",
     "tailwind-merge": "^2.4.0",
     "tailwindcss-animate": "^1.0.7",
-    "xlsx": "^0.18.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -54,7 +54,7 @@
     "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.4.19",
     "eslint": "^8.57.0",
-    "eslint-config-next": "^14.2.3",
+    "eslint-config-next": "^15.5.24",
     "jest-axe": "^11.0.0",
     "jsdom": "^24.1.3",
     "postcss": "^8.4.39",

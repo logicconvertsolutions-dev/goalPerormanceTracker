@@ -16,9 +16,9 @@ const LABELS: Record<string, string> = {
 export default async function UnsubscribePage({
   searchParams,
 }: {
-  searchParams: Record<string, string | undefined>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  const { agent, kind, sig } = searchParams;
+  const { agent, kind, sig } = await searchParams;
   const valid = !!agent && !!kind && !!sig && verifyUnsubscribe(agent, kind, sig);
 
   if (valid) {

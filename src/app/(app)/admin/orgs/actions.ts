@@ -20,6 +20,9 @@ export async function provisionOrgAction(
   if (!session?.agent || session.agent.role !== 'admin') {
     return { ok: false, error: 'Admin access required.' };
   }
+  if (!session.mfaVerified) {
+    return { ok: false, error: 'MFA verification required.' };
+  }
 
   const parsed = schema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'Check the form fields.' };

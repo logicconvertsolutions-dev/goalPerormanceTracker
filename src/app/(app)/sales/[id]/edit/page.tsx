@@ -4,14 +4,15 @@ import { createClient } from '@/lib/supabase/server';
 import { PageHeader } from '@/components/shell/page-header';
 import { SaleForm } from '../../sale-form';
 
-export default async function EditSalePage({ params }: { params: { id: string } }) {
+export default async function EditSalePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await requireVerifiedAgent();
   const supabase = await createClient();
 
   const { data: sale } = await supabase
     .from('sales')
     .select('id, sale_date, product_type, premium_cents, notes, follow_up_on')
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('agent_id', session.agent!.id)
     .maybeSingle();
 

@@ -24,9 +24,9 @@ type View = 'summary' | 'daily' | 'activity';
 export default async function TeamPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | undefined>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  const params = searchParams;
+  const params = await searchParams;
   await requireLeader();
   const supabase = await createClient();
 

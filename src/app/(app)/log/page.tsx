@@ -7,19 +7,20 @@ import { LogTypeSwitcher } from './log-type-switcher';
 export default async function LogPage({
   searchParams,
 }: {
-  searchParams: { contact?: string; date?: string };
+  searchParams: Promise<{ contact?: string; date?: string }>;
 }) {
   const session = await requireVerifiedAgent();
   const supabase = await createClient();
+  const { contact: contactId, date } = await searchParams;
 
   let prefill: { id: string; full_name: string } | null = null;
   let history: { call_date: string; outcome: string; notes: string | null }[] = [];
 
-  if (searchParams.contact) {
+  if (contactId) {
     const { data: contact } = await supabase
       .from('contacts')
       .select('id, full_name')
-      .eq('id', searchParams.contact)
+      .eq('id', contactId)
       .eq('agent_id', session.agent!.id)
       .maybeSingle();
 
@@ -45,7 +46,7 @@ export default async function LogPage({
           <LogTypeSwitcher
             defaultContactName={prefill?.full_name ?? ''}
             defaultContactId={prefill?.id ?? ''}
-            defaultDate={searchParams.date === 'today' ? undefined : searchParams.date}
+            defaultDate={date === 'today' ? undefined : date}
           />
         </CardContent>
       </Card>
