@@ -30,7 +30,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 create schema if not exists tests;
 
-select plan(79);
+select plan(92);
 
 -- ---------------------------------------------------------------------
 -- Seed
@@ -192,6 +192,39 @@ select is((select count(*) from public.sales where agent_id = '00000000-0000-000
 select is((select count(*) from public.recruiting_logs)::int, 1, 'assoc_1 selects own recruiting_logs: 1 row');
 select is((select count(*) from public.recruiting_logs where agent_id = '00000000-0000-0000-0000-0000000000a4')::int, 0,
   'assoc_1 selecting assoc_2 recruiting_logs: 0 rows');
+select is((select count(*) from public.contacts where agent_id = '00000000-0000-0000-0000-0000000000a4')::int, 0,
+  'assoc_1 selecting assoc_2 contacts: 0 rows');
+
+-- Uplines get aggregates only, never a direct row on any of the five
+-- per-agent tables -- contacts included, even though contacts has no upline
+-- policy at all (its RLS is owner-only on every verb).
+select tests.authenticate_as('00000000-0000-0000-0000-0000000000a1'); -- smd_x
+select is((select count(*) from public.contacts where agent_id = '00000000-0000-0000-0000-0000000000a2')::int, 0,
+  'smd_x selecting assoc_1 contacts directly: 0 rows (aggregate-only rule)');
+
+-- smd_y (org_y) selecting anything belonging to org_x: 0 rows, all five tables.
+select tests.authenticate_as('00000000-0000-0000-0000-0000000000b1'); -- smd_y
+select is((select count(*) from public.contacts where agent_id in
+    ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000a4'))::int, 0,
+  'smd_y selecting org_x contacts: 0 rows');
+select is((select count(*) from public.appointments where agent_id in
+    ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000a4'))::int, 0,
+  'smd_y selecting org_x appointments: 0 rows');
+select is((select count(*) from public.sales where agent_id in
+    ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000a4'))::int, 0,
+  'smd_y selecting org_x sales: 0 rows');
+select is((select count(*) from public.recruiting_logs where agent_id in
+    ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000a4'))::int, 0,
+  'smd_y selecting org_x recruiting_logs: 0 rows');
+
+-- anon selecting anything: 0 rows, across every per-agent table plus agents
+-- itself (the roster table, not just the five activity tables).
+select tests.authenticate_as_anon();
+select is((select count(*) from public.contacts)::int, 0, 'anon selecting contacts: 0 rows');
+select is((select count(*) from public.appointments)::int, 0, 'anon selecting appointments: 0 rows');
+select is((select count(*) from public.sales)::int, 0, 'anon selecting sales: 0 rows');
+select is((select count(*) from public.recruiting_logs)::int, 0, 'anon selecting recruiting_logs: 0 rows');
+select is((select count(*) from public.agents)::int, 0, 'anon selecting agents: 0 rows');
 
 -- ============================================================
 -- P2.5: contacts and follow-ups (docs/05-testing.md "Contacts and
@@ -323,13 +356,26 @@ select ok((select private.is_upline_of('00000000-0000-0000-0000-0000000000a2')),
 select tests.clear_authentication();
 select public.drain_metrics(1000); -- so team_week_summary reflects the seeded rows
 
+-- Exact-set assertions, not just counts: a count match alone would pass even
+-- if team_week_summary returned the wrong four/two agents (e.g. leaked
+-- assoc_3 in place of assoc_1a). Compare the actual agent_id set against the
+-- expected set with a symmetric-difference EXCEPT/UNION check on both sides.
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a1');
-select is((select count(*)::int from public.team_week_summary(public.week_start(current_date))), 4,
-  'team_week_summary as smd_x returns exactly {smd_x, assoc_1, assoc_1a, assoc_2}');
+select is(
+  (select array_agg(agent_id order by agent_id) from public.team_week_summary(public.week_start(current_date))),
+  (select array_agg(id order by id) from public.agents
+   where id in ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2',
+                '00000000-0000-0000-0000-0000000000a3','00000000-0000-0000-0000-0000000000a4')),
+  'team_week_summary as smd_x returns exactly {smd_x, assoc_1, assoc_1a, assoc_2}'
+);
 
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a2');
-select is((select count(*)::int from public.team_week_summary(public.week_start(current_date))), 2,
-  'team_week_summary as assoc_1 returns {assoc_1, assoc_1a}');
+select is(
+  (select array_agg(agent_id order by agent_id) from public.team_week_summary(public.week_start(current_date))),
+  (select array_agg(id order by id) from public.agents
+   where id in ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000a3')),
+  'team_week_summary as assoc_1 returns exactly {assoc_1, assoc_1a}'
+);
 
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a1');
 select is((select count(*)::int from public.agent_daily_activity(
@@ -343,22 +389,37 @@ select throws_ok(
     where id = '00000000-0000-0000-0000-0000000000b2'$$
 ); -- setting assoc_3.upline_id = smd_x is rejected by the same-org trigger
 
--- Return-shape assertion: no RPC leaks a name/note/free-text field, except
--- the deliberate exception my_followups.contact_name/last_note, which is
--- the agent's OWN data (never crosses the hierarchy boundary).
+-- Return-shape assertion: no RPC's return columns include contact_name,
+-- client_name, prospect_name, or notes -- asserted against
+-- information_schema, over EVERY public function, so a future RPC that
+-- adds one of these columns fails the build without this test needing to
+-- be updated to know the new function's name.
+--
+-- Naming an explicit list of "team-facing" RPCs to check (the previous
+-- shape of this test) is exactly the failure mode this assertion exists to
+-- prevent: it already silently missed team_period_summary
+-- (p7c_team_period_summary.sql) and agent_daily_breakdown
+-- (p7e_daily_breakdown.sql), both added after the list was written, plus
+-- admin_daily_active_loggers/system_team_week_summary/system_effective_target
+-- -- if any of those had leaked a name/note column, that version of this
+-- test would have stayed green.
+--
+-- The only legitimate exception is my_followups: it is Tier-1 own-data
+-- access (my own contact_name and my own last call's note, for my own
+-- /today queue -- 02-data-model.md's contract is about the Tier-2
+-- aggregate RPCs an upline calls across the hierarchy boundary), so it is
+-- excluded by name rather than by column list, keeping the assertion below
+-- a true zero-tolerance check for every other function.
 select is(
   (select count(*)::int from information_schema.routines r
    join information_schema.parameters p
      on p.specific_schema = r.specific_schema and p.specific_name = r.specific_name
    where r.routine_schema = 'public'
-     and r.routine_name in (
-       'team_week_summary','agent_daily_activity','agent_aggregate','team_inactive',
-       'team_target','team_day_summary','team_trend','team_breakdown'
-     )
+     and r.routine_name <> 'my_followups'
      and p.parameter_mode = 'OUT'
      and p.parameter_name in ('contact_name','client_name','prospect_name','notes','last_note')
   ), 0,
-  'no team-facing RPC return column is a name/note/free-text field'
+  'no public RPC (other than the deliberate my_followups own-data exception) returns a name/note/free-text column'
 );
 
 -- ============================================================
@@ -601,7 +662,35 @@ select is((select count(*) from public.daily_metrics where agent_id = '00000000-
 select throws_ok(
   $$insert into public.daily_metrics (agent_id, org_id, activity_date)
     values ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-00000000ee01', current_date + 30)$$
-); -- authenticated user cannot directly insert into daily_metrics
+); -- authenticated user cannot directly insert into daily_metrics (WITH CHECK has no policy to satisfy -> rejected)
+
+-- daily_metrics has no UPDATE or DELETE policy either, but unlike INSERT's
+-- WITH CHECK (which rejects outright), Postgres RLS with no matching policy
+-- for UPDATE/DELETE makes zero rows visible to the command, so it succeeds
+-- silently having touched nothing -- same "0 rows affected" shape as the
+-- assoc_1-updates-assoc_2's-call_logs case earlier in this file, not an
+-- exception. A writable CTE must be top-level, so run each as its own
+-- statement into a scratch table rather than a subquery inside is().
+create temporary table tests_scratch_dm_upd on commit drop as
+  with upd as (
+    update public.daily_metrics set calls_made = 999
+    where agent_id = '00000000-0000-0000-0000-0000000000a2'
+    returning 1
+  )
+  select count(*)::int as n from upd;
+select is((select n from tests_scratch_dm_upd), 0,
+  'assoc_1 directly updating own daily_metrics row: 0 rows affected (no update policy exists)');
+drop table tests_scratch_dm_upd;
+
+create temporary table tests_scratch_dm_del on commit drop as
+  with del as (
+    delete from public.daily_metrics where agent_id = '00000000-0000-0000-0000-0000000000a2'
+    returning 1
+  )
+  select count(*)::int as n from del;
+select is((select n from tests_scratch_dm_del), 0,
+  'assoc_1 directly deleting own daily_metrics row: 0 rows affected (no delete policy exists)');
+drop table tests_scratch_dm_del;
 
 select * from finish();
 rollback;
