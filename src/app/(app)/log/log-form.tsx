@@ -241,7 +241,7 @@ export function LogForm({
         />
       </div>
 
-      <div className="flex gap-2">
+      <div className="sticky bottom-0 -mb-4 flex gap-2 border-t border-line bg-panel py-4">
         <Button
           type="button"
           variant="secondary"
