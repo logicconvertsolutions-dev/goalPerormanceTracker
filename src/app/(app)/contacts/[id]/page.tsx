@@ -60,7 +60,7 @@ export default async function ContactDetailPage({ params }: { params: { id: stri
         }
       />
 
-      {(appointments?.length || sales?.length) && (
+      {Boolean(appointments?.length || sales?.length) && (
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Appointments &amp; sales</CardTitle>
