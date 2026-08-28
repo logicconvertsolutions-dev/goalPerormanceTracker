@@ -3,6 +3,13 @@
 Written from the user's side of the screen. If a step here has no screen in
 `docs/03-ui.md`, `08-screen-specs.md`, or `09-account-and-auth.md`, that is a gap.
 
+**As of 2026-08-27, every journey below has a shipped screen** — the "journey
+gaps this exposed" section at the bottom, once a to-do list, is now a record
+of what those screens turned out to be. One journey step changed since this
+was written: `/today` is labelled **"My Day"** in the live nav, and MFA setup
+is now mandatory for every role on day one, not just the SMD (see
+`docs/09-account-and-auth.md`).
+
 ---
 
 ## The insight this file exists for
@@ -97,13 +104,23 @@ team's historical numbers, their name leaves the roster.
 
 ## Journey gaps this exposed
 
-Each of these is now specified; none were before.
+Each of these is now specified, and now shipped — see `docs/06-build-phases.md`
+for which phase built it.
 
-1. **Follow-ups** — the actual product. New `follow_up_on` field and a `/today` screen.
-2. **Contacts as people** — a `contacts` table so history accumulates per person
-   instead of scattering across call rows.
+1. **Follow-ups** — the actual product. `follow_up_on` on every activity
+   table (not just calls — appointments and sales gained it too, P7f) and
+   `/today` ("My Day").
+2. **Contacts as people** — a `contacts` table so history accumulates per
+   person instead of scattering across call rows; sales and recruiting logs
+   now link to a contact too, rather than storing a redundant free-text name.
 3. **Back-dating** — batch evening entry is the dominant usage pattern.
-4. **Nudge from the SMD** — keeps the coaching loop inside the product.
+4. **Nudge from the SMD** — keeps the coaching loop inside the product; now
+   rate-limited atomically (P9f fix, `docs/04-security.md`).
 5. **Empty states on day 1** — for both roles, before any data exists.
 6. **Notifications** — nothing in this product pulls anyone back without them.
-7. **The whole account lifecycle** — invitation through deactivation.
+7. **The whole account lifecycle** — invitation through deactivation, plus a
+   pre-invite tier this file didn't anticipate: `team_roster` (P9) lets an
+   SMD list a prospective team member and send training reminders before
+   ever sending a real invitation — effectively a "day 0" before this file's
+   "SMD — day 1" section, worth journey-mapping properly if it becomes a
+   primary onboarding path rather than a side feature.

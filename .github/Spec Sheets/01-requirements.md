@@ -1,5 +1,12 @@
 # Requirements
 
+**Entities and user stories below matched the pre-P1 plan; the product has
+since shipped through P9 (`docs/06-build-phases.md`) with the schema
+described in `docs/02-data-model.md` and the screens in
+`docs/08-screen-specs.md`. This file's Objective, Roles, and out-of-scope
+list are still accurate; the Entities section has drifted in specific,
+callable-out ways — see the inline notes below.**
+
 ## Problem
 The current tracker is a per-agent Excel workbook (`Call Log`, `Appointment Log`,
 `Sales Log`, `Recruiting Log`, `Daily Log`, `Dashboard`). It works for one person
@@ -31,23 +38,35 @@ database and must never see each other.
 
 Two levels only for now (SMD → associate). No MD tier in v1.
 
-## Entities (mirrors the existing workbook exactly)
+## Entities (mirrors the existing workbook — with the drift noted below)
 
-**Contact** — a person the agent is working: name, company. Calls,
-appointments, and sales all attach to a contact, so history accumulates per
-person rather than scattering across rows.
+**Contact** — a person the agent is working: name, **phone** (added P9 —
+the original design deliberately omitted phone/email to keep PIPEDA surface
+small; reversed once import needed a reliable dedup key beyond name.
+`company`, present at launch, was later dropped — no longer collected).
+Calls, appointments, sales, and recruiting logs all attach to a contact, so
+history accumulates per person rather than scattering across rows —
+recruiting and sales now link to `contact_id` rather than storing a
+redundant free-text name, which the original design had.
 
 **Call log** — date, contact, source, outcome, notes, **follow-up date**
 - source: `warm_market | referral | cold | social_media | friend | other`
 - outcome: `connected | voicemail | no_answer | appointment_set | not_interested`
 
-**Appointment log** — date, contact name, type, status, expected premium,
-referrals given, notes
+**Appointment log** — date, contact, type, status, expected premium,
+referrals given, notes, **follow-up date** (added P9, mirroring call logs)
 - status: `scheduled | held | no_show | rescheduled | cancelled`
 
-**Sales log** — date, client name, product type, premium amount, notes
+**Sales log** — date, contact (not a free-text client name — links to
+`contacts`/optionally `appointments`), product type, premium amount, notes,
+follow-up date
 
-**Recruiting log** — date, prospect name, source, status, notes
+**Recruiting log** — date, contact (not a free-text prospect name), source,
+status, notes
+- status (**changed P8a**): `contacted | marketing_presented | recruited |
+  certified | licensed | declined` — not the original
+  `contacted | interviewed | joined | licensed | declined`. Legacy labels
+  remap on import for backward compatibility.
 
 **Targets** — **set by the SMD**, mirroring the workbook's gold cells: calls/wk,
 appts held/wk, premium/wk, min calls/day (streak threshold), MD deadline date.
@@ -99,4 +118,7 @@ the roster can lead with it. Every target change is audit-logged.
 
 ## Explicitly out of scope (v1)
 Billing · e-signature · FNA/KYC forms · carrier integrations · commission
-tracking · in-app calling/dialer · client-facing anything.
+tracking · in-app calling/dialer · client-facing anything. Still true as of
+P9 — `/clients` (added since this list was written) is an internal view
+derived from an agent's own sales, not a client-facing screen or a new
+billing/commission concept; see `docs/08-screen-specs.md`.

@@ -7,8 +7,10 @@ week, filterable to one agent — and never prospect PII.
 Two customer organizations share one database; they must never see each other.
 
 ## Stack (locked — do not re-litigate)
-Next.js 14 App Router · TypeScript strict · Supabase (Auth + Postgres + RLS)
+Next.js 15 App Router · TypeScript strict · Supabase (Auth + Postgres + RLS)
 · Tailwind + shadcn/ui · Recharts · Zod · Vercel
+(Started on Next.js 14 per the original P0 scaffold; upgraded to 15 during
+build-out. `package.json` is the source of truth if this drifts again.)
 **Light theme only** (see `docs/03-ui.md` — supersedes an earlier dark-theme
 direction shipped through P0–P2). No second theme, no theme toggle in v1.
 
@@ -62,7 +64,8 @@ direction shipped through P0–P2). No second theme, no theme toggle in v1.
 | Claude Code kickoff prompts | `docs/07-getting-started.md` |
 
 ## Commands
-`npm run dev` · `npm run test` (vitest) · `npm run test:e2e` (playwright)
+`npm run dev` · `npm test` (vitest) · `npm run e2e` (playwright — config
+exists, no specs written yet, see `docs/05-testing.md` and `TODOS.md`)
 · `npm run test:rls` (pgTAP) · `npm run types` · `supabase db reset`
 
 ## Definition of done (every phase)

@@ -2,6 +2,32 @@
 
 Design debt and deferred work surfaced by review. Newest first.
 
+## 2026-08-27 — Playwright E2E suite was never built
+
+**What:** `playwright.config.ts` is configured and CI has a `playwright` job
+that runs `npm run e2e`, but there is no `e2e/` directory and no `.spec.ts`
+file anywhere in the repo. None of the 10 scenarios in
+`.github/Spec Sheets/05-testing.md` §4 exist — including the login→log→
+roster flow, the offline-persistence test, and the follow-up-loop test that
+exercises the product's core mechanic end-to-end.
+
+**Why surfaced now:** found during a `/document-release` pass syncing the
+Spec Sheets to the live codebase (2026-08-27) — `05-testing.md` described
+this suite as built; it isn't. Not filed as a bug since nothing is broken,
+but the CI `playwright` job currently passes trivially (zero tests to run)
+rather than gating anything, which is worth knowing before trusting that
+green check.
+
+**Why deferred:** genuine scope, not a quick fix — building even the first
+scenario (invite → signup → log → appears on `/team`, calling the metrics
+drain RPC directly per the spec's own flakiness warning) means standing up
+Playwright fixtures against a real Supabase instance. Not something to fold
+into an unrelated change.
+
+**Depends on / blocked by:** nothing technical — the spec (`05-testing.md`
+§4) already has the scenario list written out. This is pure unstarted build
+work, not a design decision waiting on input.
+
 ## 2026-08-27 — Activity Logs tab URL query param lags one click behind
 
 **What:** On `/logs`, the `?type=` query param always reflects the

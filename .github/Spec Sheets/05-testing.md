@@ -3,6 +3,40 @@
 Priority order: **RLS tests > integration > unit > E2E.** A wrong pixel is an
 annoyance; a wrong policy is a privacy incident.
 
+**Status as of 2026-08-27 — this file is the target, not a report of what's
+built.** What's actually implemented, verified against the live repo:
+- **pgTAP (§1)** — implemented and it's the one gate that's genuinely
+  blocking: `supabase/tests/*.sql` (4 files) covers RLS/hierarchy, the
+  `daily_metrics` pipeline, notifications, and pilot instrumentation. Runs
+  in CI as `npm run test:rls`, not `continue-on-error`.
+- **Unit (§2, Vitest)** — partially implemented: 8 test files exist
+  (`lib/metrics.test.ts`, import parsing + a golden-file test, notification
+  eligibility/window/unsubscribe-token, offline submit fallback, contacts
+  search) — not full coverage of everything §2 describes (e.g. no dedicated
+  `lib/dates.ts` DST/streak test file was found). Runs in CI via `npm test`
+  but the step is **`continue-on-error: true`** — a red vitest run does not
+  currently block a merge, contrary to this file's own CI-gates line below.
+- **Integration (§3)** — not verified as a distinct suite; likely folded
+  into the unit tests above rather than existing as separate Server-Action-
+  against-real-DB tests.
+- **E2E (§4, Playwright)** — **`playwright.config.ts` exists but there is no
+  `e2e/` directory and no `.spec.ts` files anywhere in the repo.** None of
+  the 10 scenarios below are implemented. CI has a `playwright` job that
+  runs `npm run e2e`, also `continue-on-error: true`, which currently
+  succeeds trivially (zero tests to fail) rather than gating anything. This
+  is real, not cosmetic, debt — the golden-file split described in §2/§4
+  ("P3 can pass before any dashboard exists... never delete either half")
+  implies an E2E half that was never built.
+- **Non-functional (§5)** — not verified; no seed/load-test scripts were
+  found in this pass.
+- **CI gate order** — see the note at the bottom of this file; the live
+  `.github/workflows/ci.yml` gates on typecheck/lint/build/service-key-grep/
+  db-lint/pgTAP, but *not* on vitest or Playwright, which both currently
+  report rather than block.
+
+None of this changes what the test plan *should* be — the content below is
+still the right target. Treat it as a backlog, not a status report.
+
 ## 1. RLS / database — pgTAP (`supabase test db`)
 Use the Basejump test helpers to create users and switch roles inside a
 transaction. Seed **two organizations**: `org_x` with `smd_x → assoc_1, assoc_2`
@@ -150,6 +184,25 @@ reused tokens rejected.
 - Lighthouse mobile: performance >=90, accessibility 100 on `/log`
 - axe-core in CI on `/log`, `/dashboard`, `/team`
 
-## CI gates
-`typecheck → lint → vitest → supabase db lint → pgTAP → build → playwright`.
-Any red blocks merge. Advisors run nightly against staging.
+## CI gates — target vs. live
+
+Target order: `typecheck → lint → vitest → supabase db lint → pgTAP → build
+→ playwright`, all blocking.
+
+**Live** (`.github/workflows/ci.yml`, `ci` job): service-key grep gate →
+type-check → lint → build → vitest (**non-blocking**) → `supabase db lint`
+→ pgTAP (blocking) → `npm audit` (non-blocking) → Supabase advisor lints
+(blocking, but **skips entirely** if `SUPABASE_ACCESS_TOKEN`/
+`SUPABASE_PROJECT_REF` repo secrets aren't set — confirm those are set
+before trusting this gate). A separate `playwright` job runs `npm run e2e`,
+also non-blocking, and currently passes trivially since no E2E specs exist
+(see the status note at the top of this file).
+
+The gap between "any red blocks merge" and what's actually enforced is
+tracked here rather than silently accepted — vitest and Playwright were
+made `continue-on-error` at some point, and that decision isn't explained
+in the workflow file's own comments the way the other deviations are (the
+advisor-lint skip and the npm-audit non-blocking choice both have inline
+rationale in `ci.yml`; this one doesn't). Worth a deliberate call on
+whether to tighten it once the E2E suite exists, rather than assuming it
+was accidental. Advisors run nightly against staging — unchanged.

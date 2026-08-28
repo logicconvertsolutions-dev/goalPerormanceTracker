@@ -1,5 +1,12 @@
 # Open questions — status
 
+**As of 2026-08-27:** the product has shipped through P9 (see
+`docs/06-build-phases.md`) and `/admin/pilot` exists to instrument the P7
+pilot's daily-active-loggers question. That's tooling readiness, not an
+answer to the blocking questions below — items 6–8 are business/legal
+decisions outside what the code can resolve, and remain open until Deepak
+confirms otherwise.
+
 ## Resolved (2026-08-13)
 
 1. **Sponsorship** — two SMDs ready to invest. This is a product with customers,
