@@ -28,4 +28,9 @@ supabase/.temp/
 # IDE
 .vscode/
 .idea/
+
+# Vendored Claude Code skills (deprecated pattern — resolve from
+# ~/.claude/skills/gstack/ or team mode instead of committing)
+.claude/skills/gstack/
+.claude/skills/ui-ux-pro-max/
 *.sublime-workspace
