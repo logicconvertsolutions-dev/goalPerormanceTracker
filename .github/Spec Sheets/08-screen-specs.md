@@ -1,6 +1,6 @@
 # Screen specs — KPIs, filters, charts
 
-**Reflects the live app as of 2026-08-27.** The original P1-era version of
+**Reflects the live app as of 2026-08-30.** The original P1-era version of
 this file specified what to build; this version describes what actually got
 built, including several screens (`/logs`, `/clients`, `/notes`, all four
 `/admin/*` pages) that either didn't exist in the original spec or were only
@@ -54,8 +54,10 @@ Appointment Status (donut) · Call Source (horizontal bar) · 8-Week Trend
 columns). Matches the original spec's chart set exactly.
 
 **Activity view:** renders `<DailyBreakdownTable>` (the same shared
-component `/team`'s Daily view uses) for the same period — a day-by-day
-table instead of the chart dashboard.
+component `/team`'s Activity view uses) for the same period — a day-by-day
+table instead of the chart dashboard. Ends in a **Total** row (desktop table
+footer) / card (mobile) summing every column across the filtered period —
+P10.
 
 **Empty state:** "Nothing logged yet this week…" + Log activity button, shown
 when the trailing 8-week window and current period are both empty — matches
@@ -109,7 +111,11 @@ as unshipped, not removed.)*
 **Header actions:** "Import from phone" (Contact Picker API, feature-detected
 — Android Chrome/Edge and flag-gated WebKit only), "Download template,"
 "Import from Excel" (→ `/import`), "Add contact" (name + **phone, both
-required**).
+required**). **P10:** the shared `<PageHeader>` stacks the action row below
+the title under `sm:` instead of forcing it into a `shrink-0` slot beside a
+truncating title — fixes these four buttons overflowing the viewport on
+narrow phones (every page using `<PageHeader>` with an action got the same
+fix, not just this one).
 
 **Table:** Contact · Phone · Times called · Last called · Last outcome ·
 Next follow-up. Mobile collapses to cards. *(No CSV export currently on this
@@ -252,6 +258,11 @@ Within the Call tab, matches the original five-field flow: date chip
 (Today/back-date, max today), contact picker, source, outcome, "Call back
 on…" chips once an outcome is chosen, notes. Offline-fallback submit;
 success navigates to `/today` unless invoked inside a modal.
+**Source auto-fill (P10):** picking an existing contact from the picker that
+already has a prior call on file collapses the Source field into a
+read-only summary pre-filled with that contact's most recent source,
+with a "Change" link to reopen the picker — new contacts (or ones with no
+prior call) still ask as before.
 
 `/log/[id]/edit` reuses the same form in edit mode (no contact picker post-
 creation), saves via `updateCallAction`, redirects to `/logs`.
@@ -288,7 +299,11 @@ not a general notes feature.
 
 **Timeline table:** rows merged from calls/appointments/sales, newest first.
 Columns: (print-hidden checkbox) · Date · Type badge · Details of
-Discussions · Actions (follow-up date/done marker or "—").
+Discussions · Actions (follow-up date/done marker or "—"). **P10:** an
+appointment's `appt_type` (e.g. "Solutions Presented," "Login Shown" — what
+actually happened in the meeting) now renders in the Actions column above
+the follow-up line, instead of folded into the Details of Discussions
+summary — calls/sales rows are unaffected, they never carried a type.
 
 **Selective print:** every row checkbox-selected by default, "Select all"
 toggle, "Print" button (disabled when nothing selected) triggers
@@ -396,6 +411,14 @@ These existed only as one-line mentions in `docs/09-account-and-auth.md`
   in particular is a purpose-built pilot-health dashboard (10-day active-
   logger window, 8-of-10 bar, per-org at-risk flagging) tied directly to the
   P7 pilot instrumentation goal in `docs/06-build-phases.md`.
+- **`/admin/feedback`** (P10, new) — every bug/issue/feature report submitted
+  via `/feedback`, unscoped across every organization (same shape as
+  `/admin/audit`). One card per report: reporter name/email/org, category
+  badge, subject, full message, optional page context, and a status
+  `<Select>` (New/Reviewed/Resolved) that persists immediately. `/feedback`
+  itself (any role, reached from the account menu) and the Terms &
+  Conditions screens (`/terms`, `/terms/accept`) are detailed in
+  `docs/09-account-and-auth.md`.
 
 ---
 

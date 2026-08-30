@@ -86,6 +86,9 @@ export function LogForm({
   const [callDate, setCallDate] = useState(defaultValues?.callDate ?? defaultDate ?? todayIso());
   const [showDatePicker, setShowDatePicker] = useState(Boolean(defaultValues ?? defaultDate));
   const [source, setSource] = useState(defaultValues?.source ?? 'warm_market');
+  // True once an existing contact with a known prior source is picked --
+  // Source auto-fills and stops asking again unless the user opts to change it.
+  const [sourceLocked, setSourceLocked] = useState(false);
   const [outcome, setOutcome] = useState(defaultValues?.outcome ?? '');
   const [followUpOn, setFollowUpOn] = useState(defaultValues?.followUpOn ?? '');
   const [showFollowUpPicker, setShowFollowUpPicker] = useState(false);
@@ -159,23 +162,44 @@ export function LogForm({
           label="Who did you call?"
           defaultName={defaultContactName}
           defaultId={defaultContactId}
+          onSelect={(contact) => {
+            if (contact?.last_call_source) {
+              setSource(contact.last_call_source);
+              setSourceLocked(true);
+            } else {
+              setSourceLocked(false);
+            }
+          }}
         />
       )}
 
       <div className="space-y-1.5">
         <Label htmlFor="source">Source</Label>
-        <Select name="source" value={source} onValueChange={setSource} required>
-          <SelectTrigger id="source">
-            <SelectValue placeholder="Select a source" />
-          </SelectTrigger>
-          <SelectContent>
-            {SOURCES.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {sourceLocked ? (
+          <div className="flex items-center justify-between rounded-sm border border-line-2 px-3 py-2 text-sm">
+            <span className="text-fg">{SOURCES.find((s) => s.value === source)?.label ?? source}</span>
+            <button
+              type="button"
+              className="text-xs text-acc hover:underline"
+              onClick={() => setSourceLocked(false)}
+            >
+              Change
+            </button>
+          </div>
+        ) : (
+          <Select name="source" value={source} onValueChange={setSource} required>
+            <SelectTrigger id="source">
+              <SelectValue placeholder="Select a source" />
+            </SelectTrigger>
+            <SelectContent>
+              {SOURCES.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       <div className="space-y-1.5">

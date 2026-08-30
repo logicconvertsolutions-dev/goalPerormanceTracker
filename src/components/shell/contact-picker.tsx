@@ -21,6 +21,7 @@ export function ContactPicker({
   phoneFieldName = 'contactPhone',
   defaultName = '',
   defaultId = '',
+  onSelect,
 }: {
   label?: string;
   placeholder?: string;
@@ -29,6 +30,9 @@ export function ContactPicker({
   phoneFieldName?: string;
   defaultName?: string;
   defaultId?: string;
+  /** Fired with the picked contact, or null once the selection is cleared
+   * (e.g. the caller wants to react to which existing contact was chosen). */
+  onSelect?: (contact: ContactSearchResult | null) => void;
 }) {
   const [query, setQuery] = useState(defaultName);
   const [selectedId, setSelectedId] = useState(defaultId);
@@ -76,6 +80,7 @@ export function ContactPicker({
         onChange={(e) => {
           setQuery(e.target.value);
           setSelectedId('');
+          onSelect?.(null);
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
@@ -104,6 +109,7 @@ export function ContactPicker({
                   setQuery(o.full_name);
                   setSelectedId(o.id);
                   setOpen(false);
+                  onSelect?.(o);
                 }}
               >
                 {o.full_name}

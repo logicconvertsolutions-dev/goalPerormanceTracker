@@ -23,7 +23,7 @@ export function AcceptInviteForm({ token, email }: { token: string; email: strin
     setError(null);
 
     startTransition(async () => {
-      const result = await acceptInvitation({ token, fullName, password });
+      const result = await acceptInvitation({ token, fullName, password, agreedToTerms: agreed });
 
       if (!result.ok) {
         if (result.error === 'expired') {
@@ -84,6 +84,10 @@ export function AcceptInviteForm({ token, email }: { token: string; email: strin
         />
         <Label htmlFor="privacy" className="font-normal text-fg-2">
           I accept the{' '}
+          <Link href="/terms" target="_blank" className="text-acc hover:underline">
+            Terms &amp; Conditions
+          </Link>{' '}
+          and{' '}
           <Link href="/privacy" target="_blank" className="text-acc hover:underline">
             privacy notice
           </Link>

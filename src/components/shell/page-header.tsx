@@ -14,14 +14,14 @@ interface PageHeaderProps {
  * carrying its own copy of the same markup. */
 export function PageHeader({ title, subtitle, action, className }: PageHeaderProps) {
   return (
-    <div className={cn('flex items-start justify-between gap-3', className)}>
+    <div className={cn('flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between', className)}>
       <div className="min-w-0">
         <h1 className="truncate text-[28px] font-bold leading-[34px] tracking-heading-tight text-fg">
           {title}
         </h1>
         {subtitle && <p className="mt-0.5 text-sm text-fg-3">{subtitle}</p>}
       </div>
-      {action && <div className="mt-1 shrink-0">{action}</div>}
+      {action && <div className="sm:mt-1 sm:shrink-0">{action}</div>}
     </div>
   );
 }

@@ -8,7 +8,7 @@ export default function LoginPage() {
         <h1 className="text-2xl font-semibold tracking-heading-tight text-fg">
           Sign in
         </h1>
-        <p className="text-sm text-fg-2">Log calls. See who to call today.</p>
+        <p className="text-sm text-fg-2">Track your performance. See who to call today.</p>
       </div>
       <Suspense>
         <LoginForm />

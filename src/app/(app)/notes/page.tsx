@@ -53,14 +53,19 @@ export default async function NotesPage({
         type: 'Call' as const,
         summary: c.outcome.replace('_', ' '),
         notes: c.notes,
+        actionType: null,
         followUpOn: c.follow_up_on,
         followUpDoneAt: c.follow_up_done_at,
       })),
       ...(appointments ?? []).map((a) => ({
         date: a.appt_date,
         type: 'Appointment' as const,
-        summary: `${a.appt_type ?? 'Appointment'} · ${a.status.replace('_', ' ')}`,
+        summary: a.status.replace('_', ' '),
         notes: a.notes,
+        // What was actually done in the meeting (e.g. "Solutions Presented",
+        // "Login Shown") -- surfaced in the Actions column alongside the
+        // follow-up, not buried in Details of Discussions.
+        actionType: a.appt_type,
         followUpOn: a.follow_up_on,
         followUpDoneAt: a.follow_up_done_at,
       })),
@@ -69,6 +74,7 @@ export default async function NotesPage({
         type: 'Sale' as const,
         summary: `${s.product_type ?? 'Sale'} · $${(s.premium_cents / 100).toLocaleString('en-CA')}`,
         notes: s.notes,
+        actionType: null,
         followUpOn: s.follow_up_on,
         followUpDoneAt: s.follow_up_done_at,
       })),

@@ -1,6 +1,6 @@
 # Account, auth, and the app shell
 
-**Reflects the live app as of 2026-08-27.** Structure and copy match the
+**Reflects the live app as of 2026-08-30.** Structure and copy match the
 original design closely; the significant changes are (1) MFA is now
 mandatory for every role, not just leader/admin, and (2) a real MFA bypass
 existed and was fixed — see `docs/04-security.md` for the precise
@@ -42,9 +42,13 @@ token), four states: **invalid** (no match) · **accepted** (→ `/login`) ·
 **valid** (renders the form). Confirms who invited them and into which team
 before asking for anything, per spec.
 - Form: full name + password (min 8 chars) + a **required** checkbox — "I
-  accept the privacy notice. My SMD sees my numbers, never my contacts." —
-  gating submission, matching the original spec's "accepts the privacy
-  notice" step.
+  accept the Terms & Conditions and privacy notice. My SMD sees my numbers,
+  never my contacts." — gating submission, matching the original spec's
+  "accepts the privacy notice" step. **P10:** the checkbox is now also
+  enforced server-side (`acceptInvitation()` rejects the call with
+  `z.literal(true)` if it's missing, not just a disabled submit button) and
+  actually recorded — `agents.terms_accepted_at` is stamped at account
+  creation, which previously didn't exist at all.
 - `org_id`/`upline_id`/`role` are read server-side from the matched
   `invitations` row by the `handle_new_user` DB trigger — never from
   client-supplied signup metadata, confirmed still true.
@@ -87,6 +91,35 @@ default `/today`) on success.
 
 Both pages guard with the base `requireAgent()`, not the MFA-checking
 `requireVerifiedAgent()` — deliberately, to avoid a self-redirect loop.
+
+### `/terms` and `/terms/accept` (P10, new)
+`/terms` is a public, no-login page (same shape as `/privacy`, and kept in
+sync with it — both are accepted together as one checkbox) covering
+acceptable use, how `/privacy` fits in, an "as is" availability/liability
+disclaimer, and Ontario governing law. Linked from the accept-invite
+checkbox, `/settings`, and `/terms/accept`.
+
+`/terms/accept` is the one-time gate for agents who joined **before**
+`agents.terms_accepted_at` existed (or whose `acceptInvitation()` write
+somehow didn't land) — `requireVerifiedAgent()` redirects here, right after
+the MFA check, whenever that column is null. A single checkbox + "Agree and
+continue" button calls `acceptTermsAction()` (a plain self-update, gated by
+`grant update (terms_accepted_at) on public.agents to authenticated` plus
+the existing `agents_update_self` RLS policy) and returns to `/today`. Like
+`/mfa/setup` and `/mfa/verify`, it deliberately guards with the base
+`requireAgent()`, not `requireVerifiedAgent()`, to avoid a self-redirect loop.
+
+### `/feedback` (P10, new)
+Reachable from the account menu ("Send feedback," every role, both mobile
+and desktop — the same menu `/settings` and `/profile` use). A short form —
+Type (Bug / Something not working / Feature request / General feedback /
+Other — "Something not working" maps to the same `bug` category
+server-side, it's just friendlier copy), Subject, Details — posts to the
+`feedback` table (own-row insert, `org_id` derived from the agent) and
+best-effort emails every active admin via the existing Resend `sendEmail()`
+path (same "don't fail the user-facing action if the email fails" pattern as
+`nudgeAgentAction`). See `/admin/feedback` in `docs/08-screen-specs.md` for
+the admin-side view.
 
 ### `/profile`
 Matches spec closely.
@@ -145,7 +178,10 @@ navigating to the page.
   a second, earlier-stage section not in the original design: a **team
   roster** (name/email/phone, no login) an SMD can populate *before* sending
   any invitation, with a "Send reminder" training-nudge action and an
-  "Invite" action that promotes a roster row into a real invitation. A
+  "Invite" action that promotes a roster row into a real invitation. This
+  section's card title is the org's name (e.g. "Team Acme Insurance"), not
+  the literal "Team roster" — P10, changed since it read as an unlabeled
+  generic list next to the org-branded shell header above it. A
   roster entry disappears automatically once its email matches a joined
   agent. Deactivate confirms with the same "access revoked, history
   retained, disappears from the roster" copy the spec called for. As of the
@@ -182,6 +218,9 @@ screens:
   if fewer than two-thirds of active agents are hitting 8-of-10 days, with
   a per-agent per-day dot grid. Read-only. See `docs/06-build-phases.md`'s
   P7 entry — this page is that phase's stated instrument.
+- **`/admin/feedback`** (P10, new) — every bug/issue/feature report from
+  `/feedback`, unscoped across every organization, with a status
+  `<Select>` per row. See `docs/08-screen-specs.md`.
 
 ---
 
@@ -229,7 +268,8 @@ Dashboard**, plus **My Team** for leaders/admins. The centre-weighted **Log**
 tab described in the original spec is now a "Log Activity" action that opens
 a shared dialog rather than navigating to a page — same job (fastest path to
 logging), different mechanism. Avatar top-right opens the account menu
-(profile/settings/admin links if applicable/sign out).
+(profile/settings/**send feedback**/admin links if applicable/sign out —
+"Send feedback" → `/feedback`, P10, every role).
 
 **Desktop** — left rail with the same primary items plus a secondary group
 (Log Activity, Meeting Notes, Clients) that doesn't fit the mobile tab bar's

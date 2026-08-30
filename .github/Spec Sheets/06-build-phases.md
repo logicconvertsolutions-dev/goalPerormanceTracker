@@ -111,6 +111,37 @@ feature work:
   training-reminder RPCs. Precise before/after for each is in
   `docs/04-security.md`.
 
+## P10 — Feedback, terms acceptance, and a round of UX fixes (unplanned)
+One migration set plus a batch of product/UX requests, not a planned
+multi-day phase:
+- `feedback` table + `/feedback` (account menu, every role) and
+  `/admin/feedback` (list + status) — bug/issue/feature reports, emailed to
+  every active admin via the existing Resend `sendEmail()` path.
+- `agents.terms_accepted_at` + `/terms` (content) + `/terms/accept` (one-time
+  gate for pre-existing agents, same shape as the MFA gate) — the accept-invite
+  checkbox previously gated only the client submit button and recorded
+  nothing; `acceptInvitation()` now rejects a missing agreement server-side
+  (`z.literal(true)`) and stamps the timestamp itself for new agents.
+- `/team/members`'s "Team roster" card retitled to "Team {org name}".
+- `PageHeader` stacks title/actions vertically below `sm:` instead of forcing
+  a `shrink-0` action row beside the title — fixes header buttons overflowing
+  on `/contacts` (and every other page using the shared header) on narrow
+  screens.
+- `DailyBreakdownTable` (both `/dashboard`'s and `/team`'s Activity views)
+  gained a Total row/card.
+- `/login` copy de-emphasized "log calls" for generic performance-tracking
+  language.
+- Log Call: `ContactPicker` gained an `onSelect` callback and
+  `searchContactsAction` now returns each contact's most recent call source;
+  picking an existing contact with a known source auto-fills and collapses
+  the Source field (with a "Change" escape hatch) instead of asking again.
+- Meeting Notes: appointment `appt_type` moved out of the Details column into
+  the Actions column, alongside the follow-up line, so the sheet shows what
+  was actually done (e.g. "Solutions Presented").
+
+No RLS/security-fix work this round — see `docs/04-security.md` if that
+changes.
+
 ---
 
 ## Working with Claude Code on this repo (token discipline)

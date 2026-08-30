@@ -123,6 +123,7 @@ export type Database = {
           org_id: string
           role: Database["public"]["Enums"]["agent_role"]
           status: Database["public"]["Enums"]["agent_status"]
+          terms_accepted_at: string | null
           time_zone: string | null
           upline_id: string | null
         }
@@ -135,6 +136,7 @@ export type Database = {
           org_id: string
           role?: Database["public"]["Enums"]["agent_role"]
           status?: Database["public"]["Enums"]["agent_status"]
+          terms_accepted_at?: string | null
           time_zone?: string | null
           upline_id?: string | null
         }
@@ -147,6 +149,7 @@ export type Database = {
           org_id?: string
           role?: Database["public"]["Enums"]["agent_role"]
           status?: Database["public"]["Enums"]["agent_status"]
+          terms_accepted_at?: string | null
           time_zone?: string | null
           upline_id?: string | null
         }
@@ -492,6 +495,57 @@ export type Database = {
           },
           {
             foreignKeyName: "daily_metrics_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feedback: {
+        Row: {
+          agent_id: string
+          category: Database["public"]["Enums"]["feedback_category"]
+          created_at: string
+          id: string
+          message: string
+          org_id: string
+          page_url: string | null
+          status: Database["public"]["Enums"]["feedback_status"]
+          subject: string
+        }
+        Insert: {
+          agent_id: string
+          category?: Database["public"]["Enums"]["feedback_category"]
+          created_at?: string
+          id?: string
+          message: string
+          org_id: string
+          page_url?: string | null
+          status?: Database["public"]["Enums"]["feedback_status"]
+          subject: string
+        }
+        Update: {
+          agent_id?: string
+          category?: Database["public"]["Enums"]["feedback_category"]
+          created_at?: string
+          id?: string
+          message?: string
+          org_id?: string
+          page_url?: string | null
+          status?: Database["public"]["Enums"]["feedback_status"]
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feedback_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -1274,6 +1328,8 @@ export type Database = {
         | "social_media"
         | "friend"
         | "other"
+      feedback_category: "bug" | "feature_request" | "feedback" | "other"
+      feedback_status: "new" | "reviewed" | "resolved"
       recruit_status:
         | "contacted"
         | "marketing_presented"

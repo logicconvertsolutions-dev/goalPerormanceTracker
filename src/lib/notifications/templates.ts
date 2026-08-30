@@ -212,6 +212,38 @@ export function rosterTrainingReminderEmail(d: RosterTrainingReminderData): Emai
   };
 }
 
+export interface FeedbackNotificationData {
+  reporterName: string;
+  reporterEmail: string;
+  category: string;
+  subject: string;
+  message: string;
+  pageUrl: string | null;
+}
+
+// Sent to every admin when an agent submits the /feedback form. No
+// agentId/unsubscribe footer -- this is an internal admin alert, not a
+// standing per-agent notification preference.
+export function feedbackNotificationEmail(d: FeedbackNotificationData): EmailContent {
+  const categoryLabel = d.category.replace('_', ' ');
+  const pageLineHtml = d.pageUrl
+    ? `<p style="font-size:12px;color:#888;">Page: ${escapeHtml(d.pageUrl)}</p>`
+    : '';
+  const pageLineText = d.pageUrl ? `\nPage: ${d.pageUrl}` : '';
+  const bodyHtml = `
+    <p><strong>${escapeHtml(d.reporterName)}</strong> (${escapeHtml(d.reporterEmail)}) submitted a
+    <strong>${escapeHtml(categoryLabel)}</strong> report.</p>
+    <p style="font-size:16px;font-weight:600;">${escapeHtml(d.subject)}</p>
+    <p style="white-space:pre-wrap;">${escapeHtml(d.message)}</p>
+    ${pageLineHtml}`;
+  const bodyText = `${d.reporterName} (${d.reporterEmail}) submitted a ${categoryLabel} report.\n\n${d.subject}\n\n${d.message}${pageLineText}`;
+  return {
+    subject: `[Feedback] ${d.subject}`,
+    html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#111;">${bodyHtml}</div>`,
+    text: bodyText,
+  };
+}
+
 export interface NudgeData {
   agentId: string;
   fullName: string;

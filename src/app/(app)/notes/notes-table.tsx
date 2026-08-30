@@ -12,6 +12,9 @@ export interface TimelineEntry {
   type: 'Call' | 'Appointment' | 'Sale';
   summary: string;
   notes: string | null;
+  /** Appointment's `appt_type` (e.g. "Solutions Presented", "Login Shown") --
+   * what actually happened, shown in the Actions column. Null for calls/sales. */
+  actionType: string | null;
   followUpOn: string | null;
   followUpDoneAt: string | null;
 }
@@ -110,9 +113,14 @@ export function NotesTable({
                     {e.notes && <p className="mt-1">{e.notes}</p>}
                   </td>
                   <td className="border border-line-2 px-3 py-2 align-top text-fg-2 print:border-black print:text-black">
-                    {e.followUpOn
-                      ? `Follow up ${formatDisplayDate(e.followUpOn)}${e.followUpDoneAt ? ' (done)' : ''}`
-                      : '—'}
+                    {e.actionType && <p className="font-medium text-fg print:text-black">{e.actionType}</p>}
+                    <p>
+                      {e.followUpOn
+                        ? `Follow up ${formatDisplayDate(e.followUpOn)}${e.followUpDoneAt ? ' (done)' : ''}`
+                        : e.actionType
+                          ? null
+                          : '—'}
+                    </p>
                   </td>
                 </tr>
               ))}

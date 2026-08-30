@@ -114,9 +114,14 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <DataActions />
-          <Link href="/privacy" className="text-xs text-acc hover:underline">
-            Read the privacy notice
-          </Link>
+          <div className="flex gap-3">
+            <Link href="/privacy" className="text-xs text-acc hover:underline">
+              Read the privacy notice
+            </Link>
+            <Link href="/terms" className="text-xs text-acc hover:underline">
+              Read the Terms &amp; Conditions
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>

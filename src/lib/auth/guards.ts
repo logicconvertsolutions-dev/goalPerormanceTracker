@@ -33,6 +33,13 @@ export async function requireVerifiedAgent(): Promise<SessionAgent> {
   if (!session.mfaVerified) {
     redirect(session.mfaEnrolled ? '/mfa/verify' : '/mfa/setup?required=login');
   }
+  // Existing agents from before terms_accepted_at existed, plus anyone whose
+  // acceptInvitation() write somehow didn't land, get a one-time gate here.
+  // /terms/accept itself must keep calling requireAgent() directly, same
+  // reasoning as mfa/setup and mfa/verify above.
+  if (!session.agent!.terms_accepted_at) {
+    redirect('/terms/accept');
+  }
   return session;
 }
 

@@ -13,7 +13,7 @@ export default async function TeamMembersPage() {
 
   // RLS already scopes agents SELECT to the caller's own downline via
   // is_upline_of — no PII crosses this table, just name/role/status.
-  const [{ data: members }, { data: roster }] = await Promise.all([
+  const [{ data: members }, { data: roster }, { data: org }] = await Promise.all([
     supabase
       .from('agents')
       .select('id, full_name, email, role, status, joined_at')
@@ -24,6 +24,11 @@ export default async function TeamMembersPage() {
       .select('id, full_name, email, phone, invitation_id')
       .eq('upline_id', session.userId)
       .order('full_name'),
+    supabase
+      .from('organizations')
+      .select('name')
+      .eq('id', session.agent!.org_id)
+      .maybeSingle(),
   ]);
 
   // A roster entry whose email has already joined as a real agent has
@@ -40,7 +45,7 @@ export default async function TeamMembersPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Team roster</CardTitle>
+          <CardTitle>Team {org?.name ?? ''}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-fg-3">

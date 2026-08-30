@@ -1,7 +1,7 @@
 # Data model, RLS, and RPCs
 
-**Reflects the live schema as of 2026-08-27, reconstructed from all 40
-migrations (`p1a` → `p9f`, see `docs/06-build-phases.md`) plus
+**Reflects the live schema as of 2026-08-30, reconstructed from all 42
+migrations (`p1a` → `p10b`, see `docs/06-build-phases.md`) plus
 `types/database.ts`.** Where the shipped schema deviates from the original
 P1 design, that's called out inline — the original design decisions below
 are still the *reasons* the schema looks this way, even where the specific
@@ -58,6 +58,9 @@ create type public.appt_status  as enum
 -- `alter type ... rename value`, so existing rows repointed with no backfill.
 create type public.recruit_status as enum
   ('contacted','marketing_presented','recruited','certified','licensed','declined');
+-- P10b, backs the `feedback` table (see "Tables not in the original design" below).
+create type public.feedback_category as enum ('bug','feature_request','feedback','other');
+create type public.feedback_status   as enum ('new','reviewed','resolved');
 
 create table public.organizations (
   id           uuid primary key default gen_random_uuid(),
@@ -83,7 +86,13 @@ create table public.agents (
   status      public.agent_status not null default 'active',
   joined_at   date not null default current_date,
   created_at  timestamptz not null default now(),
-  time_zone   text                      -- P2a: settings, notification send windows
+  time_zone   text,                     -- P2a: settings, notification send windows
+  -- P10a: nullable, backfilled by acceptInvitation() for new agents and by
+  -- the one-time /terms/accept gate (requireVerifiedAgent) for everyone else.
+  -- `grant update (terms_accepted_at) on public.agents to authenticated`
+  -- alongside the existing `full_name` grant -- agents_update_self's RLS
+  -- policy (id = auth.uid()) already scopes it.
+  terms_accepted_at timestamptz
 );
 create unique index agents_email_uq on public.agents (lower(email));
 create index on public.agents (upline_id);
@@ -330,7 +339,7 @@ create index on public.audit_log (org_id, created_at desc);
 
 ### Tables not in the original design
 
-Added over P2–P9, none anticipated by the original P1 schema:
+Added over P2–P10, none anticipated by the original P1 schema:
 
 - **`notification_prefs`** (P2a) — one row per agent, three booleans
   (`evening_nudge`, `sunday_summary`, `monday_digest`), all default `true`.
@@ -356,6 +365,14 @@ Added over P2–P9, none anticipated by the original P1 schema:
 - **`private.rate_limits`** (P6e) — general-purpose fixed-window counter
   (`rl_key`, `window_start`, `count`) backing `check_rate_limit()`. Keys off
   `auth.uid()`, never a client-supplied id. `revoke all from anon, authenticated`.
+- **`feedback`** (P10b) — bug/issue/feature reports submitted from the
+  account menu (`/feedback`). `category` (`bug | feature_request | feedback |
+  other`) and `status` (`new | reviewed | resolved`) enums, `org_id` set by
+  the same `set_org_from_agent()` trigger every owner-scoped table uses.
+  Owner insert/select-own, plus an **admin-global** select and a
+  status-only admin update (`/admin/feedback`) — same shape as
+  `agents_admin_read`/`audit_admin_read`, since a feedback report is
+  operational text an agent chose to submit, not prospect PII.
 
 ---
 

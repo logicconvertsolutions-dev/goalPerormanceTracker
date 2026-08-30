@@ -18,6 +18,17 @@ export function DailyBreakdownTable({ rows }: { rows: DailyBreakdownRow[] }) {
     return <p className="text-sm text-fg-3">No activity in this period.</p>;
   }
 
+  const totals = rows.reduce(
+    (acc, r) => ({
+      calls_made: acc.calls_made + r.calls_made,
+      appts_set: acc.appts_set + r.appts_set,
+      appt_held: acc.appt_held + r.appt_held,
+      recruiting_convos: acc.recruiting_convos + r.recruiting_convos,
+      sales_count: acc.sales_count + r.sales_count,
+    }),
+    { calls_made: 0, appts_set: 0, appt_held: 0, recruiting_convos: 0, sales_count: 0 }
+  );
+
   return (
     <>
       <div className="overflow-x-auto rounded-lg border border-line hidden md:block">
@@ -44,6 +55,16 @@ export function DailyBreakdownTable({ rows }: { rows: DailyBreakdownRow[] }) {
               </tr>
             ))}
           </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-line bg-bg-2 font-semibold">
+              <td className="px-4 py-2.5 text-fg">Total</td>
+              <td className="px-4 py-2.5 text-right text-fg font-mono tabular-nums">{totals.calls_made}</td>
+              <td className="px-4 py-2.5 text-right text-fg font-mono tabular-nums">{totals.appts_set}</td>
+              <td className="px-4 py-2.5 text-right text-fg font-mono tabular-nums">{totals.appt_held}</td>
+              <td className="px-4 py-2.5 text-right text-fg font-mono tabular-nums">{totals.recruiting_convos}</td>
+              <td className="px-4 py-2.5 text-right text-fg font-mono tabular-nums">{totals.sales_count}</td>
+            </tr>
+          </tfoot>
         </table>
       </div>
 
@@ -60,6 +81,15 @@ export function DailyBreakdownTable({ rows }: { rows: DailyBreakdownRow[] }) {
             </CardContent>
           </Card>
         ))}
+        <Card className="border-line-2 bg-bg-2">
+          <CardContent className="pt-4 space-y-1">
+            <p className="text-sm font-semibold text-fg">Total</p>
+            <p className="text-xs text-fg-3">
+              {totals.calls_made} calls · {totals.appts_set} appts set · {totals.appt_held} appts held ·{' '}
+              {totals.recruiting_convos} recruits · {totals.sales_count} sales
+            </p>
+          </CardContent>
+        </Card>
       </div>
     </>
   );

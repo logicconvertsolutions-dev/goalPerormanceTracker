@@ -62,6 +62,9 @@ export function AccountMenu({
         <DropdownMenuItem asChild>
           <Link href="/settings">Settings</Link>
         </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/feedback">Send feedback</Link>
+        </DropdownMenuItem>
         {isAdmin && (
           <>
             <DropdownMenuSeparator />
@@ -76,6 +79,9 @@ export function AccountMenu({
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href="/admin/pilot">Admin: Pilot</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/admin/feedback">Admin: Feedback</Link>
             </DropdownMenuItem>
           </>
         )}
