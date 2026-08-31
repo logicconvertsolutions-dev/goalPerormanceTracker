@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { RailNav } from '@/components/shell/rail-nav';
 import { TabBar } from '@/components/shell/tab-bar';
 import { AccountMenu } from '@/components/shell/account-menu';
+import { AnnouncementBanner } from '@/components/shell/announcement-banner';
 import { OfflineSync } from '@/components/shell/offline-sync';
 import { LogActivityDialogProvider } from '@/components/shell/log-activity-dialog';
 import { KautisMark } from '@/components/shell/kautis-logo';
@@ -31,6 +32,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     const { data } = await supabase.storage.from('org-logos').createSignedUrl(org.logo_path, 3600);
     logoUrl = data?.signedUrl ?? null;
   }
+
+  const [{ data: activeAnnouncements }, { data: dismissed }] = await Promise.all([
+    supabase
+      .from('announcements')
+      .select('id, message, created_at')
+      .eq('active', true)
+      .order('created_at', { ascending: false }),
+    supabase.from('announcement_dismissals').select('announcement_id').eq('agent_id', session.userId),
+  ]);
+  const dismissedIds = new Set((dismissed ?? []).map((d) => d.announcement_id));
+  const visibleAnnouncements = (activeAnnouncements ?? []).filter((a) => !dismissedIds.has(a.id));
 
   return (
     <LogActivityDialogProvider>
@@ -61,6 +73,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </Link>
             <AccountMenu fullName={session.agent!.full_name} isAdmin={role === 'admin'} />
           </header>
+          <AnnouncementBanner announcements={visibleAnnouncements} />
           <main className="flex-1 px-4 py-6 pb-24 md:px-6 md:pb-6 print:p-0">{children}</main>
         </div>
         <TabBar role={role} />

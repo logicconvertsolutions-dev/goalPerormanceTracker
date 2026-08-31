@@ -30,8 +30,21 @@ const csp = [
   `form-action 'self'`,
 ].join('; ');
 
+// System version tracking: package.json's version plus the deployed commit,
+// baked in at build time so it's the same for every request (no per-request
+// env read) and visible to both server and client code without a
+// NEXT_PUBLIC_ prefix -- `env` here has that effect already. VERCEL_GIT_*
+// vars are set automatically by Vercel; both are empty for a local `next
+// dev`/`next build`, which src/lib/version.ts falls back around.
+const { version: appVersion } = require('./package.json');
+const buildSha = (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  env: {
+    NEXT_PUBLIC_APP_VERSION: appVersion,
+    NEXT_PUBLIC_BUILD_SHA: buildSha,
+  },
   eslint: {
     dirs: ['src'],
   },

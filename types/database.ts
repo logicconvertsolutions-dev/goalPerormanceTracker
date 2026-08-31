@@ -218,6 +218,71 @@ export type Database = {
           },
         ]
       }
+      announcement_dismissals: {
+        Row: {
+          agent_id: string
+          announcement_id: string
+          dismissed_at: string
+        }
+        Insert: {
+          agent_id: string
+          announcement_id: string
+          dismissed_at?: string
+        }
+        Update: {
+          agent_id?: string
+          announcement_id?: string
+          dismissed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcement_dismissals_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "announcement_dismissals_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "announcements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      announcements: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string
+          id: string
+          message: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by: string
+          id?: string
+          message: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string
+          id?: string
+          message?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointments: {
         Row: {
           agent_id: string
@@ -1112,6 +1177,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_create_announcement: {
+        Args: { p_actor_id: string; p_message: string }
+        Returns: string
+      }
       admin_daily_active_loggers: {
         Args: { p_days?: number }
         Returns: {
@@ -1122,6 +1191,10 @@ export type Database = {
           org_id: string
           org_name: string
         }[]
+      }
+      admin_delete_org: {
+        Args: { p_actor_id: string; p_org_id: string }
+        Returns: undefined
       }
       admin_hard_delete_agent: {
         Args: { p_actor_id: string; p_agent_id: string }
@@ -1143,8 +1216,16 @@ export type Database = {
         Args: {
           p_actor_id: string
           p_agent_id: string
+          p_org_id?: string
           p_role: Database["public"]["Enums"]["agent_role"]
-          p_org_id?: string | null
+        }
+        Returns: undefined
+      }
+      admin_set_announcement_active: {
+        Args: {
+          p_active: boolean
+          p_actor_id: string
+          p_announcement_id: string
         }
         Returns: undefined
       }

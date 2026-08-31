@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { PRIMARY_NAV, SECONDARY_NAV, LEADER_NAV, ADMIN_NAV, type NavItem } from './nav-items';
+import { PRIMARY_NAV, SECONDARY_NAV, LEADER_NAV, ADMIN_NAV, HELP_NAV, type NavItem } from './nav-items';
 import { useLogActivityDialog } from './log-activity-dialog';
 
 function NavLink({ item, current }: { item: NavItem; current: boolean }) {
@@ -50,6 +50,9 @@ export function RailNav({ role }: { role: AppRole }) {
         {ADMIN_NAV.map((item) => (
           <NavLink key={item.href} item={item} current={pathname.startsWith(item.href)} />
         ))}
+
+        <div className="my-2 border-t border-line" />
+        <NavLink item={HELP_NAV} current={pathname.startsWith(HELP_NAV.href)} />
       </nav>
     );
   }
@@ -70,6 +73,9 @@ export function RailNav({ role }: { role: AppRole }) {
       {SECONDARY_NAV.map((item) => (
         <NavLink key={item.href} item={item} current={pathname.startsWith(item.href)} />
       ))}
+
+      <div className="my-2 border-t border-line" />
+      <NavLink item={HELP_NAV} current={pathname.startsWith(HELP_NAV.href)} />
     </nav>
   );
 }

@@ -5,6 +5,10 @@ export interface EmailMessage {
   subject: string;
   html: string;
   text: string;
+  // Set List-Unsubscribe / List-Unsubscribe-Post (RFC 8058) when present --
+  // Gmail and Yahoo's bulk-sender rules gate inbox placement on a working
+  // one-click unsubscribe for recurring mail; see EmailContent.unsubscribeUrl.
+  unsubscribeUrl?: string;
 }
 
 /**
@@ -36,6 +40,12 @@ export async function sendEmail(message: EmailMessage): Promise<void> {
       subject: message.subject,
       html: message.html,
       text: message.text,
+      ...(message.unsubscribeUrl && {
+        headers: {
+          'List-Unsubscribe': `<${message.unsubscribeUrl}>`,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        },
+      }),
     }),
   });
 

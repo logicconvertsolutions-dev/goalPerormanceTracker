@@ -13,6 +13,7 @@ type Mode = 'password' | 'magic-link';
 const REASON_COPY: Record<string, string> = {
   deactivated: 'This account is no longer active. Contact your SMD.',
   'signed-out': "You're signed out.",
+  'link-expired': 'That link has expired or was already used. Request a new one.',
 };
 
 export function LoginForm() {
@@ -77,7 +78,7 @@ export function LoginForm() {
       const supabase = createClient();
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: `${window.location.origin}/today` },
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/today` },
       });
 
       if (otpError) {

@@ -10,6 +10,12 @@ export interface EmailContent {
   subject: string;
   html: string;
   text: string;
+  // Set only for the three recurring notification kinds below (evening
+  // nudge, Sunday summary, Monday digest) -- these are the ones Gmail/Yahoo
+  // classify as "bulk mail" and gate on a working one-click unsubscribe
+  // (RFC 8058) for inbox placement. Threaded through to sendEmail() so it
+  // can set the List-Unsubscribe / List-Unsubscribe-Post headers.
+  unsubscribeUrl?: string;
 }
 
 function firstName(fullName: string): string {
@@ -44,6 +50,12 @@ function header(logoUrl: string | null | undefined): string {
   return `<div style="background:${BRAND.navy};padding:20px 32px;border-radius:14px 14px 0 0;">${mark}</div>`;
 }
 
+function unsubscribeUrlFor(agentId: string, kind: NotificationKind): string {
+  return appUrl(
+    `/unsubscribe?agent=${encodeURIComponent(agentId)}&kind=${kind}&sig=${signUnsubscribe(agentId, kind)}`
+  );
+}
+
 function footer(agentId: string, kind: NotificationKind | null): { html: string; text: string } {
   const settingsUrl = appUrl('/settings');
   if (!kind) {
@@ -52,9 +64,7 @@ function footer(agentId: string, kind: NotificationKind | null): { html: string;
       text: `Manage your notification preferences: ${settingsUrl}`,
     };
   }
-  const unsubscribeUrl = appUrl(
-    `/unsubscribe?agent=${encodeURIComponent(agentId)}&kind=${kind}&sig=${signUnsubscribe(agentId, kind)}`
-  );
+  const unsubscribeUrl = unsubscribeUrlFor(agentId, kind);
   return {
     html: `<p style="margin-top:32px;font-size:12px;color:${BRAND.muted};"><a href="${unsubscribeUrl}" style="color:${BRAND.muted};">Unsubscribe from this email</a> &middot; <a href="${settingsUrl}" style="color:${BRAND.muted};">Manage all notifications</a></p>`,
     text: `Unsubscribe from this email: ${unsubscribeUrl}\nManage all notifications: ${settingsUrl}`,
@@ -104,6 +114,7 @@ export function eveningNudgeEmail(d: EveningNudgeData): EmailContent {
     subject: "You haven't logged any calls today",
     html: wrap(bodyHtml, d.agentId, 'evening_nudge', d.logoUrl),
     text: wrapText(bodyText, d.agentId, 'evening_nudge'),
+    unsubscribeUrl: unsubscribeUrlFor(d.agentId, 'evening_nudge'),
   };
 }
 
@@ -130,6 +141,7 @@ export function sundaySummaryEmail(d: SundaySummaryData): EmailContent {
     subject: 'Your week in review',
     html: wrap(bodyHtml, d.agentId, 'sunday_summary', d.logoUrl),
     text: wrapText(bodyText, d.agentId, 'sunday_summary'),
+    unsubscribeUrl: unsubscribeUrlFor(d.agentId, 'sunday_summary'),
   };
 }
 
@@ -168,6 +180,7 @@ export function mondayDigestEmail(d: MondayDigestData): EmailContent {
     subject: 'Monday team digest',
     html: wrap(bodyHtml, d.agentId, 'monday_digest', d.logoUrl),
     text: wrapText(bodyText, d.agentId, 'monday_digest'),
+    unsubscribeUrl: unsubscribeUrlFor(d.agentId, 'monday_digest'),
   };
 }
 

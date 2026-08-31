@@ -2,6 +2,42 @@
 
 Design debt and deferred work surfaced by review. Newest first.
 
+## 2026-08-31 — Email deliverability (spam folder) needs DNS/dashboard config, not just code
+
+**What:** Reported: outbound mail (magic-link, password reset, notifications)
+sometimes lands in spam. Two code-level fixes landed alongside this note
+(`src/app/auth/callback/route.ts` for the PKCE code-exchange bug that made
+magic-link/reset-password emails look broken, and `List-Unsubscribe` /
+`List-Unsubscribe-Post` headers on the three recurring notification emails
+in `src/lib/notifications/{templates,send}.ts`), but the rest of inbox
+placement is DNS/dashboard configuration this session has no access to:
+
+1. **Verify the sending domain in Resend** (`resend.com` → Domains) rather
+   than sending from a shared/default domain. `NOTIFICATIONS_FROM_EMAIL`
+   must be `Team Tracker <notifications@your-verified-domain>`.
+2. **Add the SPF, DKIM, and DMARC DNS records** Resend's domain page
+   generates, at the registrar for that sending domain. Missing DKIM in
+   particular is the single biggest cause of Gmail/Outlook spam
+   classification.
+3. **Point Supabase Auth's SMTP at the same verified domain** (Dashboard →
+   Authentication → Emails → SMTP Settings — the commented-out block in
+   `supabase/config.toml:236-246` documents the Resend SMTP host/port for
+   local parity). Auth emails (magic link, password recovery) currently go
+   out through whatever the hosted project's SMTP is configured to; if it's
+   still Supabase's shared default sender, that's a separate deliverability
+   gap from the notification emails above and explains "sometimes" rather
+   than "always" landing in spam if only one of the two is misconfigured.
+4. **Add a DMARC record** (`_dmarc.your-domain`) once SPF/DKIM pass
+   consistently — start at `p=none` to monitor, tighten later.
+
+**Why deferred:** all four steps require DNS registrar access and the
+Resend/Supabase dashboards, which this session doesn't have. No further
+code change unlocks this — it's an infra checklist for whoever holds those
+accounts.
+
+**Impact:** until done, inbox placement stays inconsistent regardless of
+any further app code changes.
+
 ## 2026-08-31 — No pgTAP coverage for P11's admin/org-detachment schema changes
 
 **What:** `p11c_admin_no_org.sql` added two check constraints
