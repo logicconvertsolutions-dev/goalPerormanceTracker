@@ -74,8 +74,8 @@ export default function LoginPage() {
         {/* Desktop: full circular diagram */}
         <div className="relative mx-auto hidden h-[260px] w-[260px] lg:block">
           <div className="absolute inset-[22px] rounded-full border border-dashed border-gold/30" />
-          <div className="absolute left-1/2 top-1/2 flex h-[54px] w-[54px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-2xl bg-gradient-to-br from-gold to-gold-dark text-[22px] font-extrabold text-acc shadow-[0_6px_18px_-4px_rgba(201,162,39,0.5)]">
-            K
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 shadow-[0_6px_18px_-4px_rgba(30,63,168,0.5)]">
+            <KautisMark size={54} className="rounded-2xl" />
           </div>
           {STEPS.map((step) => (
             <StepCircle key={step.label} {...step} />
