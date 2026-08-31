@@ -25,12 +25,12 @@ function AgentListItem({
   orgs: { id: string; name: string }[];
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-sm border border-line py-2 px-3 text-sm">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-sm border border-line py-2 px-3 text-sm">
       <Link href={`/admin/agents/${agent.id}`} className="min-w-0 hover:underline">
         <p className="text-fg">{agent.full_name}</p>
         <p className="text-fg-3 text-xs">{agent.email}</p>
       </Link>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {agent.status === 'inactive' && <Badge variant="bad">Inactive</Badge>}
         <AgentRow
           agentId={agent.id}

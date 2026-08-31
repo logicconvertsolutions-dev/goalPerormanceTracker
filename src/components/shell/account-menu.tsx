@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { signOutAction } from '@/app/(app)/logout/actions';
+import { formatVersion } from '@/lib/version';
 import { SECONDARY_NAV } from './nav-items';
 
 function initials(name: string) {
@@ -70,10 +71,15 @@ export function AccountMenu({
         <DropdownMenuItem asChild>
           <Link href="/feedback">Send feedback</Link>
         </DropdownMenuItem>
+        <DropdownMenuItem asChild className="md:hidden">
+          <Link href="/help">How to</Link>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => startTransition(() => signOutAction())}>
           Sign out
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <div className="px-2 py-1.5 text-[11px] text-fg-4">{formatVersion()}</div>
       </DropdownMenuContent>
     </DropdownMenu>
   );

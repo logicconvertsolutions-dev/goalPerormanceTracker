@@ -59,6 +59,15 @@ gate that fails the build if it leaks into the client bundle.
   `src/app/(app)/**` (everything behind a session).
 - **Known deferred work** — [`TODOS.md`](TODOS.md).
 
+## Versioning
+
+`package.json`'s `version` plus the deployed commit SHA (from Vercel's
+`VERCEL_GIT_COMMIT_SHA`) are baked in at build time (`next.config.js` →
+`src/lib/version.ts`) and shown in the account menu and on the login page —
+the one thing every environment/support conversation can reference to
+confirm which build is actually running. Bump `package.json`'s `version` on
+each release so that display stays meaningful.
+
 ## CI
 
 `.github/workflows/ci.yml` runs the service-role-key leak gate, type-check,
