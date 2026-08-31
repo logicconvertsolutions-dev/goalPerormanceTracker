@@ -94,7 +94,7 @@ export async function setAgentRoleAction(input: z.infer<typeof setRoleSchema>) {
     p_actor_id: actor.id,
     p_agent_id: parsed.data.agentId,
     p_role: parsed.data.role,
-    p_org_id: parsed.data.orgId ?? null,
+    p_org_id: parsed.data.orgId,
   });
 
   revalidatePath('/admin/agents');
