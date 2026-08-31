@@ -1,18 +1,76 @@
 # Account, auth, and the app shell
 
-**Reflects the live app as of 2026-08-30.** Structure and copy match the
+**Reflects the live app as of 2026-08-31.** Structure and copy match the
 original design closely; the significant changes are (1) MFA is now
-mandatory for every role, not just leader/admin, and (2) a real MFA bypass
+mandatory for every role, not just leader/admin, (2) a real MFA bypass
 existed and was fixed — see `docs/04-security.md` for the precise
-vulnerability and fix, summarized here where it affects the screens.
+vulnerability and fix, summarized here where it affects the screens — and
+(3) **P11: admin is no longer an organization member at all** — see
+"Admin is not part of any organization" below, the single biggest
+structural change to this section since P2's original shell design.
 
 ---
 
-## Who creates what — unchanged
+## Who creates what — unchanged in spirit, admin's own path changed
 
 No public signup. Same three paths as originally specified: admin
 provisions an org (`/admin/orgs`), an SMD invites via `/team/invites`, a
 stranger hitting an unauthenticated route gets no form, only an explanation.
+
+An existing admin can also invite a *new* admin (`create_invitation`'s
+`p_role = 'admin'` path, restricted to an admin caller) — this has always
+been possible at the database layer but there has never been a UI form for
+it; the account this produces goes through the same no-org handling
+described below regardless.
+
+---
+
+## Admin is not part of any organization (P11, new)
+
+Every admin account — including one promoted from associate/leader, or one
+created via the admin-invites-admin path above — now has `agents.org_id`
+and `agents.upline_id` both `null`. This used to not be true: an admin kept
+whatever org/upline they came from, which put them in that org's hierarchy
+in ways that never made sense for a platform-level role — visible in their
+former upline's "My Team" downline roster, counted in `agent_closure`, and
+subject to the same-org upline fence. Admin's cross-org reads were always
+role-gated, not org-scoped (`agents_admin_read`/`organizations_admin_read`),
+so nothing about admin's actual capabilities depended on having an org —
+this was purely a leftover from every agent originally being an org member.
+
+**What actually changed:**
+- `agents.org_id` is nullable now, but only for `role = 'admin'` — a DB
+  check constraint (`agents_org_required_unless_admin`) still requires one
+  for every associate/leader. A second constraint
+  (`agents_admin_no_upline`) blocks a null-org agent from having an
+  `upline_id` at all.
+- **Promoting** an agent to admin (`/admin/agents`' role select,
+  `admin_set_agent_role`) nulls their `org_id`/`upline_id`, and reassigns
+  any of *their own* direct reports to top-level (`upline_id = null`) in
+  the same org — a promoted agent can't stay someone's phantom upline.
+- **Demoting** an agent away from admin requires picking an org for them to
+  rejoin — that information was deliberately discarded on promotion, so the
+  role `<Select>` on `/admin/agents` (and the per-agent detail page) opens
+  a small dialog asking which organization when the new role isn't admin.
+- Existing admins (from before this migration) were backfilled the same
+  way: `org_id`/`upline_id` nulled, their own direct reports (if any)
+  surfaced to top-level.
+- `feedback` is the one org-scoped table an admin can still legitimately
+  write to (submitted from the account menu, every role) — its `org_id` is
+  nullable too, set to `null` for an admin-submitted report rather than
+  raising.
+- `requireLeader()` (`src/lib/auth/guards.ts`) no longer admits admin — it
+  used to allow `role in ('leader', 'admin')`, now only `'leader'`. Every
+  `/team/*` screen is SMD-only; admin's equivalent tools live entirely
+  under `/admin/*` (see "Admin screens" below).
+
+**Nav consequence:** admin's tab bar / rail nav is a completely separate
+set of items (Orgs · Agents · Audit · Pilot · Feedback) that *replaces*
+My Day / Activity Logs / Contacts / My Dashboard / My Team, not one that's
+appended to it the way it used to be — see "The app shell" below. Signing
+in as admin (password or magic link), completing MFA enrollment/step-up, or
+accepting the one-time terms gate all land on `/admin/agents` now, not
+`/today` — an admin has no personal "My Day."
 
 ---
 
@@ -51,8 +109,27 @@ before asking for anything, per spec.
   creation, which previously didn't exist at all.
 - `org_id`/`upline_id`/`role` are read server-side from the matched
   `invitations` row by the `handle_new_user` DB trigger — never from
-  client-supplied signup metadata, confirmed still true.
+  client-supplied signup metadata, confirmed still true. **P11:** for an
+  admin-role invitation specifically, both are forced to `null` regardless
+  of what the inviting admin's own row carried — see "Admin is not part of
+  any organization" above.
 - On success: signs in with the just-set password, routes to `/onboarding`.
+
+### `/confirm-email-change/[token]` (P11, new)
+The agent-facing half of an admin-initiated email change (see
+`/admin/agents/[agentId]` above) — no login required, same reasoning as
+`/invite/[token]`: the agent may not even be signed in when they click the
+link. Server-rendered lookup by `sha256(token)` against `agent_email_changes`,
+four states: **invalid** (no match) · **confirmed** (already used, →
+`/login`) · **expired** (past `expires_at`, 7 days) · **valid** (shows the
+proposed new email and a "Confirm email change" button — a deliberate
+click, not an auto-apply on page load, so an email client's link-prefetch
+can't silently trigger the change). Confirming re-validates the token
+server-side, then: updates `auth.users.email` via the service-role Admin
+API (`email_confirm: true`, no separate verification email), updates
+`agents.email` to match, marks the request row confirmed, and writes an
+`agent.email_changed` audit_log row. On success, shows the new email and a
+link to `/login`.
 
 ### `/onboarding` — first run, 3 steps, skippable
 Matches spec's structure and content closely (goals read-only · what your
@@ -125,9 +202,10 @@ the admin-side view.
 Matches spec closely.
 - Full name (editable — RLS column grants restrict `authenticated` UPDATE on
   `agents` to `full_name` only, so this is safe at the DB level, not just in
-  the UI), email (read-only, no self-service change flow currently — the
-  original spec's "change requires confirming both addresses" is not
-  implemented), role (read-only), joined date.
+  the UI), email (read-only here — still no self-service change flow from
+  `/profile` itself; the original spec's "change requires confirming both
+  addresses" is now implemented, but only reachable admin-side, see
+  `/admin/agents/[agentId]` below), role (read-only), joined date.
 - MFA status: Enabled/Not enabled badge, with a context-appropriate action —
   Set up (not enrolled), Reset (enrolled + this session verified, behind a
   confirm dialog and a live `aal2` re-check), or "Verify to manage"
@@ -187,21 +265,36 @@ navigating to the page.
   retained, disappears from the roster" copy the spec called for. As of the
   P9 security pass, roster update/delete/reminder actions are correctly
   scoped to the caller's own downline (see `docs/04-security.md` — this was
-  one of the fixed gaps).
+  one of the fixed gaps). **P11:** every roster member added here is now
+  automatically enrolled in a Wednesday/Saturday training-reminder email —
+  a small "Auto: Wed & Sat" badge on the row confirms it — independent of
+  the manual "Send reminder" button and its 7-day cooldown, which stays as
+  an on-demand option on top. See "Notifications" below for the mechanism.
 - **`/team/audit`** — matches spec: goal changes, invitations, deactivations,
   who/what/when, org-scoped via a dedicated RLS policy (added since the
   original design — the audit table originally had only one, admin-global,
-  SELECT policy).
+  SELECT policy). **P11:** the "Audit" quick-link was removed from the My
+  Team page's button row (product request — an SMD reaching it by URL still
+  works, it's just no longer a one-click nav item next to Members/Invites/
+  Goals/Organization).
 
 ### Admin screens — grown well past the original one-line sketch
 The original spec covered these in a single line each; they're now full
 screens:
 - **`/admin/orgs`** — "New organization" form (name, SMD name, SMD email) →
   provisions the org and sends the SMD invite; a flat "Existing" list of org
-  names (no per-org detail/edit here yet).
+  names (no per-org detail/edit here yet). **P11 bug fix:** `provision_org`
+  only ever created the org and a hashed invitation row — it never actually
+  sent mail (no email dependency inside a DB function by design). The
+  Server Action now sends the SMD their invite email itself, the same
+  `inviteEmail()` template `/team/invites` uses; before this fix the SMD had
+  no way to ever see their invite link.
 - **`/admin/agents`** — cross-org (not downline-scoped) agent management,
-  grouped by organization. Per agent: inline **role** select, inline
-  **upline** select (move between uplines within the same org), conditional
+  grouped by organization, with a separate **Admins** card at the top for
+  admin accounts (P11: admins aren't part of any org, so they no longer sit
+  inside a org-grouped card at all). Per agent: inline **role** select,
+  inline **upline** select (move between uplines within the same org, hidden
+  entirely for an admin row since admin has no upline), conditional
   **Reactivate**, and **Hard-delete** behind a dialog requiring the admin to
   type the agent's exact full name — explicitly distinguished in the dialog
   copy from deactivation ("permanently erases... not the same as
@@ -209,6 +302,24 @@ screens:
   client, gated entirely by the application-level `requireAdminActor()`
   check — see `docs/04-security.md` for why the MFA gap here mattered, and
   for the P9d cross-org fix on the underlying RPCs.
+  - **P11: demoting an admin.** Since promotion nulls `org_id`/`upline_id`
+    (see "Admin is not part of any organization" above), changing an
+    admin's role to associate/leader opens a small dialog asking which
+    organization they rejoin before the change applies — the role
+    `<Select>` alone can't complete that transition anymore.
+  - **P11, new: `/admin/agents/[agentId]`** — click any agent's name/email
+    to open a per-agent record page: full record (email, role, org, upline,
+    joined date), the same role/upline/reactivate/hard-delete controls
+    embedded, and a **change email** action. The admin enters a new email
+    and sends a confirmation link to it — the change is *not* applied
+    immediately. The agent (not the admin) has to open that email and click
+    "Confirm email change" (`/confirm-email-change/[token]`, no login
+    required) before `auth.users.email`/`agents.email` actually update.
+    While a confirmation is outstanding, the card shows who it's waiting
+    on and when it was sent; sending again supersedes the wait. Backed by
+    a new `agent_email_changes` table (hashed token, 7-day expiry, same
+    shape as `invitations`), locked to the service-role client only — no
+    RLS policies at all, same lockdown as `invitations`' token lookup.
 - **`/admin/audit`** — same table component as `/team/audit`, unscoped
   ("everything, every organization"), capped at 500 rows vs. `/team/audit`'s
   200.
@@ -233,6 +344,15 @@ local, leaders/admins only, unconditional). Role eligibility is enforced
 structurally (`roleAllows()` — an associate is never eligible for the digest
 and vice versa), which is also what guarantees "never more than one per
 person per day" without needing separate logic for it.
+
+**Known loose end, not fixed in P11:** `roleAllows()` still counts admin as
+eligible for the Monday digest, unchanged. Now that admin has no downline
+(`agent_closure` only has their own self-row), `composeMondayDigest()` /
+`system_team_week_summary()` resolve to an all-zero team for them — so a
+default-enabled admin still gets a Monday email, it's just a meaningless
+one. Harmless (no crash, no data leak), but worth fixing by excluding admin
+from `roleAllows('monday_digest', ...)` in a follow-up rather than folding
+it into this pass.
 
 **Mechanism, not in the original spec's level of detail:**
 - Timezone resolution is per-instant via `Intl.DateTimeFormat` (handles DST
@@ -259,31 +379,86 @@ person per day" without needing separate logic for it.
   interpolated into HTML) was found and fixed in the P9 security pass — see
   `docs/04-security.md`.
 
+**P11, new: automatic team_roster training reminders.** Distinct from the
+three notifications above (which are per-agent, role/pref-gated) and from
+the existing manual "Send reminder" button (`send_roster_training_reminder`,
+rate-limited to once per 7 days per roster row) — every `team_roster` entry
+is now automatically enrolled in a recurring Wednesday/Saturday reminder the
+moment an SMD adds them (`team_roster.auto_reminders_enabled`, default
+`true`). This is the fix for the manual button's own limitation: an SMD had
+no way to get a *standing* cadence going, only ad-hoc, cooldown-limited
+nudges.
+- Runs inside the same 15-minute cron route as the three notifications
+  above, but as an independent pass that always executes regardless of
+  whether any agent-level notification is also due that tick — Wed/Sat 9am,
+  resolved against the roster entry's *upline's* time zone (a roster row has
+  none of its own — it isn't a real login yet).
+- Idempotency is the same insert-first unique-constraint shape as
+  `notification_log`: a new `team_roster_reminder_log (roster_id,
+  local_date)` table, one row per day actually sent.
+- Uses the existing `rosterTrainingReminderEmail()` template (previously
+  only reachable from the manual button) — no new copy.
+- `/team/members` shows a small "Auto: Wed & Sat" badge on each roster row
+  with this enabled, next to the existing "Invited" badge and the manual
+  "Send reminder" button.
+
 ---
 
-## The app shell — matches spec, with current nav labels
+## The app shell — admin's nav is a separate set now, not an addition (P11)
 
-**Mobile** — bottom tab bar: **My Day · Activity Logs · Contacts · My
-Dashboard**, plus **My Team** for leaders/admins. The centre-weighted **Log**
-tab described in the original spec is now a "Log Activity" action that opens
-a shared dialog rather than navigating to a page — same job (fastest path to
-logging), different mechanism. Avatar top-right opens the account menu
-(profile/settings/**send feedback**/admin links if applicable/sign out —
-"Send feedback" → `/feedback`, P10, every role).
+**Mobile** — bottom tab bar for associate/leader: **My Day · Activity Logs
+· Contacts · My Dashboard**, plus **My Team** for leaders. The centre-
+weighted **Log** tab described in the original spec is now a "Log Activity"
+action that opens a shared dialog rather than navigating to a page — same
+job (fastest path to logging), different mechanism. Avatar top-right opens
+the account menu (profile/settings/**send feedback**/sign out — "Send
+feedback" → `/feedback`, P10, every role including admin).
 
-**Desktop** — left rail with the same primary items plus a secondary group
-(Log Activity, Meeting Notes, Clients) that doesn't fit the mobile tab bar's
-five slots; those three surface on mobile via the account menu instead.
+**For admin, the tab bar is entirely different, not the associate/leader
+set plus extras:** **Orgs · Agents · Audit · Pilot · Feedback** (the five
+`/admin/*` screens from "Admin screens" above) — admin has no personal "My
+Day," logs no activity of their own, and (P11) isn't part of any
+organization, so none of My Day/Activity Logs/Contacts/My Dashboard/My Team
+apply. The account menu also drops the "Log Activity/Meeting Notes/Clients"
+mobile-only group for admin, for the same reason. This nav previously
+appended **My Team** to the associate/leader set for admin (since admin
+used to pass `requireLeader()`) — that's gone; see "Admin is not part of
+any organization" above.
 
-**Route guards** — implemented as a layered chain in `src/lib/auth/guards.ts`,
-more structured than the original spec's two-guard description:
+**Desktop** — left rail mirrors the same split: associate/leader get the
+primary items plus a secondary group (Log Activity, Meeting Notes, Clients)
+that doesn't fit the mobile tab bar's five slots (those three surface on
+mobile via the account menu instead); admin gets only the five `/admin/*`
+items, no secondary group.
+
+**Header branding** — the shell header shows the signed-in agent's org logo
+(or a generic mark) and org name, linking to `/today`. For admin (P11, no
+org to show), it falls back to the same generic mark and the literal
+"Performance Tracker" label — the existing no-logo-uploaded fallback, not a
+new admin-specific treatment — and the link goes to `/admin/agents` instead
+of `/today`.
+
+**Post-auth landing** — every hardcoded redirect that used to send a
+freshly-authenticated or freshly-verified session to `/today` (root URL,
+password sign-in, MFA enrollment success, magic-link `emailRedirectTo`, the
+one-time terms-accept gate) still targets `/today` first, but `/today`
+itself now redirects an admin session straight on to `/admin/agents` —
+one central catch point rather than teaching every caller about admin.
+
+**Route guards** — implemented as a layered chain in `src/lib/auth/guards.ts`:
 
 ```
 requireAgent()          → any signed-in, active agent
 requireVerifiedAgent()  → requireAgent() + must be MFA-verified this session
-requireLeader()         → requireVerifiedAgent() + role in {leader, admin}
+requireLeader()         → requireVerifiedAgent() + role === leader
 requireAdmin()          → requireVerifiedAgent() + role === admin
 ```
+
+**P11: `requireLeader()` no longer admits admin** (it used to allow
+`role in ('leader', 'admin')`). Every `/team/*` screen — org-scoped
+downline/roster/targets pages an org-less account has no use for — is
+SMD-only now; admin's equivalent tools live entirely under `/admin/*`,
+gated by `requireAdmin()`, which is unchanged.
 
 An associate hitting `/team` is redirected (via `requireLeader()`), matching
 spec's "not shown a 403" requirement. The 403-vs-404 distinction for
