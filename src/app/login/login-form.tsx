@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Mail, Lock } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,6 +22,7 @@ export function LoginForm() {
   const [mode, setMode] = useState<Mode>('password');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(
     reason ? REASON_COPY[reason] ?? null : null
   );
@@ -93,9 +94,19 @@ export function LoginForm() {
 
   if (magicLinkSent) {
     return (
-      <div className="text-center space-y-2">
+      <div className="text-center space-y-4">
         <p className="text-fg">Check your email for a sign-in link.</p>
         <p className="text-sm text-fg-2">Sent to {email}</p>
+        <button
+          type="button"
+          className="text-sm text-acc hover:underline"
+          onClick={() => {
+            setMagicLinkSent(false);
+            setMode('password');
+          }}
+        >
+          Back to sign in
+        </button>
       </div>
     );
   }
@@ -131,13 +142,25 @@ export function LoginForm() {
               />
               <Input
                 id="password"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 required
-                className="pl-10"
+                className="pl-10 pr-10"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-4 hover:text-fg-2"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-[18px] w-[18px]" aria-hidden="true" />
+                ) : (
+                  <Eye className="h-[18px] w-[18px]" aria-hidden="true" />
+                )}
+              </button>
             </div>
           </div>
           {error && <p className="text-sm text-bad">{error}</p>}
