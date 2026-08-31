@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { kindsInWindow, localParts, resolveTimeZone, DEFAULT_TIME_ZONE } from './window';
+import { kindsInWindow, isRosterReminderWindow, localParts, resolveTimeZone, DEFAULT_TIME_ZONE } from './window';
 
 describe('localParts', () => {
   it('resolves the correct local wall-clock time for a UTC instant', () => {
@@ -74,5 +74,20 @@ describe('kindsInWindow', () => {
         expect(kindsInWindow({ isoDow: dow, hour, minute: 0, dateIso: '2026-08-24' }).length).toBeLessThanOrEqual(1);
       }
     }
+  });
+});
+
+describe('isRosterReminderWindow', () => {
+  it('matches Wednesday and Saturday at 09:00-09:14', () => {
+    expect(isRosterReminderWindow({ isoDow: 3, hour: 9, minute: 0, dateIso: '2026-08-26' })).toBe(true);
+    expect(isRosterReminderWindow({ isoDow: 3, hour: 9, minute: 14, dateIso: '2026-08-26' })).toBe(true);
+    expect(isRosterReminderWindow({ isoDow: 6, hour: 9, minute: 0, dateIso: '2026-08-29' })).toBe(true);
+  });
+
+  it('does not match outside the window or on other days', () => {
+    expect(isRosterReminderWindow({ isoDow: 3, hour: 9, minute: 15, dateIso: '2026-08-26' })).toBe(false);
+    expect(isRosterReminderWindow({ isoDow: 3, hour: 10, minute: 0, dateIso: '2026-08-26' })).toBe(false);
+    expect(isRosterReminderWindow({ isoDow: 1, hour: 9, minute: 0, dateIso: '2026-08-24' })).toBe(false);
+    expect(isRosterReminderWindow({ isoDow: 7, hour: 9, minute: 0, dateIso: '2026-08-30' })).toBe(false);
   });
 });

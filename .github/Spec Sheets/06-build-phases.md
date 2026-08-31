@@ -3,12 +3,13 @@
 One phase per Claude Code session. `/clear` between phases. Do not start a phase
 before its predecessor's DoD is green — RLS bugs are cheap now and expensive later.
 
-**Status as of 2026-08-27: P0 through P7 shipped as planned below. P8 and P9
-followed as unplanned post-launch iteration** — real bugs and feature requests
-surfaced by QA and early use, not phases anyone scoped in advance. They're
-documented after P7 rather than folded into this file's phase structure,
-because that structure stopped being how work actually got sequenced once the
-app was live. See `docs/02-data-model.md` for the schema those two produced.
+**Status as of 2026-08-31: P0 through P7 shipped as planned below. P8
+through P11 followed as unplanned post-launch iteration** — real bugs and
+feature requests surfaced by QA, security review, and early use, not phases
+anyone scoped in advance. They're documented after P7 rather than folded
+into this file's phase structure, because that structure stopped being how
+work actually got sequenced once the app was live. See
+`docs/02-data-model.md` for the schema those four produced.
 
 ## P0 — Foundation (0.5 day) — ✅ done
 Next.js 14 + TS strict + Tailwind + shadcn scaffold · `supabase init` ·
@@ -141,6 +142,59 @@ multi-day phase:
 
 No RLS/security-fix work this round — see `docs/04-security.md` if that
 changes.
+
+## P11 — Admin/org detachment, agent email change, and email-delivery bug fixes (unplanned)
+Three migrations plus a batch of product requests, not a planned multi-day
+phase. The largest structural change since P2's original shell design — see
+`docs/09-account-and-auth.md`'s "Admin is not part of any organization" for
+the full narrative:
+- `agents.org_id`/`upline_id` are now nullable, but only for `role =
+  'admin'` — enforced by two new check constraints, not just app code.
+  Existing admins (and any of their own direct reports) were backfilled to
+  match. Promoting an agent to admin nulls both columns and surfaces any of
+  their direct reports as top-level; demoting one back out requires picking
+  an org for them to rejoin. `invitations.org_id` got the same nullable
+  treatment (an admin inviting another admin has no org to stamp it with),
+  and `feedback.org_id` too (an admin can still submit feedback, unlike
+  every other owner-scoped table, which stays raising-on-null — that's what
+  keeps admin from ever logging activity of their own).
+- Caught in the same pass, before it shipped as a live bug: `admin_move_agent`
+  / `admin_reactivate_agent` / `admin_hard_delete_agent` / `admin_set_agent_role`
+  all used "target agent's `org_id` is null" as their not-found check —
+  which a real admin row now legitimately trips. Re-keyed to check row
+  existence directly.
+- Admin's nav is now a distinct set (Orgs · Agents · Audit · Pilot ·
+  Feedback) that *replaces* the associate/leader tab bar/rail instead of
+  extending it, and `requireLeader()` no longer admits admin — every
+  `/team/*` screen is SMD-only now, admin's tools are entirely under
+  `/admin/*`.
+- `/admin/agents/[agentId]` (new) — a per-agent record page, reached by
+  clicking an agent on `/admin/agents`, with a "change email" action:
+  admin proposes a new email, the agent confirms it via a mailed link
+  (`/confirm-email-change/[token]`, no login required) before it actually
+  takes effect in `auth.users`/`agents.email`. New `agent_email_changes`
+  table, same hashed-token/service-role-only shape as `invitations`.
+- **Bug fix:** `provision_org` (admin's "New organization" form) only ever
+  created the org and a hashed invitation row — it never sent the SMD their
+  invite email. The Server Action now sends it, reusing the same
+  `inviteEmail()` template `/team/invites` uses.
+- **Bug fix:** the feedback-to-admins notification (`/feedback` →
+  every active admin) used `Promise.all` across all admin recipients — one
+  bad/bouncing address failed the whole batch silently. Switched to
+  `Promise.allSettled` so one admin's delivery failure can't sink everyone
+  else's.
+- `team_roster` members are now automatically enrolled in a Wednesday/
+  Saturday training-reminder email (`auto_reminders_enabled`, default
+  `true`) the moment an SMD adds them — new `team_roster_reminder_log`
+  table for idempotency, independent of the existing manual "Send reminder"
+  button and its 7-day cooldown.
+- Removed the "Audit" quick-link from the SMD's My Team page button row
+  (product request; `/team/audit` itself is unchanged, just no longer a
+  one-click nav item there).
+
+No security-audit-driven work this round (P11c's not-found fix was
+self-caught during the org_id migration, not an external finding) — see
+`docs/04-security.md` if that changes.
 
 ---
 

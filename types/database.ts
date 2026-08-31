@@ -47,6 +47,54 @@ export type Database = {
           },
         ]
       }
+      agent_email_changes: {
+        Row: {
+          agent_id: string
+          confirmed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          new_email: string
+          requested_by: string
+          token_hash: string
+        }
+        Insert: {
+          agent_id: string
+          confirmed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          new_email: string
+          requested_by: string
+          token_hash: string
+        }
+        Update: {
+          agent_id?: string
+          confirmed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          new_email?: string
+          requested_by?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_email_changes_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_email_changes_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_nudges: {
         Row: {
           agent_id: string
@@ -120,7 +168,7 @@ export type Database = {
           full_name: string
           id: string
           joined_at: string
-          org_id: string
+          org_id: string | null
           role: Database["public"]["Enums"]["agent_role"]
           status: Database["public"]["Enums"]["agent_status"]
           terms_accepted_at: string | null
@@ -133,7 +181,7 @@ export type Database = {
           full_name: string
           id: string
           joined_at?: string
-          org_id: string
+          org_id?: string | null
           role?: Database["public"]["Enums"]["agent_role"]
           status?: Database["public"]["Enums"]["agent_status"]
           terms_accepted_at?: string | null
@@ -146,7 +194,7 @@ export type Database = {
           full_name?: string
           id?: string
           joined_at?: string
-          org_id?: string
+          org_id?: string | null
           role?: Database["public"]["Enums"]["agent_role"]
           status?: Database["public"]["Enums"]["agent_status"]
           terms_accepted_at?: string | null
@@ -509,7 +557,7 @@ export type Database = {
           created_at: string
           id: string
           message: string
-          org_id: string
+          org_id: string | null
           page_url: string | null
           status: Database["public"]["Enums"]["feedback_status"]
           subject: string
@@ -520,7 +568,7 @@ export type Database = {
           created_at?: string
           id?: string
           message: string
-          org_id: string
+          org_id?: string | null
           page_url?: string | null
           status?: Database["public"]["Enums"]["feedback_status"]
           subject: string
@@ -531,7 +579,7 @@ export type Database = {
           created_at?: string
           id?: string
           message?: string
-          org_id?: string
+          org_id?: string | null
           page_url?: string | null
           status?: Database["public"]["Enums"]["feedback_status"]
           subject?: string
@@ -561,7 +609,7 @@ export type Database = {
           email: string
           expires_at: string
           id: string
-          org_id: string
+          org_id: string | null
           revoked_at: string | null
           role: Database["public"]["Enums"]["agent_role"]
           token_hash: string
@@ -574,7 +622,7 @@ export type Database = {
           email: string
           expires_at?: string
           id?: string
-          org_id: string
+          org_id?: string | null
           revoked_at?: string | null
           role?: Database["public"]["Enums"]["agent_role"]
           token_hash: string
@@ -587,7 +635,7 @@ export type Database = {
           email?: string
           expires_at?: string
           id?: string
-          org_id?: string
+          org_id?: string | null
           revoked_at?: string | null
           role?: Database["public"]["Enums"]["agent_role"]
           token_hash?: string
@@ -958,6 +1006,7 @@ export type Database = {
       }
       team_roster: {
         Row: {
+          auto_reminders_enabled: boolean
           created_at: string
           created_by: string
           email: string | null
@@ -971,6 +1020,7 @@ export type Database = {
           upline_id: string
         }
         Insert: {
+          auto_reminders_enabled?: boolean
           created_at?: string
           created_by: string
           email?: string | null
@@ -984,6 +1034,7 @@ export type Database = {
           upline_id: string
         }
         Update: {
+          auto_reminders_enabled?: boolean
           created_at?: string
           created_by?: string
           email?: string | null
@@ -1027,6 +1078,35 @@ export type Database = {
           },
         ]
       }
+      team_roster_reminder_log: {
+        Row: {
+          id: string
+          local_date: string
+          roster_id: string
+          sent_at: string
+        }
+        Insert: {
+          id?: string
+          local_date: string
+          roster_id: string
+          sent_at?: string
+        }
+        Update: {
+          id?: string
+          local_date?: string
+          roster_id?: string
+          sent_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_roster_reminder_log_roster_id_fkey"
+            columns: ["roster_id"]
+            isOneToOne: false
+            referencedRelation: "team_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1064,6 +1144,7 @@ export type Database = {
           p_actor_id: string
           p_agent_id: string
           p_role: Database["public"]["Enums"]["agent_role"]
+          p_org_id?: string | null
         }
         Returns: undefined
       }

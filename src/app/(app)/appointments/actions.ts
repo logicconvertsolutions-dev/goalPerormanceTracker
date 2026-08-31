@@ -60,7 +60,8 @@ export async function createAppointmentAction(formData: FormData) {
 
   const session = await requireAgent();
   const agentId = session.agent!.id;
-  const orgId = session.agent!.org_id;
+  // Non-null: only associates/leaders reach this action (admin has no org).
+  const orgId = session.agent!.org_id!;
   const supabase = await createClient();
 
   const contact = await findOrCreateContact(

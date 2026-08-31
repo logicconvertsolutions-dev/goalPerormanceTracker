@@ -199,6 +199,38 @@ export function inviteEmail(d: InviteData): EmailContent {
   };
 }
 
+export interface EmailChangeConfirmationData {
+  fullName: string;
+  adminName: string;
+  confirmUrl: string;
+}
+
+// Sent to the *new* address an admin is proposing for an agent's account —
+// proves the agent actually controls that inbox before admin_request_email_change
+// ever touches auth.users/agents.email. No agentId/unsubscribe footer: this
+// isn't a standing preference, and the recipient may not even be signed in
+// when they see it.
+export function emailChangeConfirmationEmail(d: EmailChangeConfirmationData): EmailContent {
+  const bodyHtml = `
+    <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
+    <p>${escapeHtml(d.adminName)} requested to change the email on your account to this address.
+    Confirm below to make the switch — if you weren't expecting this, ignore this email and your
+    account won't change.</p>
+    ${button(d.confirmUrl, 'Confirm email change')}
+    <p style="font-size:12px;color:${BRAND.muted};margin-top:16px;">This link expires in 7 days.</p>`;
+  const bodyText = `Hi ${firstName(d.fullName)},\n\n${d.adminName} requested to change the email on your account to this address. Confirm below to make the switch — if you weren't expecting this, ignore this email and your account won't change.\n\nConfirm email change: ${d.confirmUrl}\n\nThis link expires in 7 days.`;
+  return {
+    subject: 'Confirm your new email address',
+    html: `<div style="font-family:'Plus Jakarta Sans',-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;">
+      ${header(null)}
+      <div style="background:${BRAND.bg};padding:32px;border:1px solid #E7E2D3;border-top:none;border-radius:0 0 14px 14px;color:${BRAND.text};">
+        ${bodyHtml}
+      </div>
+    </div>`,
+    text: bodyText,
+  };
+}
+
 export interface TrainingReminderData {
   agentId: string;
   fullName: string;

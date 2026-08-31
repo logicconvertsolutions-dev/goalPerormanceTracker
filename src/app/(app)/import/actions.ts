@@ -43,6 +43,6 @@ export async function commitImportAction(
     return { ok: false, error: 'Too many imports too quickly — try again in a bit.' };
   }
 
-  const result = await commitImport(supabase, session.agent!.id, session.agent!.org_id, parseResult.rows);
+  const result = await commitImport(supabase, session.agent!.id, session.agent!.org_id!, parseResult.rows);
   return { ok: true, result };
 }

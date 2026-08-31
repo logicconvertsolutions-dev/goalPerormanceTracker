@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 // not a placeholder palette. Keep in sync with tailwind.config.ts colors.acc
 // / colors.gold if either changes.
 export const BRAND = {
-  name: 'Team Tracker',
+  name: 'Kautis',
   navy: '#0B1E3D',
   gold: '#C9A227',
   bg: '#FFFFFF',

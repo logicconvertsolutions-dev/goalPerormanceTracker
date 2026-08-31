@@ -43,11 +43,18 @@ export async function requireVerifiedAgent(): Promise<SessionAgent> {
   return session;
 }
 
-/** Leader or admin, with MFA verified (see requireVerifiedAgent). */
+/**
+ * Leader (SMD), with MFA verified (see requireVerifiedAgent). Admin used to
+ * pass this too, back when every admin belonged to an org — now that an
+ * admin isn't part of any organization, /team/* has nothing for them
+ * (org-scoped downline/roster/targets pages an org-less account can't use);
+ * their equivalent tools live under /admin/* instead, gated by
+ * requireAdmin().
+ */
 export async function requireLeader(): Promise<SessionAgent> {
   const session = await requireVerifiedAgent();
 
-  if (session.agent!.role !== 'leader' && session.agent!.role !== 'admin') {
+  if (session.agent!.role !== 'leader') {
     redirect('/dashboard?toast=team-restricted');
   }
   return session;

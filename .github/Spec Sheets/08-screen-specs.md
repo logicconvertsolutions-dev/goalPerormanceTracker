@@ -1,6 +1,6 @@
 # Screen specs — KPIs, filters, charts
 
-**Reflects the live app as of 2026-08-30.** The original P1-era version of
+**Reflects the live app as of 2026-08-31.** The original P1-era version of
 this file specified what to build; this version describes what actually got
 built, including several screens (`/logs`, `/clients`, `/notes`, all four
 `/admin/*` pages) that either didn't exist in the original spec or were only
@@ -405,12 +405,17 @@ These existed only as one-line mentions in `docs/09-account-and-auth.md`
 (or not at all) and have since grown into full screens:
 
 - **`/team/invites`, `/team/members`, `/team/organization`, `/team/audit`**
-  — SMD account/admin screens, detailed in `docs/09-account-and-auth.md`.
+  — SMD-only screens (P11: `requireLeader()` no longer admits admin),
+  detailed in `docs/09-account-and-auth.md`.
 - **`/admin/orgs`, `/admin/agents`, `/admin/audit`, `/admin/pilot`** —
   admin screens, detailed in `docs/09-account-and-auth.md`. `/admin/pilot`
   in particular is a purpose-built pilot-health dashboard (10-day active-
   logger window, 8-of-10 bar, per-org at-risk flagging) tied directly to the
-  P7 pilot instrumentation goal in `docs/06-build-phases.md`.
+  P7 pilot instrumentation goal in `docs/06-build-phases.md`. **P11, new:
+  `/admin/agents/[agentId]`** — a per-agent record page reached by clicking
+  an agent on `/admin/agents`, with a "change email" action (mails the
+  agent a confirm link; the change only applies once they click it) — see
+  `docs/09-account-and-auth.md`.
 - **`/admin/feedback`** (P10, new) — every bug/issue/feature report submitted
   via `/feedback`, unscoped across every organization (same shape as
   `/admin/audit`). One card per report: reporter name/email/org, category
@@ -418,6 +423,9 @@ These existed only as one-line mentions in `docs/09-account-and-auth.md`
   `<Select>` (New/Reviewed/Resolved) that persists immediately. `/feedback`
   itself (any role, reached from the account menu) and the Terms &
   Conditions screens (`/terms`, `/terms/accept`) are detailed in
+  `docs/09-account-and-auth.md`.
+- **`/confirm-email-change/[token]`** (P11, new) — the no-login confirm step
+  for an admin-initiated email change; detailed in
   `docs/09-account-and-auth.md`.
 
 ---

@@ -1,12 +1,14 @@
 # Security
 
-**Reflects the live state as of 2026-08-27.** The threat model and controls
+**Reflects the live state as of 2026-08-31.** The threat model and controls
 below are the original P1 design, still accurate as *intent* — what changed
 is that three real incidents matching this exact threat model were found and
 fixed in a CSO-style audit pass (P9, commit `56d42e3`) plus a fourth,
 adjacent one (commit `7bad83a`). Full precise detail on all four is in
 "Incidents found and fixed" below; that section is the reason this file
-needed a rewrite.
+needed a rewrite. A P11 note on item 1 below flags one further
+compatibility fix (not an external finding) caught while making an admin's
+`org_id` nullable.
 
 Threat model, in order of realistic likelihood:
 1. A misconfigured RLS policy exposes one agent's prospects to another agent.
@@ -147,6 +149,16 @@ entire product exists to enforce. **Fix:** each function now looks up both
 the actor's and the target's `org_id` and raises a non-distinguishing
 `'agent not found'` on mismatch (never a "wrong org" message — that would
 confirm the target exists elsewhere). Migration: `p9d`.
+
+**P11 note:** "the actor's own organization" above is historical — as of
+`p11c` an admin has no `org_id` at all (see `docs/02-data-model.md`), so
+this specific check no longer applies to the actor. The four functions'
+target-lookup pattern (`select org_id ... if v_org is null then raise
+'agent not found'`) had to be re-keyed off row existence rather than
+`org_id` presence in the same migration, since a real admin *target* row
+now legitimately has a null `org_id` — see `p11c`'s notes in
+`docs/02-data-model.md`. Not a reopened vulnerability, just a compatibility
+fix caught before it shipped.
 
 ### 2. In-org roster scope leak
 `team_roster_update`/`team_roster_delete` RLS policies, and

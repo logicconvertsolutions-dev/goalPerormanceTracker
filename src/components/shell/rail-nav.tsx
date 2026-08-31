@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { PRIMARY_NAV, SECONDARY_NAV, LEADER_NAV, type NavItem } from './nav-items';
+import { PRIMARY_NAV, SECONDARY_NAV, LEADER_NAV, ADMIN_NAV, type NavItem } from './nav-items';
 import { useLogActivityDialog } from './log-activity-dialog';
 
 function NavLink({ item, current }: { item: NavItem; current: boolean }) {
@@ -36,9 +36,25 @@ function NavLink({ item, current }: { item: NavItem; current: boolean }) {
   );
 }
 
-export function RailNav({ isLeader }: { isLeader: boolean }) {
+type AppRole = 'associate' | 'leader' | 'admin';
+
+export function RailNav({ role }: { role: AppRole }) {
   const pathname = usePathname();
-  const items = isLeader ? [...PRIMARY_NAV, LEADER_NAV] : PRIMARY_NAV;
+
+  if (role === 'admin') {
+    return (
+      <nav
+        className="hidden md:flex md:flex-col md:w-[212px] md:shrink-0 md:border-r md:border-line md:bg-bg-2 md:p-3 md:gap-1 print:hidden"
+        aria-label="Primary"
+      >
+        {ADMIN_NAV.map((item) => (
+          <NavLink key={item.href} item={item} current={pathname.startsWith(item.href)} />
+        ))}
+      </nav>
+    );
+  }
+
+  const items = role === 'leader' ? [...PRIMARY_NAV, LEADER_NAV] : PRIMARY_NAV;
 
   return (
     <nav

@@ -1,7 +1,7 @@
 # Data model, RLS, and RPCs
 
-**Reflects the live schema as of 2026-08-30, reconstructed from all 42
-migrations (`p1a` → `p10b`, see `docs/06-build-phases.md`) plus
+**Reflects the live schema as of 2026-08-31, reconstructed from all 45
+migrations (`p1a` → `p11c`, see `docs/06-build-phases.md`) plus
 `types/database.ts`.** Where the shipped schema deviates from the original
 P1 design, that's called out inline — the original design decisions below
 are still the *reasons* the schema looks this way, even where the specific
@@ -15,6 +15,16 @@ table carries `org_id`, every policy checks it, and a trigger rejects any
 correctly — `org_id` is defence in depth, plus the place to hang plan, settings,
 and billing later. One redundant check is cheap; one SMD seeing the other's
 roster ends the business.
+
+**P11 exception: admin isn't a member of any organization.** `agents.org_id`
+is nullable, but only when `role = 'admin'` — a check constraint
+(`agents_org_required_unless_admin`) still enforces "every table carries
+org_id" for associate/leader. Admin's cross-org reads were always role-gated
+(`agents_admin_read`/`organizations_admin_read` below), never
+`org_id`-scoped, so this doesn't weaken the fence above — it just stops
+admin from having a leftover org membership that never did anything.
+See "Admin is not part of any organization" in `docs/09-account-and-auth.md`
+for the full picture (nav, promotion/demotion, guards).
 
 **Hierarchy = self-FK + closure table.** `agents.upline_id` is the truth;
 `agent_closure(ancestor_id, descendant_id, depth)` is the index. A recursive CTE
@@ -75,7 +85,10 @@ create table public.organizations (
 
 create table public.agents (
   id          uuid primary key references auth.users(id) on delete cascade,
-  org_id      uuid not null references public.organizations(id) on delete restrict,
+  -- P11: nullable, but only for role = 'admin' -- see the two check
+  -- constraints below. Was `not null` in the original design; every
+  -- associate/leader still effectively requires one.
+  org_id      uuid references public.organizations(id) on delete restrict,
   full_name   text not null,
   -- NOT citext, unlike the original design: case-insensitivity is instead a
   -- functional unique index (lower(email)) plus explicit lower() at every
@@ -96,6 +109,11 @@ create table public.agents (
 );
 create unique index agents_email_uq on public.agents (lower(email));
 create index on public.agents (upline_id);
+-- P11: an admin has no org, and (as a consequence) no upline either.
+alter table public.agents add constraint agents_org_required_unless_admin
+  check (role = 'admin' or org_id is not null);
+alter table public.agents add constraint agents_admin_no_upline
+  check (org_id is not null or upline_id is null);
 create index on public.agents (org_id);
 
 -- Hard fence: an upline must live in the same organization. Unchanged since P1.
@@ -314,7 +332,10 @@ create table private.metrics_dirty (
 create table public.invitations (
   id         uuid primary key default gen_random_uuid(),
   email      citext not null,
-  org_id     uuid not null references public.organizations(id),
+  -- P11: nullable, same role-based exception as agents.org_id -- an admin
+  -- inviting another admin (create_invitation's p_role='admin' path) has no
+  -- org of their own to stamp the invitation with.
+  org_id     uuid references public.organizations(id),
   upline_id  uuid references public.agents(id) on delete cascade,   -- nullable: SMD bootstrap
   role       public.agent_role not null default 'associate',
   token_hash text not null unique,
@@ -323,6 +344,8 @@ create table public.invitations (
   revoked_at  timestamptz,             -- new: /team/invites Revoke action
   created_by uuid references public.agents(id)   -- nullable: SMD bootstrap
 );
+alter table public.invitations add constraint invitations_org_required_unless_admin
+  check (role = 'admin' or org_id is not null);
 
 create table public.audit_log (
   id         bigserial primary key,
@@ -339,7 +362,7 @@ create index on public.audit_log (org_id, created_at desc);
 
 ### Tables not in the original design
 
-Added over P2–P10, none anticipated by the original P1 schema:
+Added over P2–P11, none anticipated by the original P1 schema:
 
 - **`notification_prefs`** (P2a) — one row per agent, three booleans
   (`evening_nudge`, `sunday_summary`, `monday_digest`), all default `true`.
@@ -358,10 +381,27 @@ Added over P2–P10, none anticipated by the original P1 schema:
 - **`team_roster`** (P9b) — a new tier *before* an invitation: an SMD can list
   a prospective team member (name/email/phone/notes) with no `auth.users` or
   `agents` row yet. Carries `upline_id`, optionally links to an `invitations`
-  row once one is sent, plus `last_training_reminder_at` (P9c).
+  row once one is sent, plus `last_training_reminder_at` (P9c). **P11:** gained
+  `auto_reminders_enabled boolean not null default true` — see
+  `team_roster_reminder_log` below.
+- **`team_roster_reminder_log`** (P11a) — one row per `(roster_id,
+  local_date)`, unique-constrained, same idempotency shape as
+  `notification_log`. Backs the automatic Wednesday/Saturday reminder every
+  `team_roster` row with `auto_reminders_enabled = true` gets, independent
+  of the manual `send_roster_training_reminder()` button and its 7-day
+  cooldown. No RLS policies — cron route (service-role) only.
 - **`agent_training_reminders`** (P9b, restructured P9f) — same
   single-row-per-agent shape as `agent_nudges`, for reminding an
   already-onboarded agent to complete training.
+- **`agent_email_changes`** (P11b) — backs the admin "change an agent's
+  email" flow (`/admin/agents/[agentId]`): `agent_id`, `new_email`,
+  `token_hash` (unique), `requested_by`, `expires_at` (7 days),
+  `confirmed_at`. Same hashed-token, service-role-only shape as
+  `invitations` — no RLS policies at all, since the confirm step
+  (`/confirm-email-change/[token]`) has no `auth.uid()` session to check
+  against. The email only actually changes (both `auth.users.email` and
+  `agents.email`) once the agent confirms; see
+  `docs/09-account-and-auth.md`.
 - **`private.rate_limits`** (P6e) — general-purpose fixed-window counter
   (`rl_key`, `window_start`, `count`) backing `check_rate_limit()`. Keys off
   `auth.uid()`, never a client-supplied id. `revoke all from anon, authenticated`.
@@ -372,7 +412,12 @@ Added over P2–P10, none anticipated by the original P1 schema:
   Owner insert/select-own, plus an **admin-global** select and a
   status-only admin update (`/admin/feedback`) — same shape as
   `agents_admin_read`/`audit_admin_read`, since a feedback report is
-  operational text an agent chose to submit, not prospect PII.
+  operational text an agent chose to submit, not prospect PII. **P11:**
+  `org_id` is now nullable (an admin submitting feedback has none), using a
+  dedicated `set_org_from_agent_nullable()` trigger — every other owner-
+  scoped table (`contacts`/`call_logs`/`appointments`/`sales`/
+  `recruiting_logs`) keeps the original raising version, which is exactly
+  what stops an org-less admin from ever owning one of those rows.
 
 ---
 
@@ -424,7 +469,9 @@ true of every table listed above, including every one added since P1.
 **agents** — unchanged shape: self + downline, name/email/role/status only.
 Added since P1: `agents_admin_read` (P6d) — global select for `role = 'admin'`,
 powering `/admin/agents`, with no org filter by design (that's the point of
-being admin).
+being admin). This is exactly why P11's `agents.org_id` going nullable for
+admin didn't require touching this policy at all — it never scoped by org
+in the first place.
 
 The column-level protection (`revoke update`, `grant update (full_name)`,
 the `guard_agent_privileged_columns` trigger) is unchanged in principle, but
@@ -508,6 +555,18 @@ completed) could reach the full admin surface. The same gap existed
 independently in two hand-rolled guards on `/admin/agents` and `/admin/orgs`
 that call the service-role client directly. All three now require
 `mfaVerified` explicitly. Full detail in `docs/04-security.md`.
+
+**P11c — a not-found regression `agents.org_id` going nullable would have
+caused.** `admin_move_agent`, `admin_reactivate_agent`, `admin_hard_delete_agent`,
+and `admin_set_agent_role` all used `select org_id ... if v_org is null then
+raise 'agent not found'` as their existence check for the *target* agent —
+safe when every agent had a non-null `org_id`, but a real admin row now
+legitimately has one. Caught and fixed in the same migration that made
+`org_id` nullable, before it ever shipped as a live bug: existence is now
+checked directly (`exists (select 1 from agents where id = ...)`), not
+inferred from `org_id` being present. Same reasoning applies to
+`admin_set_agent_role`'s promotion/demotion handling described in
+`docs/09-account-and-auth.md`.
 
 ---
 

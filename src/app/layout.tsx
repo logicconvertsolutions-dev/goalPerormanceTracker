@@ -4,15 +4,15 @@ import { Toaster } from '@/components/ui/sonner';
 import { ServiceWorkerRegistration } from '@/components/shell/service-worker-registration';
 
 export const metadata: Metadata = {
-  title: 'Performance Tracker',
-  description: 'Performance management tool for WFG Associates',
+  title: 'Kautis',
+  description: 'From action to achievement — Kautis performance tracker for WFG Associates',
   appleWebApp: {
     capable: true,
     // 'default' renders dark status-bar content on the page's own light
     // background. 'black-translucent' (the old dark-theme setting) forces
     // an opaque black overlay strip on a light canvas.
     statusBarStyle: 'default',
-    title: 'Tracker',
+    title: 'Kautis',
   },
 };
 

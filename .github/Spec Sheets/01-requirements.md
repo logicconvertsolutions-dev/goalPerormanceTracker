@@ -1,7 +1,7 @@
 # Requirements
 
 **Entities and user stories below matched the pre-P1 plan; the product has
-since shipped through P9 (`docs/06-build-phases.md`) with the schema
+since shipped through P11 (`docs/06-build-phases.md`) with the schema
 described in `docs/02-data-model.md` and the screens in
 `docs/08-screen-specs.md`. This file's Objective, Roles, and out-of-scope
 list are still accurate; the Entities section has drifted in specific,
@@ -31,6 +31,12 @@ the spreadsheet does for everyone except its author.
 | `associate` | own records | log activity, own dashboard, own targets view |
 | `leader` (SMD) | own subtree, own org | everything an associate has, plus team roster, team rollups, filter-by-agent daily/weekly drill-down, invite into own subtree |
 | `admin` (you) | all orgs | user lifecycle, audit log, hierarchy repair, org provisioning |
+
+**P11: "all orgs" scope means admin acts *across* every org, not that admin
+belongs to one** — `agents.org_id` is now `null` for every admin account
+(previously it held whatever org they happened to come from, a leftover
+that put them inside that org's own hierarchy). See
+`docs/09-account-and-auth.md`'s "Admin is not part of any organization."
 
 Role = capability. Hierarchy position = scope. Organization = hard tenant fence.
 Three separate concerns; do not collapse them. Two SMD organizations run on one
