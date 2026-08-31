@@ -16,10 +16,15 @@ export default function ForgotPasswordPage() {
     startTransition(async () => {
       const supabase = createClient();
       // Always shows the same confirmation regardless of outcome — never
-      // reveals whether the address has an account.
-      await supabase.auth.resetPasswordForEmail(email, {
+      // reveals whether the address has an account. Real failures (rate
+      // limit, misconfigured email provider) are still logged so they don't
+      // vanish silently.
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
+      if (error) {
+        console.error('[forgot-password] resetPasswordForEmail failed:', error.message);
+      }
       setSent(true);
     });
   }
@@ -31,6 +36,9 @@ export default function ForgotPasswordPage() {
         <p className="text-sm text-fg-2">
           If that email has an account, we&apos;ve sent a link to reset your password.
         </p>
+        <a href="/login" className="block text-sm text-acc hover:underline">
+          Back to sign in
+        </a>
       </div>
     );
   }

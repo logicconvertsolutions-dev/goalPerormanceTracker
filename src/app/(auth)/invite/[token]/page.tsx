@@ -104,7 +104,7 @@ export default async function InvitePage({
     <div className="space-y-6">
       <div className="space-y-2">
         <h1 className="text-xl font-semibold tracking-heading-tight text-fg">
-          {invitation.inviterName} invited you to the {invitation.orgName} on WFG Team
+          {invitation.inviterName} invited you to the {invitation.orgName} on Team
           Tracker
         </h1>
         <p className="text-sm text-fg-2">Set your name and password to get started.</p>

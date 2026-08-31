@@ -2,6 +2,7 @@
 // nudge (09-account-and-auth.md's Notifications table). Plain inline-styled
 // HTML -- no react-email or MJML dependency (CLAUDE.md rule 10).
 import { appUrl } from './app-url';
+import { BRAND } from './brand';
 import { signUnsubscribe } from './unsubscribe-token';
 import type { NotificationKind } from './window';
 
@@ -32,11 +33,22 @@ function formatMoney(cents: number): string {
   return `$${(cents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
+function button(href: string, label: string): string {
+  return `<a href="${href}" style="display:inline-block;padding:12px 24px;background:${BRAND.gold};color:${BRAND.navy};font-weight:600;text-decoration:none;border-radius:8px;margin-top:8px;">${label}</a>`;
+}
+
+function header(logoUrl: string | null | undefined): string {
+  const mark = logoUrl
+    ? `<img src="${logoUrl}" alt="${BRAND.name}" height="28" style="height:28px;max-width:160px;display:block;" />`
+    : `<span style="color:#fff;font-size:18px;font-weight:700;">${BRAND.name}</span>`;
+  return `<div style="background:${BRAND.navy};padding:20px 32px;border-radius:14px 14px 0 0;">${mark}</div>`;
+}
+
 function footer(agentId: string, kind: NotificationKind | null): { html: string; text: string } {
   const settingsUrl = appUrl('/settings');
   if (!kind) {
     return {
-      html: `<p style="margin-top:32px;font-size:12px;color:#888;">Manage your notification preferences at <a href="${settingsUrl}">${settingsUrl}</a>.</p>`,
+      html: `<p style="margin-top:32px;font-size:12px;color:${BRAND.muted};">Manage your notification preferences at <a href="${settingsUrl}" style="color:${BRAND.muted};">${settingsUrl}</a>.</p>`,
       text: `Manage your notification preferences: ${settingsUrl}`,
     };
   }
@@ -44,14 +56,25 @@ function footer(agentId: string, kind: NotificationKind | null): { html: string;
     `/unsubscribe?agent=${encodeURIComponent(agentId)}&kind=${kind}&sig=${signUnsubscribe(agentId, kind)}`
   );
   return {
-    html: `<p style="margin-top:32px;font-size:12px;color:#888;"><a href="${unsubscribeUrl}">Unsubscribe from this email</a> &middot; <a href="${settingsUrl}">Manage all notifications</a></p>`,
+    html: `<p style="margin-top:32px;font-size:12px;color:${BRAND.muted};"><a href="${unsubscribeUrl}" style="color:${BRAND.muted};">Unsubscribe from this email</a> &middot; <a href="${settingsUrl}" style="color:${BRAND.muted};">Manage all notifications</a></p>`,
     text: `Unsubscribe from this email: ${unsubscribeUrl}\nManage all notifications: ${settingsUrl}`,
   };
 }
 
-function wrap(bodyHtml: string, agentId: string, kind: NotificationKind | null): EmailContent['html'] {
+function wrap(
+  bodyHtml: string,
+  agentId: string,
+  kind: NotificationKind | null,
+  logoUrl?: string | null
+): EmailContent['html'] {
   const f = footer(agentId, kind);
-  return `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;color:#111;">${bodyHtml}${f.html}</div>`;
+  return `<div style="font-family:'Plus Jakarta Sans',-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;">
+    ${header(logoUrl)}
+    <div style="background:${BRAND.bg};padding:32px;border:1px solid #E7E2D3;border-top:none;border-radius:0 0 14px 14px;color:${BRAND.text};">
+      ${bodyHtml}
+      ${f.html}
+    </div>
+  </div>`;
 }
 
 function wrapText(bodyText: string, agentId: string, kind: NotificationKind | null): string {
@@ -63,6 +86,7 @@ export interface EveningNudgeData {
   fullName: string;
   streakDays: number;
   minCallsPerDay: number;
+  logoUrl?: string | null;
 }
 
 export function eveningNudgeEmail(d: EveningNudgeData): EmailContent {
@@ -74,11 +98,11 @@ export function eveningNudgeEmail(d: EveningNudgeData): EmailContent {
   const bodyHtml = `
     <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
     <p>You haven't logged any calls today. ${streakLine}</p>
-    <p><a href="${logUrl}" style="display:inline-block;padding:10px 16px;background:#111;color:#fff;text-decoration:none;border-radius:6px;">Log a call</a></p>`;
+    ${button(logUrl, 'Log a call')}`;
   const bodyText = `Hi ${firstName(d.fullName)},\n\nYou haven't logged any calls today. ${streakLine}\n\nLog a call: ${logUrl}`;
   return {
     subject: "You haven't logged any calls today",
-    html: wrap(bodyHtml, d.agentId, 'evening_nudge'),
+    html: wrap(bodyHtml, d.agentId, 'evening_nudge', d.logoUrl),
     text: wrapText(bodyText, d.agentId, 'evening_nudge'),
   };
 }
@@ -90,6 +114,7 @@ export interface SundaySummaryData {
   callsTarget: number;
   streakDays: number;
   followUpsDueNextWeek: number;
+  logoUrl?: string | null;
 }
 
 export function sundaySummaryEmail(d: SundaySummaryData): EmailContent {
@@ -99,11 +124,11 @@ export function sundaySummaryEmail(d: SundaySummaryData): EmailContent {
     <p>Your week: <strong>${d.callsMade} of ${d.callsTarget}</strong> calls, a
     <strong>${d.streakDays}-day</strong> streak, and
     <strong>${d.followUpsDueNextWeek}</strong> follow-up${d.followUpsDueNextWeek === 1 ? '' : 's'} due next week.</p>
-    <p><a href="${dashboardUrl}" style="display:inline-block;padding:10px 16px;background:#111;color:#fff;text-decoration:none;border-radius:6px;">View your dashboard</a></p>`;
+    ${button(dashboardUrl, 'View your dashboard')}`;
   const bodyText = `Hi ${firstName(d.fullName)},\n\nYour week: ${d.callsMade} of ${d.callsTarget} calls, a ${d.streakDays}-day streak, and ${d.followUpsDueNextWeek} follow-up(s) due next week.\n\nView your dashboard: ${dashboardUrl}`;
   return {
     subject: 'Your week in review',
-    html: wrap(bodyHtml, d.agentId, 'sunday_summary'),
+    html: wrap(bodyHtml, d.agentId, 'sunday_summary', d.logoUrl),
     text: wrapText(bodyText, d.agentId, 'sunday_summary'),
   };
 }
@@ -116,6 +141,7 @@ export interface MondayDigestData {
   totalPremiumCents: number;
   quietAgentNames: string[];
   moverNames: string[];
+  logoUrl?: string | null;
 }
 
 export function mondayDigestEmail(d: MondayDigestData): EmailContent {
@@ -136,11 +162,11 @@ export function mondayDigestEmail(d: MondayDigestData): EmailContent {
     <p>Team so far: <strong>${d.totalCalls} of ${d.totalCallsTarget}</strong> calls,
     ${formatMoney(d.totalPremiumCents)} in premium.</p>
     <p>${quietLineHtml}${moversLineHtml ? ` ${moversLineHtml}` : ''}</p>
-    <p><a href="${teamUrl}" style="display:inline-block;padding:10px 16px;background:#111;color:#fff;text-decoration:none;border-radius:6px;">View team dashboard</a></p>`;
+    ${button(teamUrl, 'View team dashboard')}`;
   const bodyText = `Hi ${firstName(d.fullName)},\n\nTeam so far: ${d.totalCalls} of ${d.totalCallsTarget} calls, ${formatMoney(d.totalPremiumCents)} in premium.\n\n${quietLine}${moversLine ? ` ${moversLine}` : ''}\n\nView team dashboard: ${teamUrl}`;
   return {
     subject: 'Monday team digest',
-    html: wrap(bodyHtml, d.agentId, 'monday_digest'),
+    html: wrap(bodyHtml, d.agentId, 'monday_digest', d.logoUrl),
     text: wrapText(bodyText, d.agentId, 'monday_digest'),
   };
 }
@@ -149,6 +175,7 @@ export interface InviteData {
   orgName: string;
   inviterName: string;
   inviteUrl: string;
+  logoUrl?: string | null;
 }
 
 // No agentId/unsubscribe footer -- the invitee isn't an agent yet, there's
@@ -156,13 +183,18 @@ export interface InviteData {
 export function inviteEmail(d: InviteData): EmailContent {
   const bodyHtml = `
     <p>Hi,</p>
-    <p>${escapeHtml(firstName(d.inviterName))} invited you to join <strong>${escapeHtml(d.orgName)}</strong> on the team tracker.</p>
-    <p><a href="${d.inviteUrl}" style="display:inline-block;padding:10px 16px;background:#111;color:#fff;text-decoration:none;border-radius:6px;">Accept invitation</a></p>
-    <p style="font-size:12px;color:#888;">This link expires in 7 days.</p>`;
-  const bodyText = `Hi,\n\n${firstName(d.inviterName)} invited you to join ${d.orgName} on the team tracker.\n\nAccept invitation: ${d.inviteUrl}\n\nThis link expires in 7 days.`;
+    <p>${escapeHtml(firstName(d.inviterName))} invited you to join <strong>${escapeHtml(d.orgName)}</strong> on ${BRAND.name}.</p>
+    ${button(d.inviteUrl, 'Accept invitation')}
+    <p style="font-size:12px;color:${BRAND.muted};margin-top:16px;">This link expires in 7 days.</p>`;
+  const bodyText = `Hi,\n\n${firstName(d.inviterName)} invited you to join ${d.orgName} on ${BRAND.name}.\n\nAccept invitation: ${d.inviteUrl}\n\nThis link expires in 7 days.`;
   return {
     subject: `${d.inviterName} invited you to join ${d.orgName}`,
-    html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;color:#111;">${bodyHtml}</div>`,
+    html: `<div style="font-family:'Plus Jakarta Sans',-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;">
+      ${header(d.logoUrl)}
+      <div style="background:${BRAND.bg};padding:32px;border:1px solid #E7E2D3;border-top:none;border-radius:0 0 14px 14px;color:${BRAND.text};">
+        ${bodyHtml}
+      </div>
+    </div>`,
     text: bodyText,
   };
 }
@@ -171,6 +203,7 @@ export interface TrainingReminderData {
   agentId: string;
   fullName: string;
   sentByName: string;
+  logoUrl?: string | null;
 }
 
 // A distinct notification from the ad-hoc "Nudge" above — that one is about
@@ -183,11 +216,11 @@ export function trainingReminderEmail(d: TrainingReminderData): EmailContent {
   const bodyHtml = `
     <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
     <p>${escapeHtml(d.sentByName)} sent you a reminder to complete your training.</p>
-    <p><a href="${trainingUrl}" style="display:inline-block;padding:10px 16px;background:#111;color:#fff;text-decoration:none;border-radius:6px;">Open the app</a></p>`;
+    ${button(trainingUrl, 'Open the app')}`;
   const bodyText = `Hi ${firstName(d.fullName)},\n\n${d.sentByName} sent you a reminder to complete your training.\n\nOpen the app: ${trainingUrl}`;
   return {
     subject: `${d.sentByName} sent you a training reminder`,
-    html: wrap(bodyHtml, d.agentId, null),
+    html: wrap(bodyHtml, d.agentId, null, d.logoUrl),
     text: wrapText(bodyText, d.agentId, null),
   };
 }
@@ -195,6 +228,7 @@ export function trainingReminderEmail(d: TrainingReminderData): EmailContent {
 export interface RosterTrainingReminderData {
   fullName: string;
   sentByName: string;
+  logoUrl?: string | null;
 }
 
 // Same copy as trainingReminderEmail, standalone (no wrap/footer) because the
@@ -207,7 +241,12 @@ export function rosterTrainingReminderEmail(d: RosterTrainingReminderData): Emai
   const bodyText = `Hi ${firstName(d.fullName)},\n\n${d.sentByName} sent you a reminder to complete your training.`;
   return {
     subject: `${d.sentByName} sent you a training reminder`,
-    html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;color:#111;">${bodyHtml}</div>`,
+    html: `<div style="font-family:'Plus Jakarta Sans',-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;">
+      ${header(d.logoUrl)}
+      <div style="background:${BRAND.bg};padding:32px;border:1px solid #E7E2D3;border-top:none;border-radius:0 0 14px 14px;color:${BRAND.text};">
+        ${bodyHtml}
+      </div>
+    </div>`,
     text: bodyText,
   };
 }
@@ -223,11 +262,12 @@ export interface FeedbackNotificationData {
 
 // Sent to every admin when an agent submits the /feedback form. No
 // agentId/unsubscribe footer -- this is an internal admin alert, not a
-// standing per-agent notification preference.
+// standing per-agent notification preference. No org logo -- this goes to
+// app admins, not a single org's members.
 export function feedbackNotificationEmail(d: FeedbackNotificationData): EmailContent {
   const categoryLabel = d.category.replace('_', ' ');
   const pageLineHtml = d.pageUrl
-    ? `<p style="font-size:12px;color:#888;">Page: ${escapeHtml(d.pageUrl)}</p>`
+    ? `<p style="font-size:12px;color:${BRAND.muted};">Page: ${escapeHtml(d.pageUrl)}</p>`
     : '';
   const pageLineText = d.pageUrl ? `\nPage: ${d.pageUrl}` : '';
   const bodyHtml = `
@@ -239,7 +279,12 @@ export function feedbackNotificationEmail(d: FeedbackNotificationData): EmailCon
   const bodyText = `${d.reporterName} (${d.reporterEmail}) submitted a ${categoryLabel} report.\n\n${d.subject}\n\n${d.message}${pageLineText}`;
   return {
     subject: `[Feedback] ${d.subject}`,
-    html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#111;">${bodyHtml}</div>`,
+    html: `<div style="font-family:'Plus Jakarta Sans',-apple-system,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;">
+      ${header(null)}
+      <div style="background:${BRAND.bg};padding:32px;border:1px solid #E7E2D3;border-top:none;border-radius:0 0 14px 14px;color:${BRAND.text};">
+        ${bodyHtml}
+      </div>
+    </div>`,
     text: bodyText,
   };
 }
@@ -250,6 +295,7 @@ export interface NudgeData {
   sentByName: string;
   streakDays: number;
   minCallsPerDay: number;
+  logoUrl?: string | null;
 }
 
 // No unsubscribe link -- there's no standing preference to opt out of a
@@ -264,11 +310,11 @@ export function nudgeEmail(d: NudgeData): EmailContent {
   const bodyHtml = `
     <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
     <p>${escapeHtml(d.sentByName)} noticed you haven't logged anything today. ${streakLine}</p>
-    <p><a href="${logUrl}" style="display:inline-block;padding:10px 16px;background:#111;color:#fff;text-decoration:none;border-radius:6px;">Log a call</a></p>`;
+    ${button(logUrl, 'Log a call')}`;
   const bodyText = `Hi ${firstName(d.fullName)},\n\n${d.sentByName} noticed you haven't logged anything today. ${streakLine}\n\nLog a call: ${logUrl}`;
   return {
     subject: `${d.sentByName} sent you a reminder`,
-    html: wrap(bodyHtml, d.agentId, null),
+    html: wrap(bodyHtml, d.agentId, null, d.logoUrl),
     text: wrapText(bodyText, d.agentId, null),
   };
 }

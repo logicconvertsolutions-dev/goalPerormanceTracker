@@ -233,26 +233,30 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Use a production-ready SMTP server
+# Use a production-ready SMTP server. The hosted project's SMTP is
+# configured separately in the Supabase Dashboard (Authentication > Emails >
+# SMTP Settings) -- this block only affects the local CLI stack.
+# Resend's SMTP endpoint: https://resend.com/docs/send-with-smtp
 # [auth.email.smtp]
 # enabled = true
-# host = "smtp.sendgrid.net"
-# port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# host = "smtp.resend.com"
+# port = 465
+# user = "resend"
+# pass = "env(RESEND_API_KEY)"
+# admin_email = "notifications@kautis.ca"
+# sender_name = "Team Tracker"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+# Branded to match the app's navy/gold theme (src/lib/notifications/brand.ts)
+# -- production copies of these live in the Supabase Dashboard under
+# Authentication > Emails > Templates, since the hosted project doesn't read
+# this file. Keep both in sync by hand when the copy changes.
+[auth.email.template.magic_link]
+subject = "Sign in to Team Tracker"
+content_path = "./supabase/templates/magic_link.html"
 
-# Uncomment to customize notification email template
-# [auth.email.notification.password_changed]
-# enabled = true
-# subject = "Your password has been changed"
-# content_path = "./supabase/templates/password_changed_notification.html"
+[auth.email.template.recovery]
+subject = "Reset your Team Tracker password"
+content_path = "./supabase/templates/recovery.html"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.

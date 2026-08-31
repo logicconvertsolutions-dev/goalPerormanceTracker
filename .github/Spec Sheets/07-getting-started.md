@@ -181,7 +181,7 @@ list before every deploy.
 - **Env vars to set in Vercel** (see `.env.example` for the full list):
   `RESEND_API_KEY`, `NOTIFICATIONS_FROM_EMAIL`, `NOTIFICATIONS_UNSUB_SECRET`
   (`openssl rand -hex 32`), `CRON_SECRET` (also random — Vercel sends it back
-  as a bearer token automatically once set), `NEXT_PUBLIC_APP_URL`.
+  as a bearer token automatically once set), `APP_URL`.
 - **Supabase Auth → Providers → Password**: enable "Leaked password
   protection" (HaveIBeenPwned check). Flagged by the security advisor; not
   settable via SQL/migration, dashboard-only.
