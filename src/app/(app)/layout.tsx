@@ -10,14 +10,20 @@ import { LogActivityDialogProvider } from '@/components/shell/log-activity-dialo
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireAgent();
-  const isLeader = session.agent!.role === 'leader' || session.agent!.role === 'admin';
+  const role = session.agent!.role;
 
   const supabase = await createClient();
-  const { data: org } = await supabase
-    .from('organizations')
-    .select('name, logo_path')
-    .eq('id', session.agent!.org_id)
-    .maybeSingle();
+  // Admins aren't part of any organization (org_id is null) -- there's no
+  // org branding to show them, only the generic app identity below.
+  let org: { name: string; logo_path: string | null } | null = null;
+  if (role !== 'admin') {
+    const { data } = await supabase
+      .from('organizations')
+      .select('name, logo_path')
+      .eq('id', session.agent!.org_id!)
+      .maybeSingle();
+    org = data;
+  }
 
   let logoUrl: string | null = null;
   if (org?.logo_path) {
@@ -28,11 +34,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <LogActivityDialogProvider>
       <div className="flex min-h-screen bg-bg print:block">
-        <RailNav isLeader={isLeader} />
+        <RailNav role={role} />
         <div className="flex-1 flex flex-col min-w-0 print:block">
           <header className="flex items-center justify-between border-b border-line px-4 py-3 md:px-6 print:hidden">
             <Link
-              href="/today"
+              href={role === 'admin' ? '/admin/agents' : '/today'}
               className="flex min-w-0 items-center gap-2.5 text-fg-2 transition-smooth hover:text-fg"
             >
               {logoUrl ? (
@@ -47,14 +53,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 {org?.name ?? 'Performance Tracker'}
               </span>
             </Link>
-            <AccountMenu
-              fullName={session.agent!.full_name}
-              isAdmin={session.agent!.role === 'admin'}
-            />
+            <AccountMenu fullName={session.agent!.full_name} isAdmin={role === 'admin'} />
           </header>
           <main className="flex-1 px-4 py-6 pb-24 md:px-6 md:pb-6 print:p-0">{children}</main>
         </div>
-        <TabBar isLeader={isLeader} />
+        <TabBar role={role} />
         <OfflineSync />
       </div>
     </LogActivityDialogProvider>

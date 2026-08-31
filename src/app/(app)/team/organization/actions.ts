@@ -18,7 +18,7 @@ export async function updateOrgNameAction(formData: FormData) {
   const { error } = await supabase
     .from('organizations')
     .update({ name: parsed.data.name })
-    .eq('id', session.agent.org_id);
+    .eq('id', session.agent.org_id!);
 
   revalidatePath('/team/organization');
   revalidatePath('/', 'layout');
@@ -47,7 +47,7 @@ export async function uploadOrgLogoAction(formData: FormData) {
 
   const supabase = await createClient();
   const ext = file.type.split('/')[1] === 'svg+xml' ? 'svg' : file.type.split('/')[1];
-  const path = `${session.agent.org_id}/logo.${ext}`;
+  const path = `${session.agent.org_id!}/logo.${ext}`;
 
   const { error: uploadError } = await supabase.storage
     .from('org-logos')
@@ -57,7 +57,7 @@ export async function uploadOrgLogoAction(formData: FormData) {
   const { error } = await supabase
     .from('organizations')
     .update({ logo_path: path })
-    .eq('id', session.agent.org_id);
+    .eq('id', session.agent.org_id!);
 
   revalidatePath('/team/organization');
   revalidatePath('/', 'layout');

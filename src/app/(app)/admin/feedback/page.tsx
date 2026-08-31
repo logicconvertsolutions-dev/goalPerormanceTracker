@@ -15,7 +15,11 @@ export default async function AdminFeedbackPage() {
     .limit(200);
 
   const agentIds = [...new Set((reports ?? []).map((r) => r.agent_id))];
-  const orgIds = [...new Set((reports ?? []).map((r) => r.org_id))];
+  // A report from an admin (rare -- admins can submit feedback but aren't
+  // part of any organization) carries a null org_id.
+  const orgIds = [
+    ...new Set((reports ?? []).map((r) => r.org_id).filter((id): id is string => id !== null)),
+  ];
   const [{ data: agents }, { data: orgs }] = await Promise.all([
     agentIds.length > 0
       ? supabase.from('agents').select('id, full_name, email').in('id', agentIds)
@@ -37,7 +41,7 @@ export default async function AdminFeedbackPage() {
     created_at: r.created_at,
     reporterName: agentById.get(r.agent_id)?.full_name ?? 'Unknown',
     reporterEmail: agentById.get(r.agent_id)?.email ?? '',
-    orgName: orgNameById.get(r.org_id) ?? null,
+    orgName: (r.org_id ? orgNameById.get(r.org_id) : null) ?? null,
   }));
 
   return (

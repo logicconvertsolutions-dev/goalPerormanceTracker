@@ -13,7 +13,7 @@ export default async function OrganizationSettingsPage() {
   const { data: org } = await supabase
     .from('organizations')
     .select('name, logo_path')
-    .eq('id', session.agent!.org_id)
+    .eq('id', session.agent!.org_id!)
     .maybeSingle();
 
   let logoUrl: string | null = null;

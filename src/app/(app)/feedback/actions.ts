@@ -48,11 +48,12 @@ export async function submitFeedbackAction(formData: FormData): Promise<SubmitFe
   // the submit look like it failed (same pattern as nudgeAgentAction).
   try {
     const admin = createAdminClient();
-    const { data: admins } = await admin
+    const { data: admins, error: adminsError } = await admin
       .from('agents')
       .select('email')
       .eq('role', 'admin')
       .eq('status', 'active');
+    if (adminsError) throw adminsError;
 
     if (admins && admins.length > 0) {
       const content = feedbackNotificationEmail({
@@ -63,11 +64,19 @@ export async function submitFeedbackAction(formData: FormData): Promise<SubmitFe
         message: parsed.data.message,
         pageUrl: parsed.data.pageUrl ?? null,
       });
-      await Promise.all(
+      // allSettled, not all -- one admin with a bad/bouncing address must not
+      // sink delivery to every other admin (Promise.all rejects the whole
+      // batch on the first failure).
+      const results = await Promise.allSettled(
         admins.map((a) =>
           sendEmail({ to: a.email, subject: content.subject, html: content.html, text: content.text })
         )
       );
+      results.forEach((r, i) => {
+        if (r.status === 'rejected') {
+          console.error(`[feedback] failed to notify admin ${admins[i].email}`, r.reason);
+        }
+      });
     }
   } catch (err) {
     console.error('[feedback] failed to notify admins', err);
