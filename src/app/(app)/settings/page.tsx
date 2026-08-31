@@ -12,15 +12,22 @@ import { DataActions } from './data-actions';
 export default async function SettingsPage() {
   const session = await requireVerifiedAgent();
   const supabase = await createClient();
+  // Admins aren't part of any organization and don't log activity of their
+  // own (see docs/09-account-and-auth.md) -- they have no target to resolve
+  // and never receive the evening-nudge/summary/digest emails these two
+  // cards are about, so skip both the fetches and the sections entirely.
+  const isAdmin = session.agent!.role === 'admin';
 
-  const [{ data: target }, { data: prefs }] = await Promise.all([
-    supabase.rpc('my_target', { p_week: weekStart(new Date()) }),
-    supabase
-      .from('notification_prefs')
-      .select('*')
-      .eq('agent_id', session.userId)
-      .maybeSingle(),
-  ]);
+  const [{ data: target }, { data: prefs }] = isAdmin
+    ? [{ data: null }, { data: null }]
+    : await Promise.all([
+        supabase.rpc('my_target', { p_week: weekStart(new Date()) }),
+        supabase
+          .from('notification_prefs')
+          .select('*')
+          .eq('agent_id', session.userId)
+          .maybeSingle(),
+      ]);
 
   const t = target?.[0] ?? null;
 
@@ -28,57 +35,61 @@ export default async function SettingsPage() {
     <div className="space-y-4 max-w-lg">
       <PageHeader title="Settings" />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Your goals</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-xs text-fg-3 mb-3">Set by your SMD</p>
-          {t ? (
-            <dl className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <dt className="text-fg-3">Calls / week</dt>
-                <dd className="font-mono tabular-nums text-fg">{t.calls_per_week}</dd>
-              </div>
-              <div>
-                <dt className="text-fg-3">Appts held / week</dt>
-                <dd className="font-mono tabular-nums text-fg">
-                  {t.appts_held_per_week}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-fg-3">Premium / week</dt>
-                <dd className="font-mono tabular-nums text-fg">
-                  ${(t.premium_cents_per_week / 100).toFixed(0)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-fg-3">Min calls / day</dt>
-                <dd className="font-mono tabular-nums text-fg">
-                  {t.min_calls_per_day}
-                </dd>
-              </div>
-            </dl>
-          ) : (
-            <p className="text-sm text-fg-3">No goal set yet.</p>
-          )}
-        </CardContent>
-      </Card>
+      {!isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Your goals</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-fg-3 mb-3">Set by your SMD</p>
+            {t ? (
+              <dl className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <dt className="text-fg-3">Calls / week</dt>
+                  <dd className="font-mono tabular-nums text-fg">{t.calls_per_week}</dd>
+                </div>
+                <div>
+                  <dt className="text-fg-3">Appts held / week</dt>
+                  <dd className="font-mono tabular-nums text-fg">
+                    {t.appts_held_per_week}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-fg-3">Premium / week</dt>
+                  <dd className="font-mono tabular-nums text-fg">
+                    ${(t.premium_cents_per_week / 100).toFixed(0)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-fg-3">Min calls / day</dt>
+                  <dd className="font-mono tabular-nums text-fg">
+                    {t.min_calls_per_day}
+                  </dd>
+                </div>
+              </dl>
+            ) : (
+              <p className="text-sm text-fg-3">No goal set yet.</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Notifications</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <NotificationToggles
-            initial={{
-              eveningNudge: prefs?.evening_nudge ?? true,
-              sundaySummary: prefs?.sunday_summary ?? true,
-              mondayDigest: prefs?.monday_digest ?? true,
-            }}
-          />
-        </CardContent>
-      </Card>
+      {!isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Notifications</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <NotificationToggles
+              initial={{
+                eveningNudge: prefs?.evening_nudge ?? true,
+                sundaySummary: prefs?.sunday_summary ?? true,
+                mondayDigest: prefs?.monday_digest ?? true,
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

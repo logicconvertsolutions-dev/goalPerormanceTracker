@@ -12,6 +12,8 @@ import {
   ScrollText,
   Gauge,
   MessageSquareWarning,
+  HelpCircle,
+  Megaphone,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -49,4 +51,12 @@ export const ADMIN_NAV: NavItem[] = [
   { href: '/admin/audit', label: 'Audit', icon: ScrollText },
   { href: '/admin/pilot', label: 'Pilot', icon: Gauge },
   { href: '/admin/feedback', label: 'Feedback', icon: MessageSquareWarning },
+  { href: '/admin/announcements', label: 'Announcements', icon: Megaphone },
 ];
+
+// Guided walkthrough of the app's major functionality — reachable by every
+// role (including admin, who gets none of PRIMARY_NAV/SECONDARY_NAV/
+// LEADER_NAV). No room on the mobile tab bar for a 6th/7th slot (same
+// constraint SECONDARY_NAV already documents), so this lives in the rail
+// nav's footer and the account menu, not TabBar.
+export const HELP_NAV: NavItem = { href: '/help', label: 'How to', icon: HelpCircle };

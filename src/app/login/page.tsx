@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { Target, ClipboardCheck, BarChart3, PieChart, TrendingUp, ShieldCheck } from 'lucide-react';
 import { KautisMark } from '@/components/shell/kautis-logo';
+import { formatVersion } from '@/lib/version';
 import { LoginForm } from './login-form';
 
 const STEPS = [
@@ -108,6 +109,7 @@ export default function LoginPage() {
           <Suspense>
             <LoginForm />
           </Suspense>
+          <p className="mt-8 text-center text-[11px] text-fg-4">{formatVersion()}</p>
         </div>
       </div>
     </div>

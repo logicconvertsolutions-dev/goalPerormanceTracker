@@ -20,7 +20,7 @@ export default function ForgotPasswordPage() {
       // limit, misconfigured email provider) are still logged so they don't
       // vanish silently.
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
       });
       if (error) {
         console.error('[forgot-password] resetPasswordForEmail failed:', error.message);

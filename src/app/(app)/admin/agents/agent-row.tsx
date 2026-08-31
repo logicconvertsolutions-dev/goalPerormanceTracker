@@ -86,7 +86,7 @@ export function AgentRow({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <Select value={role} onValueChange={(v) => setRole(v as AgentRole)} disabled={pending}>
         <SelectTrigger className="h-8 w-28 text-xs">
           <SelectValue placeholder="Role" />

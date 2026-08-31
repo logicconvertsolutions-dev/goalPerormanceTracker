@@ -136,6 +136,7 @@ export async function GET(request: Request) {
           subject: composed.content.subject,
           html: composed.content.html,
           text: composed.content.text,
+          unsubscribeUrl: composed.content.unsubscribeUrl,
         });
         sent += 1;
       }

@@ -1,6 +1,7 @@
 'use server';
 
 import { z } from 'zod';
+import { revalidatePath } from 'next/cache';
 import { getSessionAgent } from '@/lib/auth/session';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/notifications/send';
@@ -60,5 +61,55 @@ export async function provisionOrgAction(
     }
   }
 
+  return { ok: true };
+}
+
+const deleteSchema = z.object({
+  orgId: z.string().uuid(),
+  orgName: z.string().min(1),
+});
+
+export async function deleteOrgAction(
+  input: z.infer<typeof deleteSchema>
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await getSessionAgent();
+  if (!session?.agent || session.agent.role !== 'admin') {
+    return { ok: false, error: 'Admin access required.' };
+  }
+  if (!session.mfaVerified) {
+    return { ok: false, error: 'MFA verification required.' };
+  }
+
+  const parsed = deleteSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'Check the form fields.' };
+
+  const admin = createAdminClient();
+
+  // Confirm the caller actually knows which org this is (matches the
+  // hard-delete-agent confirm-by-typing-the-name pattern in /admin/agents)
+  // before touching anything irreversible.
+  const { data: org } = await admin
+    .from('organizations')
+    .select('name, logo_path')
+    .eq('id', parsed.data.orgId)
+    .maybeSingle();
+  if (!org || org.name !== parsed.data.orgName) {
+    return { ok: false, error: 'Organization name does not match.' };
+  }
+
+  const { error } = await admin.rpc('admin_delete_org', {
+    p_actor_id: session.agent!.id,
+    p_org_id: parsed.data.orgId,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  // Best-effort: the DB delete already succeeded, an orphaned logo object
+  // left in storage is a cleanup nicety, not a correctness issue worth
+  // failing the whole action over.
+  if (org.logo_path) {
+    await admin.storage.from('org-logos').remove([org.logo_path]);
+  }
+
+  revalidatePath('/admin/orgs');
   return { ok: true };
 }
