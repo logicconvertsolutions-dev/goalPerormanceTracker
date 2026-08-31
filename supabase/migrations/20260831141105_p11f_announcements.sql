@@ -1,4 +1,4 @@
--- P11e: admin can publish a platform-wide announcement (upcoming update,
+-- P11f: admin can publish a platform-wide announcement (upcoming update,
 -- new feature) that every signed-in user sees, in-app, until they dismiss
 -- it. Deliberately NOT org_id-scoped -- CLAUDE.md rule 7 ("every table
 -- carries org_id") exists to keep prospect PII from crossing tenants; an
@@ -39,7 +39,7 @@ create policy announcement_dismissals_own on public.announcement_dismissals for 
 
 -- Writes go through service-role RPCs (same pattern as admin_move_agent /
 -- admin_reactivate_agent / admin_hard_delete_agent / admin_delete_org,
--- p6a/p11d) so every publish/retract gets an audit_log row -- there is no
+-- p6a/p11e) so every publish/retract gets an audit_log row -- there is no
 -- authenticated-role INSERT/UPDATE policy on public.announcements at all.
 create or replace function public.admin_create_announcement(p_actor_id uuid, p_message text)
 returns uuid language plpgsql security definer set search_path = '' as $$

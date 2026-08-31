@@ -1177,6 +1177,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_create_announcement: {
+        Args: { p_actor_id: string; p_message: string }
+        Returns: string
+      }
       admin_daily_active_loggers: {
         Args: { p_days?: number }
         Returns: {
@@ -1187,10 +1191,6 @@ export type Database = {
           org_id: string
           org_name: string
         }[]
-      }
-      admin_create_announcement: {
-        Args: { p_actor_id: string; p_message: string }
-        Returns: string
       }
       admin_delete_org: {
         Args: { p_actor_id: string; p_org_id: string }
@@ -1216,13 +1216,17 @@ export type Database = {
         Args: {
           p_actor_id: string
           p_agent_id: string
+          p_org_id?: string
           p_role: Database["public"]["Enums"]["agent_role"]
-          p_org_id?: string | null
         }
         Returns: undefined
       }
       admin_set_announcement_active: {
-        Args: { p_actor_id: string; p_announcement_id: string; p_active: boolean }
+        Args: {
+          p_active: boolean
+          p_actor_id: string
+          p_announcement_id: string
+        }
         Returns: undefined
       }
       agent_aggregate: {

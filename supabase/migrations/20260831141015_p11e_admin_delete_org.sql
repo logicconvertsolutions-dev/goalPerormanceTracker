@@ -1,4 +1,4 @@
--- P11d: /admin/orgs — delete an organization outright (admin request only).
+-- P11e: /admin/orgs — delete an organization outright (admin request only).
 -- Genuinely irreversible: every agent in the org, everything hanging off
 -- their agent_id (contacts, call_logs, appointments, sales, recruiting_logs,
 -- daily_metrics, feedback, notification_prefs, agent_nudges, notification_log,
