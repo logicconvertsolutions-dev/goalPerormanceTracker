@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { Mail, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -105,28 +106,42 @@ export function LoginForm() {
         <form onSubmit={handlePasswordSignIn} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
+            <div className="relative">
+              <Mail
+                className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-fg-4"
+                aria-hidden="true"
+              />
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                required
+                className="pl-10"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <div className="relative">
+              <Lock
+                className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-fg-4"
+                aria-hidden="true"
+              />
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                className="pl-10"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
           </div>
           {error && <p className="text-sm text-bad">{error}</p>}
-          <Button type="submit" variant="primary" className="w-full" disabled={pending}>
+          <Button type="submit" variant="primary" size="lg" className="w-full" disabled={pending}>
             {pending ? 'Signing in…' : 'Sign in'}
           </Button>
           <div className="flex items-center justify-between text-sm">
@@ -149,17 +164,24 @@ export function LoginForm() {
         <form onSubmit={handleMagicLink} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="magic-email">Email</Label>
-            <Input
-              id="magic-email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
+            <div className="relative">
+              <Mail
+                className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-fg-4"
+                aria-hidden="true"
+              />
+              <Input
+                id="magic-email"
+                type="email"
+                autoComplete="email"
+                required
+                className="pl-10"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
           </div>
           {error && <p className="text-sm text-bad">{error}</p>}
-          <Button type="submit" variant="primary" className="w-full" disabled={pending}>
+          <Button type="submit" variant="primary" size="lg" className="w-full" disabled={pending}>
             {pending ? 'Sending…' : 'Send sign-in link'}
           </Button>
           <button

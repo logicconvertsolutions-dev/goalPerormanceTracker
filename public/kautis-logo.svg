@@ -1,0 +1,13 @@
+<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="kautisMarkGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6FA0FF"/>
+      <stop offset="100%" stop-color="#1E3FA8"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="100" rx="22" fill="#0B1E3D"/>
+  <path
+    d="M30 20h13v24l25-24h16L57 47l30 33H71L47 53v27H30V20z"
+    fill="url(#kautisMarkGradient)"
+  />
+</svg>

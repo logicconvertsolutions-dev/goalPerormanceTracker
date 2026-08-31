@@ -7,6 +7,7 @@ import { TabBar } from '@/components/shell/tab-bar';
 import { AccountMenu } from '@/components/shell/account-menu';
 import { OfflineSync } from '@/components/shell/offline-sync';
 import { LogActivityDialogProvider } from '@/components/shell/log-activity-dialog';
+import { KautisMark } from '@/components/shell/kautis-logo';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireAgent();
@@ -41,16 +42,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               href={role === 'admin' ? '/admin/agents' : '/today'}
               className="flex min-w-0 items-center gap-2.5 text-fg-2 transition-smooth hover:text-fg"
             >
+              {/* Small Kautis mark -- represents the platform without
+                  competing with the org's own identity, which stays primary
+                  (logo/name below, unchanged from before). */}
+              <KautisMark size={22} className="shrink-0" />
+              {role !== 'admin' && <span className="h-6 w-px shrink-0 bg-line" aria-hidden="true" />}
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={logoUrl} alt="" className="h-11 w-11 shrink-0 rounded-sm object-contain" />
-              ) : (
+              ) : role !== 'admin' ? (
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-sm bg-acc text-gold">
                   <Target className="h-5 w-5" aria-hidden="true" />
                 </span>
-              )}
+              ) : null}
               <span className="truncate text-lg font-semibold tracking-tight text-gold-dark">
-                {org?.name ?? 'Performance Tracker'}
+                {org?.name ?? 'Kautis'}
               </span>
             </Link>
             <AccountMenu fullName={session.agent!.full_name} isAdmin={role === 'admin'} />

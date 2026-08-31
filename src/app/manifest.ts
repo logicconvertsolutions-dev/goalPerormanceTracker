@@ -5,9 +5,9 @@ import type { MetadataRoute } from 'next';
 // legacy prototype living there is off-limits without asking).
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Performance Tracker',
-    short_name: 'Tracker',
-    description: 'Callback queue and activity tracker for WFG teams.',
+    name: 'Kautis',
+    short_name: 'Kautis',
+    description: 'From action to achievement — callback queue and activity tracker for WFG teams.',
     start_url: '/today',
     display: 'standalone',
     background_color: '#F7F5EF',
