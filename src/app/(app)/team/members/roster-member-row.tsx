@@ -16,6 +16,7 @@ export interface RosterMember {
   email: string | null;
   phone: string | null;
   invitation_id: string | null;
+  auto_reminders_enabled: boolean;
 }
 
 export function RosterMemberRow({ member }: { member: RosterMember }) {
@@ -62,6 +63,11 @@ export function RosterMemberRow({ member }: { member: RosterMember }) {
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {member.invitation_id && <Badge variant="ok">Invited</Badge>}
+        {member.auto_reminders_enabled && (
+          <Badge variant="neutral" title="Automatically reminded every Wednesday and Saturday">
+            Auto: Wed &amp; Sat
+          </Badge>
+        )}
         <Button variant="soft" size="sm" disabled={pending} onClick={handleSendReminder}>
           Send reminder
         </Button>

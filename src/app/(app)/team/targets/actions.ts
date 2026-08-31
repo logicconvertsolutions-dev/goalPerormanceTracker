@@ -34,7 +34,8 @@ export async function setTargetAction(formData: FormData) {
   if (!agent) return { ok: false, error: 'Not signed in.' };
 
   const { error } = await supabase.from('targets').insert({
-    org_id: agent.org_id,
+    // Non-null: only leaders/admins-with-an-org reach this page.
+    org_id: agent.org_id!,
     agent_id: parsed.data.agentId,
     set_by: me.user!.id,
     effective_from: nextMonday(todayIso()),

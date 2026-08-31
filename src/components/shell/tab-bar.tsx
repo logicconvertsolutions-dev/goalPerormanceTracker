@@ -3,13 +3,16 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { PRIMARY_NAV, LEADER_NAV } from './nav-items';
+import { PRIMARY_NAV, LEADER_NAV, ADMIN_NAV } from './nav-items';
 import { useLogActivityDialog } from './log-activity-dialog';
 
-export function TabBar({ isLeader }: { isLeader: boolean }) {
+type AppRole = 'associate' | 'leader' | 'admin';
+
+export function TabBar({ role }: { role: AppRole }) {
   const pathname = usePathname();
   const { open: openLog } = useLogActivityDialog();
-  const items = isLeader ? [...PRIMARY_NAV, LEADER_NAV] : PRIMARY_NAV;
+  const items =
+    role === 'admin' ? ADMIN_NAV : role === 'leader' ? [...PRIMARY_NAV, LEADER_NAV] : PRIMARY_NAV;
 
   return (
     <nav

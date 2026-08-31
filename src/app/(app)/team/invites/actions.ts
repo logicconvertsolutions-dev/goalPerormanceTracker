@@ -31,8 +31,8 @@ async function sendInvite(
   const session = await getSessionAgent();
   const supabase = await createClient();
   const [{ data: org }, logoUrl] = await Promise.all([
-    supabase.from('organizations').select('name').eq('id', session!.agent!.org_id).maybeSingle(),
-    orgLogoUrl(session!.agent!.org_id),
+    supabase.from('organizations').select('name').eq('id', session!.agent!.org_id!).maybeSingle(),
+    orgLogoUrl(session!.agent!.org_id!),
   ]);
 
   const inviteUrl = appUrl(`/invite/${token}`);

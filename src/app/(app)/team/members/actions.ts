@@ -52,7 +52,7 @@ export async function addRosterMemberAction(formData: FormData) {
   const supabase = await createClient();
 
   const { error } = await supabase.from('team_roster').insert({
-    org_id: session!.agent!.org_id,
+    org_id: session!.agent!.org_id!,
     upline_id: session!.agent!.id,
     created_by: session!.agent!.id,
     full_name: parsed.data.fullName,
@@ -103,8 +103,8 @@ export async function inviteRosterMemberAction(formData: FormData) {
   if (error || !token) return { ok: false, error: error?.message ?? 'Could not send invite.' };
 
   const [{ data: org }, logoUrl] = await Promise.all([
-    supabase.from('organizations').select('name').eq('id', session!.agent!.org_id).maybeSingle(),
-    orgLogoUrl(session!.agent!.org_id),
+    supabase.from('organizations').select('name').eq('id', session!.agent!.org_id!).maybeSingle(),
+    orgLogoUrl(session!.agent!.org_id!),
   ]);
 
   const inviteUrl = appUrl(`/invite/${token}`);
@@ -124,7 +124,7 @@ export async function inviteRosterMemberAction(formData: FormData) {
   const { data: invitation } = await supabase
     .from('invitations')
     .select('id')
-    .eq('org_id', session!.agent!.org_id)
+    .eq('org_id', session!.agent!.org_id!)
     .eq('email', email)
     .is('accepted_at', null)
     .is('revoked_at', null)

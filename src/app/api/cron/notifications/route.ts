@@ -3,7 +3,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { agentsDueNow, type AgentForEligibility } from '@/lib/notifications/eligibility';
 import { composeEveningNudge, composeSundaySummary, composeMondayDigest } from '@/lib/notifications/compose';
 import { sendEmail } from '@/lib/notifications/send';
-import type { EmailContent } from '@/lib/notifications/templates';
+import { rosterTrainingReminderEmail, type EmailContent } from '@/lib/notifications/templates';
+import { isRosterReminderWindow, localParts, resolveTimeZone } from '@/lib/notifications/window';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,12 +28,18 @@ export async function GET(request: Request) {
   const admin = createAdminClient();
   const now = new Date();
 
+  // team_roster's Wed/Sat reminder pass is independent of the per-agent
+  // notifications below -- it must run on every invocation, not only the
+  // (much rarer) ticks where some agent also happens to be in a send
+  // window right now, so it's kicked off before either early return.
+  const rosterSentPromise = sendDueRosterReminders(admin, now);
+
   const [{ data: agents }, { data: allPrefs }] = await Promise.all([
     admin.from('agents').select('id, email, full_name, role, time_zone').eq('status', 'active'),
     admin.from('notification_prefs').select('agent_id, evening_nudge, sunday_summary, monday_digest'),
   ]);
   if (!agents || agents.length === 0) {
-    return NextResponse.json({ sent: 0, candidates: 0 });
+    return NextResponse.json({ sent: 0, candidates: 0, rosterSent: await rosterSentPromise });
   }
 
   const prefsByAgent = new Map((allPrefs ?? []).map((p) => [p.agent_id, p]));
@@ -60,7 +67,7 @@ export async function GET(request: Request) {
     loggedToday: new Set(),
   });
   if (windowMatches.length === 0) {
-    return NextResponse.json({ sent: 0, candidates: 0 });
+    return NextResponse.json({ sent: 0, candidates: 0, rosterSent: await rosterSentPromise });
   }
 
   const candidateAgentIds = Array.from(new Set(windowMatches.map((m) => m.agentId)));
@@ -137,5 +144,52 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ sent, candidates: due.length });
+  return NextResponse.json({ sent, candidates: due.length, rosterSent: await rosterSentPromise });
+}
+
+// team_roster's automatic Wed/Sat reminder (p11a) -- independent of the
+// per-agent pass above: a roster entry isn't an agent (no role, no prefs,
+// no own time_zone), so it doesn't fit agentsDueNow/kindsInWindow. Resolved
+// against the roster's upline's time zone since that's the closest "whose
+// local time" concept a login-less roster row has.
+async function sendDueRosterReminders(
+  admin: ReturnType<typeof createAdminClient>,
+  now: Date
+): Promise<number> {
+  const { data: roster } = await admin
+    .from('team_roster')
+    .select('id, full_name, email, upline_id')
+    .eq('auto_reminders_enabled', true)
+    .not('email', 'is', null);
+  if (!roster || roster.length === 0) return 0;
+
+  const uplineIds = Array.from(new Set(roster.map((r) => r.upline_id)));
+  const { data: uplines } = await admin.from('agents').select('id, full_name, time_zone').in('id', uplineIds);
+  const uplineById = new Map((uplines ?? []).map((u) => [u.id, u]));
+
+  let sent = 0;
+  for (const member of roster) {
+    if (!member.email) continue;
+    const upline = uplineById.get(member.upline_id);
+    const parts = localParts(resolveTimeZone(upline?.time_zone), now);
+    if (!isRosterReminderWindow(parts)) continue;
+
+    // Insert-first, same rate-limit-via-unique-index shape as notification_log.
+    const { error: insertError } = await admin
+      .from('team_roster_reminder_log')
+      .insert({ roster_id: member.id, local_date: parts.dateIso });
+    if (insertError) continue;
+
+    try {
+      const content = rosterTrainingReminderEmail({
+        fullName: member.full_name,
+        sentByName: upline?.full_name ?? 'Your SMD',
+      });
+      await sendEmail({ to: member.email, subject: content.subject, html: content.html, text: content.text });
+      sent += 1;
+    } catch (err) {
+      console.error(`[notifications] failed to send roster reminder to ${member.id}`, err);
+    }
+  }
+  return sent;
 }

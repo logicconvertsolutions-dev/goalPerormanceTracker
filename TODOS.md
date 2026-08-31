@@ -2,6 +2,30 @@
 
 Design debt and deferred work surfaced by review. Newest first.
 
+## 2026-08-31 — No pgTAP coverage for P11's admin/org-detachment schema changes
+
+**What:** `p11c_admin_no_org.sql` added two check constraints
+(`agents_org_required_unless_admin`, `agents_admin_no_upline`) plus a third
+on `invitations`, and `p11b_agent_email_change.sql` added
+`agent_email_changes` with no RLS policies at all (service-role only).
+None of this has pgTAP coverage — `supabase/tests/*.sql` still only covers
+the P1-era RLS/hierarchy shape, the `daily_metrics` pipeline, notifications,
+and pilot instrumentation.
+
+**Why deferred:** this pass was a documentation sync (`.github/Spec
+Sheets/*.md` brought up to date with the P11 migrations and app changes
+already shipped), not a testing pass — writing pgTAP tests is separate,
+non-trivial work (seeding an admin row, asserting the constraints reject a
+non-admin null-`org_id` insert and accept an admin one, asserting
+`agent_email_changes` is unreachable from `authenticated`).
+
+**Impact:** a future migration could silently weaken or drop either check
+constraint and nothing would catch it before it reached production.
+
+**Depends on / blocked by:** nothing technical — same shape as the existing
+RLS/hierarchy tests in `supabase/tests/001_rls_and_hierarchy.sql`, just
+scoped to the new constraints and table.
+
 ## 2026-08-27 — Playwright E2E suite was never built
 
 **What:** `playwright.config.ts` is configured and CI has a `playwright` job

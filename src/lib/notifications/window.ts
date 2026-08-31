@@ -71,3 +71,13 @@ export function kindsInWindow(parts: LocalParts): NotificationKind[] {
   }
   return kinds;
 }
+
+// team_roster's automatic training-reminder cadence (p11a) -- distinct from
+// kindsInWindow above: it's not keyed to an agent's own role/prefs, it's an
+// always-on schedule for every roster entry with auto_reminders_enabled, so
+// it isn't part of the NotificationKind union. Wed/Sat, 9am local to
+// whichever time zone the cron route resolves for that roster row (its
+// upline's, since a roster entry has none of its own).
+export function isRosterReminderWindow(parts: LocalParts): boolean {
+  return (parts.isoDow === 3 || parts.isoDow === 6) && parts.hour === 9 && parts.minute < WINDOW_MINUTES;
+}

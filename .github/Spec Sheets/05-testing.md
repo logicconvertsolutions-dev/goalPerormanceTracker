@@ -3,12 +3,18 @@
 Priority order: **RLS tests > integration > unit > E2E.** A wrong pixel is an
 annoyance; a wrong policy is a privacy incident.
 
-**Status as of 2026-08-27 — this file is the target, not a report of what's
+**Status as of 2026-08-31 — this file is the target, not a report of what's
 built.** What's actually implemented, verified against the live repo:
 - **pgTAP (§1)** — implemented and it's the one gate that's genuinely
   blocking: `supabase/tests/*.sql` (4 files) covers RLS/hierarchy, the
   `daily_metrics` pipeline, notifications, and pilot instrumentation. Runs
-  in CI as `npm run test:rls`, not `continue-on-error`.
+  in CI as `npm run test:rls`, not `continue-on-error`. **Gap: no pgTAP
+  coverage yet for P11's schema changes** — `agents_org_required_unless_admin`
+  / `agents_admin_no_upline` / `invitations_org_required_unless_admin`
+  (nothing asserts a non-admin insert with a null `org_id` is rejected, or
+  that an admin one succeeds), the `agent_email_changes` table's total lack
+  of RLS policies, or `team_roster_reminder_log`'s uniqueness constraint.
+  Worth adding before the next RLS-touching change in this area.
 - **Unit (§2, Vitest)** — partially implemented: 8 test files exist
   (`lib/metrics.test.ts`, import parsing + a golden-file test, notification
   eligibility/window/unsubscribe-token, offline submit fallback, contacts
@@ -16,6 +22,11 @@ built.** What's actually implemented, verified against the live repo:
   `lib/dates.ts` DST/streak test file was found). Runs in CI via `npm test`
   but the step is **`continue-on-error: true`** — a red vitest run does not
   currently block a merge, contrary to this file's own CI-gates line below.
+  `window.test.ts` gained coverage for P11's `isRosterReminderWindow()`
+  (Wed/Sat 09:00–09:14 local); the roster-reminder cron pass itself
+  (`sendDueRosterReminders` in the notifications cron route) has no test —
+  same gap as the rest of that route, which is exercised only by pgTAP's
+  notification tests, not a Vitest/integration test of the route handler.
 - **Integration (§3)** — not verified as a distinct suite; likely folded
   into the unit tests above rather than existing as separate Server-Action-
   against-real-DB tests.

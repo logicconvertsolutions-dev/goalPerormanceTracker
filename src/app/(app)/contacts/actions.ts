@@ -29,7 +29,7 @@ export async function createContactAction(formData: FormData) {
   const contact = await findOrCreateContact(
     supabase,
     session.agent!.id,
-    session.agent!.org_id,
+    session.agent!.org_id!,
     parsed.data.fullName,
     null,
     parsed.data.phone
@@ -78,7 +78,7 @@ export async function importDeviceContactsAction(
     const result = await findOrCreateContact(
       supabase,
       session.agent!.id,
-      session.agent!.org_id,
+      session.agent!.org_id!,
       c.fullName,
       null,
       c.phone

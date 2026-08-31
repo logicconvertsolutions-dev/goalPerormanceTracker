@@ -21,13 +21,13 @@ export default async function TeamMembersPage() {
       .order('full_name'),
     supabase
       .from('team_roster')
-      .select('id, full_name, email, phone, invitation_id')
+      .select('id, full_name, email, phone, invitation_id, auto_reminders_enabled')
       .eq('upline_id', session.userId)
       .order('full_name'),
     supabase
       .from('organizations')
       .select('name')
-      .eq('id', session.agent!.org_id)
+      .eq('id', session.agent!.org_id!)
       .maybeSingle(),
   ]);
 
@@ -49,9 +49,10 @@ export default async function TeamMembersPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-fg-3">
-            Add everyone on your team here — adding someone doesn&apos;t invite them to the app, but
-            you can send a training reminder to their email right away. Use Invite when they&apos;re
-            ready to sign in.
+            Add everyone on your team here — adding someone doesn&apos;t invite them to the app.
+            They&apos;re automatically set to get a training reminder every Wednesday and Saturday,
+            and you can also send one to their email right away. Use Invite when they&apos;re ready
+            to sign in.
           </p>
           <RosterForm />
           {pendingRoster.length > 0 && (

@@ -49,13 +49,18 @@ export function AccountMenu({
             no equivalent on the mobile tab bar — there's no room for a 5th/6th
             tab — so it needs a reachable spot on mobile. This menu is the one
             thing present on every page regardless of screen size. Hidden on
-            desktop since the rail nav already covers it there. */}
-        {SECONDARY_NAV.map((item) => (
-          <DropdownMenuItem key={item.href} asChild className="md:hidden">
-            <Link href={item.href}>{item.label}</Link>
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuSeparator className="md:hidden" />
+            desktop since the rail nav already covers it there, and for admin
+            entirely — an admin doesn't log activity of their own. */}
+        {!isAdmin && (
+          <>
+            {SECONDARY_NAV.map((item) => (
+              <DropdownMenuItem key={item.href} asChild className="md:hidden">
+                <Link href={item.href}>{item.label}</Link>
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator className="md:hidden" />
+          </>
+        )}
         <DropdownMenuItem asChild>
           <Link href="/profile">Profile</Link>
         </DropdownMenuItem>
@@ -65,26 +70,6 @@ export function AccountMenu({
         <DropdownMenuItem asChild>
           <Link href="/feedback">Send feedback</Link>
         </DropdownMenuItem>
-        {isAdmin && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/admin/orgs">Admin: Organizations</Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/admin/agents">Admin: Agents</Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/admin/audit">Admin: Audit</Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/admin/pilot">Admin: Pilot</Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/admin/feedback">Admin: Feedback</Link>
-            </DropdownMenuItem>
-          </>
-        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => startTransition(() => signOutAction())}>
           Sign out

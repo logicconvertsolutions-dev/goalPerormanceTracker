@@ -7,6 +7,11 @@ import {
   ListChecks,
   NotebookText,
   UserCheck,
+  Building2,
+  UserCog,
+  ScrollText,
+  Gauge,
+  MessageSquareWarning,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -33,3 +38,15 @@ export const SECONDARY_NAV: NavItem[] = [
 ];
 
 export const LEADER_NAV: NavItem = { href: '/team', label: 'My Team', icon: UsersRound };
+
+// An admin isn't a member of any organization and doesn't log activity of
+// their own (see docs/09-account-and-auth.md's admin screens) — none of
+// PRIMARY_NAV/SECONDARY_NAV/LEADER_NAV applies to them. This entirely
+// replaces those for an admin session instead of being appended.
+export const ADMIN_NAV: NavItem[] = [
+  { href: '/admin/orgs', label: 'Orgs', icon: Building2 },
+  { href: '/admin/agents', label: 'Agents', icon: UserCog },
+  { href: '/admin/audit', label: 'Audit', icon: ScrollText },
+  { href: '/admin/pilot', label: 'Pilot', icon: Gauge },
+  { href: '/admin/feedback', label: 'Feedback', icon: MessageSquareWarning },
+];

@@ -27,6 +27,11 @@ interface SameOrgAgent {
   fullName: string;
 }
 
+interface OrgOption {
+  id: string;
+  name: string;
+}
+
 type AgentRole = 'associate' | 'leader' | 'admin';
 
 export function AgentRow({
@@ -36,6 +41,7 @@ export function AgentRow({
   status,
   currentUplineId,
   sameOrgAgents,
+  orgs,
 }: {
   agentId: string;
   fullName: string;
@@ -43,9 +49,16 @@ export function AgentRow({
   status: 'active' | 'inactive';
   currentUplineId: string | null;
   sameOrgAgents: SameOrgAgent[];
+  // Admins aren't part of any organization (org_id/upline_id are nulled on
+  // promotion) -- moving one back to associate/leader means picking which
+  // org they rejoin, since that was deliberately discarded. Only needed to
+  // resolve that one transition; every other role change ignores it.
+  orgs?: OrgOption[];
 }) {
   const [pending, startTransition] = useTransition();
   const [confirmText, setConfirmText] = useState('');
+  const [demoteRole, setDemoteRole] = useState<AgentRole | null>(null);
+  const [demoteOrgId, setDemoteOrgId] = useState('');
 
   function move(newUplineId: string | null) {
     startTransition(async () => {
@@ -55,12 +68,21 @@ export function AgentRow({
     });
   }
 
-  function setRole(newRole: AgentRole) {
+  function applyRole(newRole: AgentRole, orgId?: string) {
     startTransition(async () => {
-      const result = await setAgentRoleAction({ agentId, role: newRole });
+      const result = await setAgentRoleAction({ agentId, role: newRole, orgId });
       if (result.ok) toast.success(`${fullName} is now ${newRole}`);
       else toast.error(result.error ?? 'Could not change role — try again');
     });
+  }
+
+  function setRole(newRole: AgentRole) {
+    if (role === 'admin' && newRole !== 'admin') {
+      setDemoteOrgId('');
+      setDemoteRole(newRole);
+      return;
+    }
+    applyRole(newRole);
   }
 
   return (
@@ -76,23 +98,25 @@ export function AgentRow({
         </SelectContent>
       </Select>
 
-      <Select
-        value={currentUplineId ?? '__none__'}
-        onValueChange={(v) => move(v === '__none__' ? null : v)}
-        disabled={pending}
-      >
-        <SelectTrigger className="h-8 w-40 text-xs">
-          <SelectValue placeholder="Upline" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="__none__">No upline (top-level)</SelectItem>
-          {sameOrgAgents.map((a) => (
-            <SelectItem key={a.id} value={a.id}>
-              {a.fullName}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {role !== 'admin' && (
+        <Select
+          value={currentUplineId ?? '__none__'}
+          onValueChange={(v) => move(v === '__none__' ? null : v)}
+          disabled={pending}
+        >
+          <SelectTrigger className="h-8 w-40 text-xs">
+            <SelectValue placeholder="Upline" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">No upline (top-level)</SelectItem>
+            {sameOrgAgents.map((a) => (
+              <SelectItem key={a.id} value={a.id}>
+                {a.fullName}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
 
       {status === 'inactive' && (
         <Button
@@ -150,6 +174,45 @@ export function AgentRow({
                 Hard-delete
               </Button>
             </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={demoteRole !== null} onOpenChange={(open) => !open && setDemoteRole(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move {fullName} out of Admin</DialogTitle>
+            <DialogDescription>
+              Admins aren&apos;t part of any organization, so leaving Admin means picking which one{' '}
+              {fullName} rejoins as {demoteRole === 'leader' ? 'Leader (SMD)' : 'Associate'}.
+            </DialogDescription>
+          </DialogHeader>
+          <Select value={demoteOrgId} onValueChange={setDemoteOrgId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Choose an organization" />
+            </SelectTrigger>
+            <SelectContent>
+              {(orgs ?? []).map((o) => (
+                <SelectItem key={o.id} value={o.id}>
+                  {o.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDemoteRole(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              disabled={pending || !demoteOrgId}
+              onClick={() => {
+                applyRole(demoteRole!, demoteOrgId);
+                setDemoteRole(null);
+              }}
+            >
+              Move
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -36,8 +36,12 @@ async function lookupInvitation(token: string): Promise<InvitationDetails> {
     };
   }
 
+  // An admin-role invitation (an existing admin inviting a new admin)
+  // carries no org_id -- admins aren't part of any organization.
   const [{ data: org }, { data: inviter }] = await Promise.all([
-    admin.from('organizations').select('name').eq('id', invitation.org_id).maybeSingle(),
+    invitation.org_id
+      ? admin.from('organizations').select('name').eq('id', invitation.org_id).maybeSingle()
+      : Promise.resolve({ data: null }),
     invitation.created_by
       ? admin.from('agents').select('full_name').eq('id', invitation.created_by).maybeSingle()
       : Promise.resolve({ data: null }),

@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Phone, CalendarDays, AlertTriangle, Plus } from 'lucide-react';
@@ -12,6 +13,12 @@ import { ActivityRow } from './activity-row';
 
 export default async function TodayPage() {
   const session = await requireVerifiedAgent();
+  // Admins have no personal "My Day" -- they don't log activity of their
+  // own (see docs/09-account-and-auth.md). Every hardcoded post-auth
+  // redirect in the app (login, magic link, MFA enrollment, terms accept,
+  // feedback submit) lands here, so this is the one place that needs to
+  // catch and reroute an admin session rather than every caller doing it.
+  if (session.agent!.role === 'admin') redirect('/admin/agents');
   const supabase = await createClient();
 
   const { data: followUps } = await supabase.rpc('my_followups');
