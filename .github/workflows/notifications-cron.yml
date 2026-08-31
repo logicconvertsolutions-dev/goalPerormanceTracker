@@ -24,12 +24,12 @@ jobs:
       # failing every 15 minutes until then, same as CI's own Supabase
       # advisor step does for its not-yet-configured secrets.
       - name: Call the notifications cron route
-        if: ${{ secrets.CRON_TARGET_URL != '' }}
+        if: ${{ env.CRON_TARGET_URL != '' }}
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          CRON_TARGET_URL: ${{ secrets.CRON_TARGET_URL }}
         run: |
           curl --fail --silent --show-error \
             --max-time 30 \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             "${CRON_TARGET_URL}"
-        env:
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          CRON_TARGET_URL: ${{ secrets.CRON_TARGET_URL }}
