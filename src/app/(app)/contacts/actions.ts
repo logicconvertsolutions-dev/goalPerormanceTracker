@@ -2,6 +2,7 @@
 
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { requireAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { findOrCreateContact, normalizePhone } from '@/lib/contacts';
@@ -155,4 +156,35 @@ export async function importDeviceContactsAction(
 
   revalidatePath('/contacts');
   return { ok: true, imported, failed };
+}
+
+/**
+ * Deletes a contact the agent owns. `contacts_own` RLS (for all, agent_id =
+ * auth.uid()) is what actually enforces ownership -- the .eq('agent_id', …)
+ * below is belt-and-suspenders so a stale/tampered id fails quietly (0 rows
+ * affected) instead of relying on RLS alone to notice.
+ *
+ * call_logs/appointments reference contact_id with `on delete cascade`, so
+ * those rows are deleted along with the contact by the database itself (the
+ * daily_metrics dirty-queue triggers on those tables fire for the cascaded
+ * deletes too, so dashboards stay correct automatically -- see
+ * 20260818132731_p1g_daily_metrics_pipeline.sql). sales/recruiting_logs
+ * reference it with `on delete set null`, so those rows survive with the
+ * link cleared rather than being deleted -- the confirmation dialog on the
+ * client only warns about the calls/appointments that actually go away.
+ */
+export async function deleteContactAction(contactId: string) {
+  const session = await requireAgent();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('contacts')
+    .delete()
+    .eq('id', contactId)
+    .eq('agent_id', session.agent!.id);
+
+  if (error) return { ok: false, error: 'Could not delete — try again.' };
+
+  revalidatePath('/contacts');
+  redirect('/contacts');
 }
