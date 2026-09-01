@@ -15,18 +15,20 @@ import {
 import { toast } from 'sonner';
 import { deleteMyAccountAction } from './actions';
 
-export function DataActions() {
+export function DataActions({ showDownloadEverything = false }: { showDownloadEverything?: boolean }) {
   const [pending, startTransition] = useTransition();
   const [confirmText, setConfirmText] = useState('');
 
   return (
     <div className="space-y-3">
-      <div>
-        <Button variant="secondary" asChild>
-          <a href="/settings/export">Download everything</a>
-        </Button>
-        <p className="text-xs text-fg-3 mt-1">JSON of everything you&apos;ve logged.</p>
-      </div>
+      {showDownloadEverything && (
+        <div>
+          <Button variant="secondary" asChild>
+            <a href="/settings/export">Download everything</a>
+          </Button>
+          <p className="text-xs text-fg-3 mt-1">JSON of everything you&apos;ve logged.</p>
+        </div>
+      )}
       <div>
         <Dialog onOpenChange={() => setConfirmText('')}>
           <DialogTrigger asChild>

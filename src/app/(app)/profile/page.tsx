@@ -1,4 +1,5 @@
 import { requireVerifiedAgent } from '@/lib/auth/guards';
+import { resolveTimeZone } from '@/lib/notifications/window';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/shell/page-header';
@@ -36,6 +37,7 @@ export default async function ProfilePage() {
                 day: 'numeric',
                 month: 'short',
                 year: 'numeric',
+                timeZone: resolveTimeZone(session.agent!.time_zone),
               })}
             </p>
           </div>

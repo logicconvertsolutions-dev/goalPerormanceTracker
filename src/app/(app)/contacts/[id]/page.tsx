@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/shell/page-header';
 import { LogActivityButton } from '@/components/shell/log-activity-button';
 import { formatDisplayDate } from '@/lib/dates';
 import { outcomeBadgeVariant } from '@/lib/call-outcomes';
+import { DeleteContactButton } from './delete-contact-button';
 
 export default async function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -50,13 +51,19 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
         title={contact.full_name}
         subtitle={contact.phone ?? undefined}
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button asChild variant="secondary" size="sm">
               <Link href={`/appointments/new?contact=${contact.id}`}>Log appointment</Link>
             </Button>
             <LogActivityButton variant="primary" size="sm" contactId={contact.id} contactName={contact.full_name}>
               Log a call
             </LogActivityButton>
+            <DeleteContactButton
+              contactId={contact.id}
+              fullName={contact.full_name}
+              callCount={calls?.length ?? 0}
+              appointmentCount={appointments?.length ?? 0}
+            />
           </div>
         }
       />

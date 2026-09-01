@@ -56,7 +56,7 @@ export default function LoginPage() {
         style={{ background: 'linear-gradient(165deg, #0B1E3D 0%, #122A54 100%)' }}
       >
         <div className="flex items-center gap-3">
-          <KautisMark size={40} />
+          <KautisMark size={40} variant="white" />
           <div>
             <div className="text-xl font-extrabold tracking-wide lg:text-[22px]">KAUTIS</div>
             <div className="text-[12.5px] font-medium text-gold">From action to achievement</div>
@@ -75,8 +75,8 @@ export default function LoginPage() {
         {/* Desktop: full circular diagram */}
         <div className="relative mx-auto hidden h-[260px] w-[260px] lg:block">
           <div className="absolute inset-[22px] rounded-full border border-dashed border-gold/30" />
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 shadow-[0_6px_18px_-4px_rgba(30,63,168,0.5)]">
-            <KautisMark size={54} className="rounded-2xl" />
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/15 bg-white/5 p-3 shadow-[0_6px_18px_-4px_rgba(30,63,168,0.5)]">
+            <KautisMark size={54} variant="white" />
           </div>
           {STEPS.map((step) => (
             <StepCircle key={step.label} {...step} />

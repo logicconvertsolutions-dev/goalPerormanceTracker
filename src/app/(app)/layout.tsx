@@ -49,19 +49,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <div className="flex min-h-screen bg-bg print:block">
         <RailNav role={role} />
         <div className="flex-1 flex flex-col min-w-0 print:block">
-          <header className="flex items-center justify-between border-b border-line px-4 py-3 md:px-6 print:hidden">
+          <header className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-bg px-4 py-3 md:px-6 print:hidden">
             <Link
               href={role === 'admin' ? '/admin/agents' : '/today'}
               className="flex min-w-0 items-center gap-2.5 text-fg-2 transition-smooth hover:text-fg"
             >
               {/* Small Kautis mark -- represents the platform without
                   competing with the org's own identity, which stays primary
-                  (logo/name below, unchanged from before). */}
-              <KautisMark size={22} className="shrink-0" />
-              {role !== 'admin' && <span className="h-6 w-px shrink-0 bg-line" aria-hidden="true" />}
+                  (logo/name below, unchanged from before). Hidden once the
+                  org has its own uploaded logo so we don't show two marks. */}
+              {!logoUrl && <KautisMark size={22} className="shrink-0" />}
+              {!logoUrl && role !== 'admin' && (
+                <span className="h-6 w-px shrink-0 bg-line" aria-hidden="true" />
+              )}
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoUrl} alt="" className="h-11 w-11 shrink-0 rounded-sm object-contain" />
+                <img src={logoUrl} alt="" className="h-14 w-14 shrink-0 rounded-sm object-contain" />
               ) : role !== 'admin' ? (
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-sm bg-acc text-gold">
                   <Target className="h-5 w-5" aria-hidden="true" />

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { DEFAULT_TIME_ZONE } from '@/lib/notifications/window';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { BackLink } from '@/components/shell/back-link';
@@ -90,7 +91,9 @@ export default async function AdminAgentDetailPage({
           </div>
           <div className="flex justify-between gap-4">
             <span className="text-fg-3">Joined</span>
-            <span className="text-fg">{new Date(agent.joined_at).toLocaleDateString('en-CA')}</span>
+            <span className="text-fg">
+              {new Date(agent.joined_at).toLocaleDateString('en-CA', { timeZone: DEFAULT_TIME_ZONE })}
+            </span>
           </div>
         </CardContent>
       </Card>
@@ -121,7 +124,8 @@ export default async function AdminAgentDetailPage({
             <p className="text-sm text-fg-2">
               Waiting on <strong>{agent.full_name}</strong> to confirm the change to{' '}
               <strong>{pending.new_email}</strong> — sent{' '}
-              {new Date(pending.created_at).toLocaleDateString('en-CA')}. They&apos;ll get another
+              {new Date(pending.created_at).toLocaleDateString('en-CA', { timeZone: DEFAULT_TIME_ZONE })}.
+              They&apos;ll get another
               chance to confirm if you send it again below.
             </p>
           ) : (
