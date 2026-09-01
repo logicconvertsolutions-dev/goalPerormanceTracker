@@ -1,6 +1,7 @@
 // Week math lives here and only here (CLAUDE.md rule). Mirrors the
 // Postgres function public.week_start(date) exactly — both must agree, or a
 // client-computed week boundary will disagree with the RPCs that use it.
+import { resolveTimeZone } from './notifications/window';
 
 /** Monday-start week boundary for the given date, as a YYYY-MM-DD string. */
 export function weekStart(date: Date): string {
@@ -35,14 +36,36 @@ export function formatFullDisplayDate(iso: string): string {
   });
 }
 
-/** Formats a timestamptz as a UTC time (e.g. "10:30 AM"). The app has no client-side
- * timezone conversion yet (dates elsewhere are UTC-rendered too), so this stays UTC
- * for consistency rather than silently guessing the viewer's zone. */
-export function formatDisplayTime(isoTimestamp: string): string {
+/**
+ * Formats a timestamptz as a local time (e.g. "10:30 AM") in the given IANA
+ * zone -- pass the viewing agent's `time_zone`. Falls back to
+ * {@link DEFAULT_TIME_ZONE} (America/New_York) when the agent hasn't set one
+ * or an invalid zone slipped through, matching the fallback the notification
+ * scheduler already uses (`resolveTimeZone` in lib/notifications/window.ts)
+ * so "the time an agent logged something" reads the same everywhere.
+ */
+export function formatDisplayTime(isoTimestamp: string, timeZone?: string | null): string {
   return new Date(isoTimestamp).toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
-    timeZone: 'UTC',
+    timeZone: resolveTimeZone(timeZone),
+  });
+}
+
+/**
+ * Formats a timestamptz as a local date+weekday (e.g. "Tue, Aug 26") in the
+ * given IANA zone -- unlike {@link formatDisplayDate}, which takes a
+ * date-only string and is intentionally UTC-locked (a `date` column has no
+ * time-of-day to convert), this takes a real timestamptz and must resolve
+ * to the viewer's zone or a timestamp near local midnight can show the
+ * wrong calendar day.
+ */
+export function formatDisplayDateTime(isoTimestamp: string, timeZone?: string | null): string {
+  return new Date(isoTimestamp).toLocaleDateString('en-CA', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone: resolveTimeZone(timeZone),
   });
 }
 

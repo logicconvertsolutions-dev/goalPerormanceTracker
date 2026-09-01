@@ -1,5 +1,6 @@
 import { requireLeader } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
+import { resolveTimeZone } from '@/lib/notifications/window';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { BackLink } from '@/components/shell/back-link';
@@ -7,7 +8,8 @@ import { InviteForm } from './invite-form';
 import { InviteRowActions } from './invite-row-actions';
 
 export default async function TeamInvitesPage() {
-  await requireLeader();
+  const session = await requireLeader();
+  const timeZone = resolveTimeZone(session.agent!.time_zone);
   const supabase = await createClient();
 
   const { data: invitations } = await supabase
@@ -55,11 +57,13 @@ export default async function TeamInvitesPage() {
                       {new Date(inv.created_at).toLocaleDateString('en-CA', {
                         day: 'numeric',
                         month: 'short',
+                        timeZone,
                       })}{' '}
                       · expires{' '}
                       {new Date(inv.expires_at).toLocaleDateString('en-CA', {
                         day: 'numeric',
                         month: 'short',
+                        timeZone,
                       })}
                     </p>
                   </div>

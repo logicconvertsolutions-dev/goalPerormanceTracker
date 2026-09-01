@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { DEFAULT_TIME_ZONE } from '@/lib/notifications/window';
 import { AcceptInviteForm } from './accept-invite-form';
 
 interface InvitationDetails {
@@ -92,6 +93,7 @@ export default async function InvitePage({
       ? new Date(invitation.expiresAt).toLocaleDateString('en-CA', {
           day: 'numeric',
           month: 'short',
+          timeZone: DEFAULT_TIME_ZONE,
         })
       : '';
     return (

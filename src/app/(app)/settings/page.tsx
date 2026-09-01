@@ -124,7 +124,7 @@ export default async function SettingsPage() {
           <CardTitle>Your data</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <DataActions />
+          <DataActions showDownloadEverything={isAdmin} />
           <div className="flex gap-3">
             <Link href="/privacy" className="text-xs text-acc hover:underline">
               Read the privacy notice

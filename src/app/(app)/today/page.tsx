@@ -120,6 +120,7 @@ export default async function TodayPage() {
                   contactName={item.contactName}
                   summary={item.summary}
                   createdAt={item.createdAt}
+                  timeZone={session.agent!.time_zone}
                 />
               ))}
             </div>
