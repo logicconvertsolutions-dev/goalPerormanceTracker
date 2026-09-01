@@ -4,6 +4,7 @@ import { useTransition } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { DEFAULT_TIME_ZONE } from '@/lib/notifications/window';
 import { setAnnouncementActiveAction } from './actions';
 
 export function AnnouncementRow({
@@ -24,7 +25,12 @@ export function AnnouncementRow({
       <div className="min-w-0">
         <p className="text-sm text-fg whitespace-pre-wrap">{message}</p>
         <p className="mt-1 text-xs text-fg-3">
-          {new Date(createdAt).toLocaleDateString('en-CA', { day: 'numeric', month: 'short', year: 'numeric' })}
+          {new Date(createdAt).toLocaleDateString('en-CA', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            timeZone: DEFAULT_TIME_ZONE,
+          })}
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-2">

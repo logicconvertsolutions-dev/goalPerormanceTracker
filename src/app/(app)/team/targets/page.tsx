@@ -2,7 +2,7 @@ import { requireLeader } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BackLink } from '@/components/shell/back-link';
-import { nextMonday, todayIso, weekStart, formatDisplayDate } from '@/lib/dates';
+import { nextMonday, todayIso, formatDisplayDate } from '@/lib/dates';
 import { TargetForm } from './target-form';
 import { AgentOverrideRow } from './agent-override-row';
 
@@ -14,17 +14,26 @@ const FALLBACK = {
 };
 
 // Org default + per-agent overrides (03-ui.md: "/team/targets, SMD-only").
+//
+// A saved goal is insert-only and always takes effect the coming Monday
+// (never mutates a past week -- see setTargetAction), so every value shown
+// here is resolved for *that* upcoming week rather than the current one.
+// Resolving for the current week instead was the original bug: a freshly
+// saved goal doesn't apply until Monday, so re-reading "this week"'s target
+// right after saving showed the still-unaffected old value (org default
+// FALLBACK on a brand new org) -- indistinguishable from the save having
+// silently failed and "reset to default", even though it succeeded.
 export default async function TeamTargetsPage() {
   const session = await requireLeader();
   const supabase = await createClient();
 
   const today = todayIso();
-  const currentWeek = weekStart(new Date(today + 'T00:00:00Z'));
-  const effectiveMonday = formatDisplayDate(nextMonday(today));
+  const upcomingWeek = nextMonday(today);
+  const effectiveMonday = formatDisplayDate(upcomingWeek);
 
   const [{ data: orgDefault }, { data: roster }] = await Promise.all([
-    supabase.rpc('team_target', { p_agent_id: session.agent!.id, p_week: currentWeek }),
-    supabase.rpc('team_week_summary', { p_week_start: currentWeek }),
+    supabase.rpc('team_target', { p_agent_id: session.agent!.id, p_week: upcomingWeek }),
+    supabase.rpc('team_week_summary', { p_week_start: upcomingWeek }),
   ]);
 
   const defaultTarget = orgDefault?.[0] ?? FALLBACK;
