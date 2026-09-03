@@ -23,7 +23,9 @@ export function AcceptInviteForm({ token, email }: { token: string; email: strin
     setError(null);
 
     startTransition(async () => {
-      const result = await acceptInvitation({ token, fullName, password, agreedToTerms: agreed });
+      const timeZone =
+        typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined;
+      const result = await acceptInvitation({ token, fullName, password, agreedToTerms: agreed, timeZone });
 
       if (!result.ok) {
         if (result.error === 'expired') {

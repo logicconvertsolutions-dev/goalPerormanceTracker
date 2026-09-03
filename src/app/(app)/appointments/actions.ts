@@ -12,6 +12,8 @@ const APPT_STATUSES = ['scheduled', 'held', 'no_show', 'rescheduled', 'cancelled
 const appointmentSchema = z.object({
   contactName: z.string().min(1, 'Enter who the appointment is with.').max(200),
   contactId: z.string().uuid().optional(),
+  // Optional even for a brand-new contact -- phone is no longer required
+  // (compliance). findOrCreateContact matches/creates by name either way.
   contactPhone: z.string().max(30).optional(),
   apptDate: z
     .string()
@@ -29,18 +31,9 @@ const appointmentSchema = z.object({
 // Postgres unique-violation error code.
 const UNIQUE_VIOLATION = '23505';
 
-// Phone is only required when creating a brand-new contact (no contactId
-// picked from the autocomplete) -- an existing contact's phone is already on
-// file. Kept separate from appointmentSchema since updateSchema below derives
-// from it via .partial(), which a refined (ZodEffects) schema doesn't support.
-const createAppointmentSchema = appointmentSchema.refine((d) => d.contactId || d.contactPhone?.trim(), {
-  message: 'Enter a phone number for a new contact.',
-  path: ['contactPhone'],
-});
-
 // P3: minimal CRUD only. Filters/summary/CSV land in P4 per docs/08-screen-specs.md.
 export async function createAppointmentAction(formData: FormData) {
-  const parsed = createAppointmentSchema.safeParse({
+  const parsed = appointmentSchema.safeParse({
     contactName: formData.get('contactName'),
     contactId: formData.get('contactId') || undefined,
     contactPhone: formData.get('contactPhone') || undefined,

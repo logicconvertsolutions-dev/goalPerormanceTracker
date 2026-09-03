@@ -68,11 +68,11 @@ export function ImportFromPhoneButton() {
       }
 
       const contacts = picked
-        .map((c) => ({ fullName: (c.name?.[0] ?? '').trim(), phone: (c.tel?.[0] ?? '').trim() }))
-        .filter((c) => c.fullName && c.phone);
+        .map((c) => ({ fullName: (c.name?.[0] ?? '').trim(), phone: (c.tel?.[0] ?? '').trim() || undefined }))
+        .filter((c) => c.fullName);
 
       if (contacts.length === 0) {
-        toast.error('None of the selected contacts had both a name and a phone number.');
+        toast.error('None of the selected contacts had a name.');
         return;
       }
 
@@ -84,7 +84,7 @@ export function ImportFromPhoneButton() {
       const skipped = picked.length - contacts.length;
       toast.success(
         `Imported ${result.imported} contact${result.imported === 1 ? '' : 's'} from your phone` +
-          (skipped > 0 ? ` (${skipped} skipped — missing name or phone)` : '')
+          (skipped > 0 ? ` (${skipped} skipped — missing name)` : '')
       );
       router.refresh();
     });

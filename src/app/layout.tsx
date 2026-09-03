@@ -14,6 +14,13 @@ export const metadata: Metadata = {
     statusBarStyle: 'default',
     title: 'Kautis',
   },
+  icons: {
+    // A real versioned path, not Next's file-convention `apple-icon` route
+    // and not just a query string -- see src/app/apple-touch-icon-v3/route.tsx
+    // for why iOS needs this to force a refetch of the home-screen icon
+    // (any time the artwork changes again, bump the folder to -v4 etc.).
+    apple: '/apple-touch-icon-v3',
+  },
 };
 
 export const viewport: Viewport = {

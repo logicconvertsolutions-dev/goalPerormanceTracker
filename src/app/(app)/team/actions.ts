@@ -9,6 +9,27 @@ import { composeNudge, composeTrainingReminder } from '@/lib/notifications/compo
 import { sendEmail } from '@/lib/notifications/send';
 
 const nudgeSchema = z.object({ agentId: z.string().uuid() });
+const setAutoNudgeSchema = z.object({ agentId: z.string().uuid(), enabled: z.boolean() });
+
+// Persistent daily version of nudgeAgentAction below (p12a) -- the cron
+// route's sendDueAutoCallNudges picks this flag up on its own, no further
+// action from the SMD required once it's on. Authorization and downline
+// scoping live entirely in set_auto_call_nudges, same shape as nudge_agent.
+export async function setAutoCallNudgesAction(agentId: string, enabled: boolean) {
+  const parsed = setAutoNudgeSchema.safeParse({ agentId, enabled });
+  if (!parsed.success) return { ok: false, message: 'Invalid agent' };
+
+  await requireLeader();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('set_auto_call_nudges', {
+    p_agent_id: parsed.data.agentId,
+    p_enabled: parsed.data.enabled,
+  });
+
+  revalidatePath('/team');
+  if (error) return { ok: false, message: error.message };
+  return { ok: true };
+}
 
 // Rate limiting and authorization live entirely in nudge_agent (leader/admin,
 // in-downline, one nudge per agent per 7 days -- 20260818234435_p5a). Once

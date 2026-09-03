@@ -14,6 +14,7 @@ import { DailyBreakdownTable } from '@/components/shell/daily-breakdown-table';
 import { RosterRow, type RosterRowData } from './roster-row';
 import { DailyGrid, type DailyGridColumn } from './daily-grid';
 import { NudgeButton } from './nudge-button';
+import { AutoNudgeToggle } from './auto-nudge-toggle';
 
 function isPeriodPreset(v: string | undefined): v is PeriodPreset {
   return !!v && (PERIOD_PRESETS as readonly string[]).includes(v);
@@ -220,11 +221,18 @@ export default async function TeamPage({
           <CardContent className="pt-4 space-y-2">
             <h2 className="text-[16px] font-semibold text-fg">Quiet — nothing logged in 7+ days</h2>
             {quietRows.map((q) => (
-              <div key={q.agent_id} className="flex items-center justify-between text-sm py-1">
+              <div key={q.agent_id} className="flex flex-wrap items-center justify-between gap-2 text-sm py-1">
                 <Link href={`/team/${q.agent_id}`} className="text-fg hover:text-acc">
                   {q.full_name}
                 </Link>
-                <NudgeButton agentId={q.agent_id} fullName={q.full_name} />
+                <div className="flex items-center gap-2">
+                  <AutoNudgeToggle
+                    agentId={q.agent_id}
+                    fullName={q.full_name}
+                    initialEnabled={q.auto_call_nudges_enabled}
+                  />
+                  <NudgeButton agentId={q.agent_id} fullName={q.full_name} />
+                </div>
               </div>
             ))}
           </CardContent>

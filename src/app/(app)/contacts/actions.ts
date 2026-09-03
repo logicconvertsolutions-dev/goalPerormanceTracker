@@ -9,12 +9,19 @@ import { findOrCreateContact, normalizePhone } from '@/lib/contacts';
 
 const createContactSchema = z.object({
   fullName: z.string().min(1, 'Enter a name.').max(200),
-  phone: z.string().min(1, 'Enter a phone number.').max(30),
+  // Phone is optional (compliance: we don't require collecting it) — an
+  // empty string from the form is normalized to undefined so it doesn't
+  // get stored as ''.
+  phone: z
+    .string()
+    .max(30)
+    .optional()
+    .transform((v) => (v?.trim() ? v.trim() : undefined)),
 });
 
 /** Manual "Add contact" entry point — every other contact today only appears
  * as a side effect of logging an activity. Reuses findOrCreateContact so the
- * same phone-first/name-fallback dedup applies here too. */
+ * same name-first/phone-fallback dedup applies here too. */
 export async function createContactAction(formData: FormData) {
   const parsed = createContactSchema.safeParse({
     fullName: formData.get('fullName'),
@@ -43,7 +50,7 @@ export async function createContactAction(formData: FormData) {
 
 const deviceContactSchema = z.object({
   fullName: z.string().min(1).max(200),
-  phone: z.string().min(1).max(30),
+  phone: z.string().max(30).optional(),
 });
 // A phone's full contact list can easily run into the thousands; the old
 // 500 cap rejected the whole import outright above that (see below for why
@@ -63,11 +70,11 @@ const INSERT_CHUNK_SIZE = 200;
  * routinely exceeded the server action's execution limit -- from the user's
  * side that reads as "gets stuck and doesn't load anything." Instead this
  * fetches the agent's existing contacts once, dedupes in memory (same
- * phone-first-then-name-fallback rule as findOrCreateContact), and inserts
+ * name-first-then-phone-fallback rule as findOrCreateContact), and inserts
  * everything new in a handful of chunked bulk inserts.
  */
 export async function importDeviceContactsAction(
-  contacts: { fullName: string; phone: string }[]
+  contacts: { fullName: string; phone?: string }[]
 ): Promise<{ ok: true; imported: number; failed: number } | { ok: false; error: string }> {
   const parsed = deviceContactsSchema.safeParse(contacts);
   if (!parsed.success) return { ok: false, error: 'No contacts to import.' };
@@ -115,26 +122,28 @@ export async function importDeviceContactsAction(
     }
     const normalizedPhone = normalizePhone(c.phone);
     const nameKey = trimmed.toLowerCase();
-    const existing = (normalizedPhone && byPhone.get(normalizedPhone)) || byName.get(nameKey);
+    // Name first -- it's the only identifier guaranteed to exist now that
+    // phone is optional. Phone is only a fallback signal for a name match miss.
+    const existing = byName.get(nameKey) || (normalizedPhone ? byPhone.get(normalizedPhone) : undefined);
 
     if (existing) {
       imported += 1;
       if (normalizedPhone && !existing.phone) {
-        backfills.push({ id: existing.id, phone: c.phone });
-        existing.phone = c.phone; // so a later dup in this same batch also sees it filled
+        backfills.push({ id: existing.id, phone: c.phone! });
+        existing.phone = c.phone!; // so a later dup in this same batch also sees it filled
       }
       continue;
     }
 
-    // De-dupe *within* this batch (two device contacts sharing a phone or
-    // name) so we don't attempt two inserts that would collide on the
-    // contacts_agent_phone_uq/contacts_agent_name_uq unique indexes.
-    if (normalizedPhone ? seenPhones.has(normalizedPhone) : seenNames.has(nameKey)) {
+    // De-dupe *within* this batch (two device contacts sharing a name or
+    // phone) so we don't attempt two inserts that would collide on the
+    // contacts_agent_name_uq/contacts_agent_phone_uq unique indexes.
+    if (seenNames.has(nameKey) || (normalizedPhone && seenPhones.has(normalizedPhone))) {
       imported += 1;
       continue;
     }
-    if (normalizedPhone) seenPhones.add(normalizedPhone);
     seenNames.add(nameKey);
+    if (normalizedPhone) seenPhones.add(normalizedPhone);
 
     toInsert.push({ agent_id: agentId, org_id: orgId, full_name: trimmed, phone: c.phone || null });
   }
