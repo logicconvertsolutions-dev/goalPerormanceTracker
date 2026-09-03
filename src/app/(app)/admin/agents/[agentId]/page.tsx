@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { DEFAULT_TIME_ZONE } from '@/lib/notifications/window';
+import { formatDisplayDateTime } from '@/lib/dates';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { BackLink } from '@/components/shell/back-link';
@@ -15,7 +15,7 @@ export default async function AdminAgentDetailPage({
   params: Promise<{ agentId: string }>;
 }) {
   const { agentId } = await params;
-  await requireAdmin();
+  const session = await requireAdmin();
   const supabase = await createClient();
   // agent_email_changes has no RLS policies at all (service-role only, same
   // lockdown as invitations' token lookup) -- the regular session client
@@ -92,7 +92,16 @@ export default async function AdminAgentDetailPage({
           <div className="flex justify-between gap-4">
             <span className="text-fg-3">Joined</span>
             <span className="text-fg">
-              {new Date(agent.joined_at).toLocaleDateString('en-CA', { timeZone: DEFAULT_TIME_ZONE })}
+              {/* joined_at is a `date` column (no time-of-day) -- locked to
+                  UTC rather than any IANA zone, since converting a
+                  date-only value through a negative-offset zone (e.g.
+                  America/*) shifts it back a calendar day. */}
+              {new Date(agent.joined_at).toLocaleDateString('en-CA', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                timeZone: 'UTC',
+              })}
             </span>
           </div>
         </CardContent>
@@ -124,7 +133,7 @@ export default async function AdminAgentDetailPage({
             <p className="text-sm text-fg-2">
               Waiting on <strong>{agent.full_name}</strong> to confirm the change to{' '}
               <strong>{pending.new_email}</strong> — sent{' '}
-              {new Date(pending.created_at).toLocaleDateString('en-CA', { timeZone: DEFAULT_TIME_ZONE })}.
+              {formatDisplayDateTime(pending.created_at, session.agent!.time_zone)}.
               They&apos;ll get another
               chance to confirm if you send it again below.
             </p>

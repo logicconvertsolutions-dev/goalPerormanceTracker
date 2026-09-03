@@ -9,7 +9,7 @@ import { createInvitationsAction } from './actions';
 export function InviteForm() {
   const [emails, setEmails] = useState('');
   const [pending, startTransition] = useTransition();
-  const [sentLinks, setSentLinks] = useState<{ email: string; inviteUrl: string }[]>([]);
+  const [sentLinks, setSentLinks] = useState<{ email: string; inviteUrl: string; emailSent: boolean }[]>([]);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -60,7 +60,10 @@ export function InviteForm() {
           </p>
           {sentLinks.map((l) => (
             <div key={l.email} className="flex items-center justify-between gap-2 text-xs">
-              <span className="text-fg-2">{l.email}</span>
+              <span className="text-fg-2">
+                {l.email}
+                {!l.emailSent && <span className="text-bad"> — email failed, share link directly</span>}
+              </span>
               <Button type="button" variant="ghost" size="sm" onClick={() => copyLink(l.inviteUrl)}>
                 Copy link
               </Button>

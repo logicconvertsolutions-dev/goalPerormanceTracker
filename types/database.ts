@@ -14,6 +14,35 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_auto_nudge_log: {
+        Row: {
+          agent_id: string
+          id: string
+          local_date: string
+          sent_at: string
+        }
+        Insert: {
+          agent_id: string
+          id?: string
+          local_date: string
+          sent_at?: string
+        }
+        Update: {
+          agent_id?: string
+          id?: string
+          local_date?: string
+          sent_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_auto_nudge_log_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_closure: {
         Row: {
           ancestor_id: string
@@ -163,6 +192,7 @@ export type Database = {
       }
       agents: {
         Row: {
+          auto_call_nudges_enabled: boolean
           created_at: string
           email: string
           full_name: string
@@ -176,6 +206,7 @@ export type Database = {
           upline_id: string | null
         }
         Insert: {
+          auto_call_nudges_enabled?: boolean
           created_at?: string
           email: string
           full_name: string
@@ -189,6 +220,7 @@ export type Database = {
           upline_id?: string | null
         }
         Update: {
+          auto_call_nudges_enabled?: boolean
           created_at?: string
           email?: string
           full_name?: string
@@ -1332,6 +1364,10 @@ export type Database = {
         Args: { p_agent_id: string }
         Returns: undefined
       }
+      set_auto_call_nudges: {
+        Args: { p_agent_id: string; p_enabled: boolean }
+        Returns: undefined
+      }
       system_effective_target: {
         Args: { p_agent_id: string; p_week: string }
         Returns: {
@@ -1404,6 +1440,7 @@ export type Database = {
         Args: { p_days?: number }
         Returns: {
           agent_id: string
+          auto_call_nudges_enabled: boolean
           days_quiet: number
           full_name: string
           last_logged_at: string
@@ -1514,12 +1551,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1543,11 +1580,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1568,11 +1605,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1593,11 +1630,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1610,11 +1647,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

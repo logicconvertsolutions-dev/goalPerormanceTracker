@@ -24,7 +24,7 @@ export default async function SalesPage({
   const session = await requireVerifiedAgent();
   const supabase = await createClient();
 
-  const today = todayIso();
+  const today = todayIso(session.agent!.time_zone);
   const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'this_week';
   const { from, to } = resolvePeriod(preset, today, params.from, params.to);
   const search = params.search?.trim() || '';

@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { agentsDueNow, type AgentForEligibility } from '@/lib/notifications/eligibility';
-import { composeEveningNudge, composeSundaySummary, composeMondayDigest } from '@/lib/notifications/compose';
+import {
+  composeEveningNudge,
+  composeSundaySummary,
+  composeMondayDigest,
+  composeNudge,
+} from '@/lib/notifications/compose';
 import { sendEmail } from '@/lib/notifications/send';
 import { rosterTrainingReminderEmail, type EmailContent } from '@/lib/notifications/templates';
-import { isRosterReminderWindow, localParts, resolveTimeZone } from '@/lib/notifications/window';
+import { isRosterReminderWindow, kindsInWindow, localParts, resolveTimeZone } from '@/lib/notifications/window';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,108 +33,216 @@ export async function GET(request: Request) {
   const admin = createAdminClient();
   const now = new Date();
 
-  // team_roster's Wed/Sat reminder pass is independent of the per-agent
-  // notifications below -- it must run on every invocation, not only the
-  // (much rarer) ticks where some agent also happens to be in a send
-  // window right now, so it's kicked off before either early return.
+  // team_roster's Wed/Sat reminder pass is independent of everything below
+  // (a different table, no shared dedup state with the per-agent passes),
+  // so it runs concurrently rather than waiting its turn.
   const rosterSentPromise = sendDueRosterReminders(admin, now);
 
   const [{ data: agents }, { data: allPrefs }] = await Promise.all([
     admin.from('agents').select('id, email, full_name, role, time_zone').eq('status', 'active'),
     admin.from('notification_prefs').select('agent_id, evening_nudge, sunday_summary, monday_digest'),
   ]);
-  if (!agents || agents.length === 0) {
-    return NextResponse.json({ sent: 0, candidates: 0, rosterSent: await rosterSentPromise });
-  }
 
   const prefsByAgent = new Map((allPrefs ?? []).map((p) => [p.agent_id, p]));
-  const eligibilityAgents: AgentForEligibility[] = agents.map((a) => {
-    const p = prefsByAgent.get(a.id);
-    return {
-      agentId: a.id,
-      role: a.role,
-      timeZone: a.time_zone,
-      prefs: {
-        eveningNudge: p?.evening_nudge ?? true,
-        sundaySummary: p?.sunday_summary ?? true,
-        mondayDigest: p?.monday_digest ?? true,
-      },
-    };
-  });
+  let sent = 0;
+  let candidates = 0;
 
-  // Pass 1: who's in their local send window right now, ignoring the two
-  // checks that need extra queries (already sent, already logged) -- that
-  // tells us exactly which notification_log / daily_metrics rows to fetch.
-  const windowMatches = agentsDueNow({
-    agents: eligibilityAgents,
-    now,
-    alreadySent: new Set(),
-    loggedToday: new Set(),
-  });
-  if (windowMatches.length === 0) {
-    return NextResponse.json({ sent: 0, candidates: 0, rosterSent: await rosterSentPromise });
-  }
+  if (agents && agents.length > 0) {
+    const eligibilityAgents: AgentForEligibility[] = agents.map((a) => {
+      const p = prefsByAgent.get(a.id);
+      return {
+        agentId: a.id,
+        role: a.role,
+        timeZone: a.time_zone,
+        prefs: {
+          eveningNudge: p?.evening_nudge ?? true,
+          sundaySummary: p?.sunday_summary ?? true,
+          mondayDigest: p?.monday_digest ?? true,
+        },
+      };
+    });
 
-  const candidateAgentIds = Array.from(new Set(windowMatches.map((m) => m.agentId)));
-  const candidateKinds = Array.from(new Set(windowMatches.map((m) => m.kind)));
-  const candidateDates = Array.from(new Set(windowMatches.map((m) => m.localDateIso)));
+    // Pass 1: who's in their local send window right now, ignoring the two
+    // checks that need extra queries (already sent, already logged) -- that
+    // tells us exactly which notification_log / daily_metrics rows to fetch.
+    const windowMatches = agentsDueNow({
+      agents: eligibilityAgents,
+      now,
+      alreadySent: new Set(),
+      loggedToday: new Set(),
+    });
 
-  const { data: existingLog } = await admin
-    .from('notification_log')
-    .select('agent_id, kind, local_date')
-    .in('agent_id', candidateAgentIds)
-    .in('kind', candidateKinds)
-    .in('local_date', candidateDates);
-  const alreadySent = new Set((existingLog ?? []).map((r) => `${r.agent_id}:${r.kind}:${r.local_date}`));
+    if (windowMatches.length > 0) {
+      const candidateAgentIds = Array.from(new Set(windowMatches.map((m) => m.agentId)));
+      const candidateKinds = Array.from(new Set(windowMatches.map((m) => m.kind)));
+      const candidateDates = Array.from(new Set(windowMatches.map((m) => m.localDateIso)));
 
-  const eveningCandidateIds = windowMatches
-    .filter((m) => m.kind === 'evening_nudge')
-    .map((m) => m.agentId);
-  const loggedToday = new Set<string>();
-  if (eveningCandidateIds.length > 0) {
-    const { data: metricsRows } = await admin
-      .from('daily_metrics')
-      .select('agent_id, activity_date, calls_made, appts_set, sales_count, recruiting_convos')
-      .in('agent_id', eveningCandidateIds)
-      .in('activity_date', candidateDates);
-    for (const row of metricsRows ?? []) {
-      const isMatch = windowMatches.some(
-        (m) => m.kind === 'evening_nudge' && m.agentId === row.agent_id && m.localDateIso === row.activity_date
-      );
-      if (!isMatch) continue;
-      const hasActivity =
-        row.calls_made > 0 || row.appts_set > 0 || row.sales_count > 0 || row.recruiting_convos > 0;
-      if (hasActivity) loggedToday.add(row.agent_id);
+      const { data: existingLog } = await admin
+        .from('notification_log')
+        .select('agent_id, kind, local_date')
+        .in('agent_id', candidateAgentIds)
+        .in('kind', candidateKinds)
+        .in('local_date', candidateDates);
+      const alreadySent = new Set((existingLog ?? []).map((r) => `${r.agent_id}:${r.kind}:${r.local_date}`));
+
+      const eveningCandidateIds = windowMatches
+        .filter((m) => m.kind === 'evening_nudge')
+        .map((m) => m.agentId);
+      const loggedToday = new Set<string>();
+      if (eveningCandidateIds.length > 0) {
+        const { data: metricsRows } = await admin
+          .from('daily_metrics')
+          .select('agent_id, activity_date, calls_made, appts_set, sales_count, recruiting_convos')
+          .in('agent_id', eveningCandidateIds)
+          .in('activity_date', candidateDates);
+        for (const row of metricsRows ?? []) {
+          const isMatch = windowMatches.some(
+            (m) => m.kind === 'evening_nudge' && m.agentId === row.agent_id && m.localDateIso === row.activity_date
+          );
+          if (!isMatch) continue;
+          const hasActivity =
+            row.calls_made > 0 || row.appts_set > 0 || row.sales_count > 0 || row.recruiting_convos > 0;
+          if (hasActivity) loggedToday.add(row.agent_id);
+        }
+      }
+
+      // Pass 2: the authoritative due list, now that alreadySent/loggedToday are known.
+      const due = agentsDueNow({ agents: eligibilityAgents, now, alreadySent, loggedToday });
+      candidates = due.length;
+
+      const agentById = new Map(agents.map((a) => [a.id, a]));
+
+      for (const item of due) {
+        // Insert-first: the unique (agent_id, kind, local_date) index is the
+        // real rate limit. Losing this race means a concurrent invocation
+        // already claimed the slot -- skip, don't double-send.
+        const { error: insertError } = await admin
+          .from('notification_log')
+          .insert({ agent_id: item.agentId, kind: item.kind, local_date: item.localDateIso });
+        if (insertError) continue;
+
+        const agent = agentById.get(item.agentId);
+        if (!agent) continue;
+
+        try {
+          let composed: { to: string; content: EmailContent } | null = null;
+          if (item.kind === 'evening_nudge') {
+            composed = await composeEveningNudge(admin, agent, item.localDateIso);
+          } else if (item.kind === 'sunday_summary') {
+            composed = await composeSundaySummary(admin, agent, item.localDateIso);
+          } else {
+            composed = await composeMondayDigest(admin, agent, item.localDateIso);
+          }
+          if (composed) {
+            await sendEmail({
+              to: composed.to,
+              subject: composed.content.subject,
+              html: composed.content.html,
+              text: composed.content.text,
+              unsubscribeUrl: composed.content.unsubscribeUrl,
+            });
+            sent += 1;
+          }
+        } catch (err) {
+          console.error(`[notifications] failed to send ${item.kind} to ${item.agentId}`, err);
+        }
+      }
     }
   }
 
-  // Pass 2: the authoritative due list, now that alreadySent/loggedToday are known.
-  const due = agentsDueNow({ agents: eligibilityAgents, now, alreadySent, loggedToday });
+  // sendDueAutoCallNudges' own dedup reads notification_log for
+  // 'evening_nudge' rows to avoid double-emailing an associate who already
+  // got the plain evening email this run -- it must run only after the loop
+  // above has finished inserting those rows this tick, not concurrently
+  // with it (racing them let an opted-in associate get both emails at 7pm).
+  const autoNudgeSent = await sendDueAutoCallNudges(admin, now, prefsByAgent);
 
-  const agentById = new Map(agents.map((a) => [a.id, a]));
-  let sent = 0;
+  return NextResponse.json({ sent, candidates, rosterSent: await rosterSentPromise, autoNudgeSent });
+}
 
-  for (const item of due) {
-    // Insert-first: the unique (agent_id, kind, local_date) index is the
-    // real rate limit. Losing this race means a concurrent invocation
-    // already claimed the slot -- skip, don't double-send.
-    const { error: insertError } = await admin
+// SMD-triggered daily "log your calls" reminder (p12a) -- distinct from
+// nudge_agent (manual, once per 7 days): a leader/admin flips
+// auto_call_nudges_enabled on for a quiet associate and this fires every
+// weekday evening from then on, no further clicks required. Reuses
+// evening_nudge's own 7pm-local/weekday window via kindsInWindow rather than
+// re-deriving it, and skips anyone who already has activity logged today
+// (same as evening_nudge), already got the plain evening_nudge email this
+// run (only reliable because the caller awaits the main per-agent loop
+// before calling this), or has turned evening_nudge off for themselves --
+// this is the same "reminder to log calls" concept from the recipient's
+// side, so it shares that one preference rather than having its own,
+// unreachable opt-out.
+async function sendDueAutoCallNudges(
+  admin: ReturnType<typeof createAdminClient>,
+  now: Date,
+  prefsByAgent: Map<string, { evening_nudge: boolean | null }>
+): Promise<number> {
+  const { data: agents } = await admin
+    .from('agents')
+    .select('id, email, full_name, time_zone, upline_id')
+    .eq('status', 'active')
+    .eq('role', 'associate')
+    .eq('auto_call_nudges_enabled', true);
+  if (!agents || agents.length === 0) return 0;
+
+  const dueAgents = agents
+    .filter((a) => (prefsByAgent.get(a.id)?.evening_nudge ?? true))
+    .filter((a) => kindsInWindow(localParts(resolveTimeZone(a.time_zone), now)).includes('evening_nudge'));
+  if (dueAgents.length === 0) return 0;
+
+  const localDateByAgent = new Map(
+    dueAgents.map((a) => [a.id, localParts(resolveTimeZone(a.time_zone), now).dateIso])
+  );
+  const dates = Array.from(new Set(localDateByAgent.values()));
+  const agentIds = dueAgents.map((a) => a.id);
+
+  const [{ data: metricsRows }, { data: eveningLog }] = await Promise.all([
+    admin
+      .from('daily_metrics')
+      .select('agent_id, activity_date, calls_made, appts_set, sales_count, recruiting_convos')
+      .in('agent_id', agentIds)
+      .in('activity_date', dates),
+    admin
       .from('notification_log')
-      .insert({ agent_id: item.agentId, kind: item.kind, local_date: item.localDateIso });
+      .select('agent_id, local_date')
+      .eq('kind', 'evening_nudge')
+      .in('agent_id', agentIds)
+      .in('local_date', dates),
+  ]);
+
+  const loggedToday = new Set(
+    (metricsRows ?? [])
+      .filter(
+        (r) =>
+          localDateByAgent.get(r.agent_id) === r.activity_date &&
+          (r.calls_made > 0 || r.appts_set > 0 || r.sales_count > 0 || r.recruiting_convos > 0)
+      )
+      .map((r) => r.agent_id)
+  );
+  const alreadyGotEveningEmail = new Set(
+    (eveningLog ?? [])
+      .filter((r) => localDateByAgent.get(r.agent_id) === r.local_date)
+      .map((r) => r.agent_id)
+  );
+
+  const uplineIds = Array.from(new Set(dueAgents.map((a) => a.upline_id).filter((id): id is string => !!id)));
+  const { data: uplines } = await admin.from('agents').select('id, full_name').in('id', uplineIds);
+  const uplineNameById = new Map((uplines ?? []).map((u) => [u.id, u.full_name]));
+
+  let sent = 0;
+  for (const agent of dueAgents) {
+    if (loggedToday.has(agent.id) || alreadyGotEveningEmail.has(agent.id)) continue;
+    const localDateIso = localDateByAgent.get(agent.id)!;
+
+    // Insert-first, same rate-limit-via-unique-index shape as notification_log.
+    const { error: insertError } = await admin
+      .from('agent_auto_nudge_log')
+      .insert({ agent_id: agent.id, local_date: localDateIso });
     if (insertError) continue;
 
-    const agent = agentById.get(item.agentId);
-    if (!agent) continue;
-
     try {
-      let composed: { to: string; content: EmailContent } | null = null;
-      if (item.kind === 'evening_nudge') {
-        composed = await composeEveningNudge(admin, agent, item.localDateIso);
-      } else if (item.kind === 'sunday_summary') {
-        composed = await composeSundaySummary(admin, agent, item.localDateIso);
-      } else {
-        composed = await composeMondayDigest(admin, agent, item.localDateIso);
-      }
+      const sentByName = (agent.upline_id && uplineNameById.get(agent.upline_id)) || 'Your SMD';
+      const composed = await composeNudge(admin, agent, sentByName, true);
       if (composed) {
         await sendEmail({
           to: composed.to,
@@ -141,11 +254,10 @@ export async function GET(request: Request) {
         sent += 1;
       }
     } catch (err) {
-      console.error(`[notifications] failed to send ${item.kind} to ${item.agentId}`, err);
+      console.error(`[notifications] failed to send auto nudge to ${agent.id}`, err);
     }
   }
-
-  return NextResponse.json({ sent, candidates: due.length, rosterSent: await rosterSentPromise });
+  return sent;
 }
 
 // team_roster's automatic Wed/Sat reminder (p11a) -- independent of the

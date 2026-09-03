@@ -2,6 +2,44 @@
 
 Design debt and deferred work surfaced by review. Newest first.
 
+## 2026-09-03 — No pgTAP coverage for P12a's auto-nudge schema; golden-file import test not re-run
+
+**What:** `20260903165109_p12a_auto_call_nudges.sql` added
+`agents.auto_call_nudges_enabled`, the `agent_auto_nudge_log` table, and the
+`set_auto_call_nudges`/`team_inactive` RPCs (the latter recreated with a new
+return column) — none of it has pgTAP coverage, same gap as the P11 entry
+below. Separately, `src/lib/import/commit-import.ts` was substantially
+rewritten this pass (bulk contact resolution + chunked activity-table
+inserts, replacing a fully sequential per-row loop) to fix large workbook
+imports timing out, and the only integration test that exercises it against
+a real database — `src/lib/import/__tests__/golden-file.test.tsx`
+(`describe.skipIf(!canRun)`) — requires a local Supabase instance
+(`supabase start`) this session didn't have running, so it was skipped, not
+re-verified against the rewrite. New unit coverage was added instead
+(`src/lib/import/commit-import.test.ts`, an in-memory fake Supabase client)
+covering the specific behaviors the rewrite changed — cross-sheet contact
+consolidation, idempotent re-import, name-first dedup — but that's not a
+substitute for the golden-file test's real assertion: that the imported
+`daily_metrics` numbers match the workbook's own Dashboard-tab formulas
+exactly.
+
+**Why deferred:** pgTAP tests are separate, non-trivial work (same reasoning
+as the P11 entry). The golden-file test needs a running local Supabase
+stack, unavailable in this session's sandbox.
+
+**Impact:** a future migration could silently weaken the new
+`auto_call_nudges_enabled`/`agent_auto_nudge_log` shape and nothing would
+catch it. More importantly, run `npx vitest run src/lib/import/__tests__/golden-file.test.tsx`
+against a local Supabase instance before the next deploy that touches
+imports — the unit tests give confidence in the new logic in isolation, but
+the golden-file test is what actually proves the rewritten commit path
+produces the same real numbers as before.
+
+**Depends on / blocked by:** nothing technical for the pgTAP half (same
+shape as existing tests). The golden-file half just needs `supabase start`
+run once, locally or in CI, with `NEXT_PUBLIC_SUPABASE_URL` /
+`SUPABASE_SERVICE_ROLE_KEY` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` set.
+
 ## 2026-08-31 — Email deliverability (spam folder) needs DNS/dashboard config, not just code
 
 **What:** Reported: outbound mail (magic-link, password reset, notifications)

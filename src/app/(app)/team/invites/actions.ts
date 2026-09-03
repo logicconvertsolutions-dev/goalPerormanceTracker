@@ -24,10 +24,20 @@ function parseEmails(raw: string): string[] {
 // value), so the plaintext token/link create_invitation returns here is the
 // only chance to deliver it -- lost the moment this call returns unless we
 // email it or hand it back to the caller to show once.
+//
+// sendEmail() throws on a real send failure (Resend erroring, not just
+// being unconfigured -- see send.ts), and by the time this runs
+// create_invitation has already committed the invitation row. Letting that
+// throw propagate turned a delivery hiccup into an unhandled server-action
+// exception instead of the graceful {ok:false} path the UI expects, and hid
+// the one thing that still makes the invite usable: the link itself. Caught
+// here instead, so the invite is still reported as created and its link is
+// still returned -- invite-form.tsx already tells the SMD to copy/share the
+// link directly if the email doesn't arrive, which covers this case too.
 async function sendInvite(
   email: string,
   token: string
-): Promise<{ inviteUrl: string }> {
+): Promise<{ inviteUrl: string; emailSent: boolean }> {
   const session = await getSessionAgent();
   const supabase = await createClient();
   const [{ data: org }, logoUrl] = await Promise.all([
@@ -36,20 +46,26 @@ async function sendInvite(
   ]);
 
   const inviteUrl = appUrl(`/invite/${token}`);
-  await sendEmail({
-    to: email,
-    ...inviteEmail({
-      orgName: org?.name ?? 'the team',
-      inviterName: session!.agent!.full_name,
-      inviteUrl,
-      logoUrl,
-    }),
-  });
-  return { inviteUrl };
+  let emailSent = true;
+  try {
+    await sendEmail({
+      to: email,
+      ...inviteEmail({
+        orgName: org?.name ?? 'the team',
+        inviterName: session!.agent!.full_name,
+        inviteUrl,
+        logoUrl,
+      }),
+    });
+  } catch (err) {
+    console.error(`[invites] failed to send invite email to ${email}`, err);
+    emailSent = false;
+  }
+  return { inviteUrl, emailSent };
 }
 
 type CreateInvitesResult =
-  | { ok: true; invites: { email: string; inviteUrl: string }[] }
+  | { ok: true; invites: { email: string; inviteUrl: string; emailSent: boolean }[] }
   | { ok: false; error: string };
 
 export async function createInvitationsAction(
@@ -65,14 +81,17 @@ export async function createInvitationsAction(
   const results = await Promise.all(
     emails.map(async (email) => {
       const valid = emailSchema.safeParse(email);
-      if (!valid.success) return { email, ok: false, inviteUrl: null as string | null };
+      if (!valid.success) return { email, ok: false, inviteUrl: null as string | null, emailSent: false };
       const { data: token, error } = await supabase.rpc('create_invitation', {
         p_email: email,
         p_role: 'associate',
       });
-      if (error || !token) return { email, ok: false, inviteUrl: null };
-      const { inviteUrl } = await sendInvite(email, token);
-      return { email, ok: true, inviteUrl };
+      if (error || !token) return { email, ok: false, inviteUrl: null, emailSent: false };
+      // ok reflects whether the invitation was *created* -- sendInvite never
+      // throws on a delivery failure, it reports emailSent instead, so a
+      // Resend hiccup doesn't get lumped in with "Couldn't invite" below.
+      const { inviteUrl, emailSent } = await sendInvite(email, token);
+      return { email, ok: true, inviteUrl, emailSent };
     })
   );
 
@@ -86,7 +105,7 @@ export async function createInvitationsAction(
   }
   return {
     ok: true,
-    invites: results.map((r) => ({ email: r.email, inviteUrl: r.inviteUrl! })),
+    invites: results.map((r) => ({ email: r.email, inviteUrl: r.inviteUrl!, emailSent: r.emailSent })),
   };
 }
 
@@ -97,9 +116,13 @@ export async function resendInvitationAction(email: string) {
     p_role: 'associate',
   });
   revalidatePath('/team/invites');
-  if (error || !token) return { ok: false, inviteUrl: null };
-  const { inviteUrl } = await sendInvite(email, token);
-  return { ok: true, inviteUrl };
+  if (error || !token) return { ok: false, inviteUrl: null, emailSent: false };
+  // sendInvite no longer throws on a delivery failure -- ok still reflects
+  // invite creation, and the caller already copies inviteUrl to the
+  // clipboard regardless, so a failed send degrades to "use the link" rather
+  // than an unhandled error.
+  const { inviteUrl, emailSent } = await sendInvite(email, token);
+  return { ok: true, inviteUrl, emailSent };
 }
 
 export async function revokeInvitationAction(invitationId: string) {

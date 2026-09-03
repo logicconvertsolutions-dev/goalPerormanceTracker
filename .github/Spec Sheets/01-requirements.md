@@ -48,8 +48,11 @@ Two levels only for now (SMD → associate). No MD tier in v1.
 
 **Contact** — a person the agent is working: name, **phone** (added P9 —
 the original design deliberately omitted phone/email to keep PIPEDA surface
-small; reversed once import needed a reliable dedup key beyond name.
-`company`, present at launch, was later dropped — no longer collected).
+small; reversed once import needed a reliable dedup key beyond name; made
+optional again post-P12 — collecting it should never be required, name is
+the primary dedup key everywhere a contact is created, phone only a
+secondary signal. `company`, present at launch, was later dropped — no
+longer collected).
 Calls, appointments, sales, and recruiting logs all attach to a contact, so
 history accumulates per person rather than scattering across rows —
 recruiting and sales now link to `contact_id` rather than storing a

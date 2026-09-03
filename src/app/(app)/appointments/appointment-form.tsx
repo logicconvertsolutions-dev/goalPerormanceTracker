@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ContactPicker } from '@/components/shell/contact-picker';
-import { todayIso, addDays, nextMonday } from '@/lib/dates';
+import { todayIso, browserTimeZone, addDays, nextMonday } from '@/lib/dates';
 import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
 import { createAppointmentAction, updateAppointmentAction } from './actions';
 
@@ -84,7 +84,11 @@ export function AppointmentForm({
   );
   const [followUpOn, setFollowUpOn] = useState(defaultValues?.followUpOn ?? '');
   const [showFollowUpPicker, setShowFollowUpPicker] = useState(false);
-  const apptDate = defaultValues?.apptDate ?? todayIso();
+  // Client component -- the browser's own resolved zone is the correct
+  // "what day is it right now" source here (todayIso() with no zone falls
+  // back to UTC's calendar day).
+  const tz = browserTimeZone();
+  const apptDate = defaultValues?.apptDate ?? todayIso(tz);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -138,7 +142,7 @@ export function AppointmentForm({
           name="apptDate"
           type="date"
           defaultValue={apptDate}
-          max={todayIso()}
+          max={todayIso(tz)}
           required
         />
       </div>

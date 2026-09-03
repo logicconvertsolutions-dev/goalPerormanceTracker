@@ -4,7 +4,7 @@ import { useTransition } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DEFAULT_TIME_ZONE } from '@/lib/notifications/window';
+import { browserTimeZone } from '@/lib/dates';
 import { setAnnouncementActiveAction } from './actions';
 
 export function AnnouncementRow({
@@ -29,7 +29,7 @@ export function AnnouncementRow({
             day: 'numeric',
             month: 'short',
             year: 'numeric',
-            timeZone: DEFAULT_TIME_ZONE,
+            timeZone: browserTimeZone(),
           })}
         </p>
       </div>

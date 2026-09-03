@@ -16,7 +16,7 @@ function csvField(v: string | number): string {
 // export of ... a single agent's daily grid"). Counts only, via
 // agent_daily_activity — same is_upline_of gate as the on-screen grid.
 export async function GET(request: NextRequest, { params }: { params: Promise<{ agentId: string }> }) {
-  await requireLeader();
+  const session = await requireLeader();
   const supabase = await createClient();
   const url = new URL(request.url);
   const { agentId } = await params;
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return new Response('Not found', { status: 404 });
   }
 
-  const today = todayIso();
+  const today = todayIso(session.agent!.time_zone);
   const preset: PeriodPreset = isPeriodPreset(url.searchParams.get('period'))
     ? (url.searchParams.get('period') as PeriodPreset)
     : 'this_week';

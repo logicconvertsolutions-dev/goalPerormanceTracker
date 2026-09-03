@@ -12,11 +12,17 @@ const APPT_STATUSES = ['scheduled', 'held', 'no_show', 'rescheduled', 'cancelled
 const appointmentSchema = z.object({
   contactName: z.string().min(1, 'Enter who the appointment is with.').max(200),
   contactId: z.string().uuid().optional(),
+  // Optional even for a brand-new contact -- phone is no longer required
+  // (compliance). findOrCreateContact matches/creates by name either way.
   contactPhone: z.string().max(30).optional(),
-  apptDate: z
-    .string()
-    .refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.')
-    .refine((v) => v <= todayIso(), 'Appointment date cannot be in the future.'),
+  // "Cannot be in the future" is checked below in createAppointmentAction,
+  // against the acting agent's own local today -- a zod .refine() here can't
+  // close over that per-request value (this schema is built once at module
+  // load), and the UTC "today" a refine would otherwise fall back to is
+  // wrong for exactly the evening hours this check matters most (an agent
+  // logging a same-day appointment after UTC has already rolled to
+  // tomorrow would get rejected).
+  apptDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
   apptType: z.string().max(200).optional(),
   status: z.enum(APPT_STATUSES),
   expectedPremiumCents: z.coerce.number().int().min(0).default(0),
@@ -29,22 +35,19 @@ const appointmentSchema = z.object({
 // Postgres unique-violation error code.
 const UNIQUE_VIOLATION = '23505';
 
-// Phone is only required when creating a brand-new contact (no contactId
-// picked from the autocomplete) -- an existing contact's phone is already on
-// file. Kept separate from appointmentSchema since updateSchema below derives
-// from it via .partial(), which a refined (ZodEffects) schema doesn't support.
-const createAppointmentSchema = appointmentSchema.refine((d) => d.contactId || d.contactPhone?.trim(), {
-  message: 'Enter a phone number for a new contact.',
-  path: ['contactPhone'],
-});
-
 // P3: minimal CRUD only. Filters/summary/CSV land in P4 per docs/08-screen-specs.md.
 export async function createAppointmentAction(formData: FormData) {
-  const parsed = createAppointmentSchema.safeParse({
+  // Fetched before validation (rather than the more common validate-then-auth
+  // order) because the date default/bound below needs the agent's own local
+  // "today", not the server's UTC one.
+  const session = await requireAgent();
+  const today = todayIso(session.agent!.time_zone);
+
+  const parsed = appointmentSchema.safeParse({
     contactName: formData.get('contactName'),
     contactId: formData.get('contactId') || undefined,
     contactPhone: formData.get('contactPhone') || undefined,
-    apptDate: formData.get('apptDate') || todayIso(),
+    apptDate: formData.get('apptDate') || today,
     apptType: formData.get('apptType') || undefined,
     status: formData.get('status') || 'scheduled',
     expectedPremiumCents: formData.get('expectedPremiumCents') || 0,
@@ -57,8 +60,10 @@ export async function createAppointmentAction(formData: FormData) {
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input.' };
   }
+  if (parsed.data.apptDate > today) {
+    return { ok: false, error: 'Appointment date cannot be in the future.' };
+  }
 
-  const session = await requireAgent();
   const agentId = session.agent!.id;
   // Non-null: only associates/leaders reach this action (admin has no org).
   const orgId = session.agent!.org_id!;
@@ -122,6 +127,9 @@ export async function updateAppointmentAction(formData: FormData) {
   }
 
   const session = await requireAgent();
+  if (parsed.data.apptDate && parsed.data.apptDate > todayIso(session.agent!.time_zone)) {
+    return { ok: false, error: 'Appointment date cannot be in the future.' };
+  }
   const supabase = await createClient();
 
   const { error } = await supabase

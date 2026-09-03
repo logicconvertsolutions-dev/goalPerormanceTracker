@@ -341,11 +341,20 @@ export interface NudgeData {
   streakDays: number;
   minCallsPerDay: number;
   logoUrl?: string | null;
+  // Set for the automatic daily send (p12a: an SMD flips a persistent toggle
+  // instead of clicking Nudge each time) -- unlike the manual one-off nudge
+  // below (rate-limited to 1/7 days, no standing preference to unsubscribe
+  // from), the recurring version needs a working one-click unsubscribe like
+  // the other recurring notifications, and shares evening_nudge's own
+  // preference/kind since it's the same "reminder to log calls" concept
+  // from the recipient's side.
+  recurring?: boolean;
 }
 
-// No unsubscribe link -- there's no standing preference to opt out of a
-// one-off nudge a leader sent by hand; public.nudge_agent's own 7-day
-// cooldown is the rate limit here, not notification_log.
+// No unsubscribe link for the manual (non-recurring) case -- there's no
+// standing preference to opt out of a one-off nudge a leader sent by hand;
+// public.nudge_agent's own 7-day cooldown is the rate limit here, not
+// notification_log.
 export function nudgeEmail(d: NudgeData): EmailContent {
   const logUrl = appUrl('/log');
   const streakLine =
@@ -357,9 +366,11 @@ export function nudgeEmail(d: NudgeData): EmailContent {
     <p>${escapeHtml(d.sentByName)} noticed you haven't logged anything today. ${streakLine}</p>
     ${button(logUrl, 'Log a call')}`;
   const bodyText = `Hi ${firstName(d.fullName)},\n\n${d.sentByName} noticed you haven't logged anything today. ${streakLine}\n\nLog a call: ${logUrl}`;
+  const kind: NotificationKind | null = d.recurring ? 'evening_nudge' : null;
   return {
     subject: `${d.sentByName} sent you a reminder`,
-    html: wrap(bodyHtml, d.agentId, null, d.logoUrl),
-    text: wrapText(bodyText, d.agentId, null),
+    html: wrap(bodyHtml, d.agentId, kind, d.logoUrl),
+    text: wrapText(bodyText, d.agentId, kind),
+    ...(kind ? { unsubscribeUrl: unsubscribeUrlFor(d.agentId, kind) } : {}),
   };
 }

@@ -20,8 +20,11 @@ export async function parseWorkbookAction(
   try {
     const result = parseWorkbook(buffer);
     return { ok: true, result };
-  } catch {
-    return { ok: false, error: 'Could not read that file. Is it a valid .xlsx workbook?' };
+  } catch (err) {
+    // The MAX_IMPORT_ROWS guard throws a specific, user-actionable message
+    // (parse-workbook.ts) -- surface that instead of the generic fallback.
+    const message = err instanceof Error && err.message.includes('the max per import is') ? err.message : null;
+    return { ok: false, error: message ?? 'Could not read that file. Is it a valid .xlsx workbook?' };
   }
 }
 

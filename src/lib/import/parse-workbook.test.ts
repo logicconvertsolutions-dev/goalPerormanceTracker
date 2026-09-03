@@ -98,7 +98,7 @@ describe('parseWorkbook', () => {
     });
   });
 
-  it('parses the simple Contacts sheet (name + required phone)', () => {
+  it('parses the simple Contacts sheet (name + optional phone)', () => {
     const buf = buildWorkbook({
       Contacts: [CONTACTS_HEADER, ['Jane Doe', '555-123-4567']],
     });
@@ -109,14 +109,14 @@ describe('parseWorkbook', () => {
     expect(result.rows[0].data).toEqual({ fullName: 'Jane Doe', phone: '555-123-4567' });
   });
 
-  it('requires a phone number on the Contacts sheet', () => {
+  it('does not require a phone number on the Contacts sheet', () => {
     const buf = buildWorkbook({
       Contacts: [CONTACTS_HEADER, ['Jane Doe', null]],
     });
 
     const result = parseWorkbook(buf);
-    expect(result.rows[0].data).toBeNull();
-    expect(result.rows[0].errors).toContain('Missing phone number.');
+    expect(result.rows[0].errors).toEqual([]);
+    expect(result.rows[0].data).toEqual({ fullName: 'Jane Doe', phone: null });
   });
 
   it('parses an optional trailing Phone column without disturbing existing columns', () => {

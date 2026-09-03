@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ContactPicker } from '@/components/shell/contact-picker';
 import { cn } from '@/lib/utils';
-import { addDays, nextMonday, todayIso } from '@/lib/dates';
+import { addDays, browserTimeZone, nextMonday, todayIso } from '@/lib/dates';
 import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
 import { logCallAction, updateCallAction } from './actions';
 
@@ -83,7 +83,12 @@ export function LogForm({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [callDate, setCallDate] = useState(defaultValues?.callDate ?? defaultDate ?? todayIso());
+  // Client component -- todayIso() with no zone would fall back to UTC's
+  // calendar day, wrong for exactly the evening hours a "today" default
+  // matters most. The browser's own resolved zone is the correct "what day
+  // is it right now for this person" source here.
+  const tz = browserTimeZone();
+  const [callDate, setCallDate] = useState(defaultValues?.callDate ?? defaultDate ?? todayIso(tz));
   const [showDatePicker, setShowDatePicker] = useState(Boolean(defaultValues ?? defaultDate));
   const [source, setSource] = useState(defaultValues?.source ?? 'warm_market');
   // True once an existing contact with a known prior source is picked --
@@ -93,7 +98,7 @@ export function LogForm({
   const [followUpOn, setFollowUpOn] = useState(defaultValues?.followUpOn ?? '');
   const [showFollowUpPicker, setShowFollowUpPicker] = useState(false);
 
-  const isToday = callDate === todayIso();
+  const isToday = callDate === todayIso(tz);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -136,7 +141,7 @@ export function LogForm({
           <Chip
             active={isToday}
             onClick={() => {
-              setCallDate(todayIso());
+              setCallDate(todayIso(tz));
               setShowDatePicker(false);
             }}
           >
@@ -149,7 +154,7 @@ export function LogForm({
             <Input
               type="date"
               value={callDate}
-              max={todayIso()}
+              max={todayIso(tz)}
               onChange={(e) => setCallDate(e.target.value)}
               className="w-auto"
             />
