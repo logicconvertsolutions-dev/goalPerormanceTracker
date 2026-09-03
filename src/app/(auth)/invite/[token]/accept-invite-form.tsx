@@ -23,6 +23,13 @@ export function AcceptInviteForm({ token, email }: { token: string; email: strin
     setError(null);
 
     startTransition(async () => {
+      // Deliberately not lib/dates.ts's browserTimeZone() helper: that one
+      // always returns a concrete zone (falling back to DEFAULT_TIME_ZONE),
+      // right for "what day is it right now" display use. Here, an
+      // undefined value tells acceptInvitation to leave agents.time_zone
+      // null rather than write a guessed default as if it were the agent's
+      // real detected zone -- it'll get captured correctly the first time
+      // they load /settings instead (time-zone-select.tsx).
       const timeZone =
         typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined;
       const result = await acceptInvitation({ token, fullName, password, agreedToTerms: agreed, timeZone });

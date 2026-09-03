@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { todayIso } from '@/lib/dates';
+import { todayIso, browserTimeZone } from '@/lib/dates';
 import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
 import { createRecruitingLogAction, updateRecruitingLogAction } from './actions';
 
@@ -55,9 +55,8 @@ export function RecruitingForm({
   const [source, setSource] = useState(defaultValues?.source ?? '');
   // Client component -- the browser's own resolved zone is the correct
   // "what day is it right now" source here (todayIso() with no zone falls
-  // back to UTC's calendar day). Same trick as time-zone-select.tsx.
-  const browserTimeZone =
-    typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined;
+  // back to UTC's calendar day).
+  const tz = browserTimeZone();
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -106,7 +105,7 @@ export function RecruitingForm({
           id="logDate"
           name="logDate"
           type="date"
-          defaultValue={defaultValues?.logDate ?? todayIso(browserTimeZone)}
+          defaultValue={defaultValues?.logDate ?? todayIso(tz)}
           required
         />
       </div>

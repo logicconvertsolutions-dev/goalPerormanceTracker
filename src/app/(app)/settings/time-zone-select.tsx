@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { browserTimeZone } from '@/lib/dates';
 import { updateTimeZoneAction } from './actions';
 
 const COMMON_ZONES = [
@@ -16,8 +17,7 @@ const COMMON_ZONES = [
 ];
 
 export function TimeZoneSelect({ current }: { current: string | null }) {
-  const browserDefault =
-    typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'America/Toronto';
+  const browserDefault = browserTimeZone();
   const [value, setValue] = useState(current ?? browserDefault);
   const [, startTransition] = useTransition();
 

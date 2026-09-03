@@ -1,7 +1,22 @@
 // Week math lives here and only here (CLAUDE.md rule). Mirrors the
 // Postgres function public.week_start(date) exactly — both must agree, or a
 // client-computed week boundary will disagree with the RPCs that use it.
-import { resolveTimeZone } from './notifications/window';
+import { resolveTimeZone, DEFAULT_TIME_ZONE } from './notifications/window';
+
+/**
+ * The browser's own resolved IANA zone -- for 'use client' components that
+ * need "what day/time is it right now for this person" without a server
+ * round trip (form date defaults, the "Today" chip, etc). Falls back to
+ * DEFAULT_TIME_ZONE on the vanishingly rare browser without Intl support,
+ * same fallback todayIso/formatDisplayTime use elsewhere.
+ *
+ * Only meaningful when called client-side: on the server this would
+ * resolve to whatever zone the server process itself runs in, not any
+ * particular user's, so never call this outside a 'use client' component.
+ */
+export function browserTimeZone(): string {
+  return typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : DEFAULT_TIME_ZONE;
+}
 
 /** Monday-start week boundary for the given date, as a YYYY-MM-DD string. */
 export function weekStart(date: Date): string {

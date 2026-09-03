@@ -4,6 +4,7 @@ import { useTransition } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { browserTimeZone } from '@/lib/dates';
 import { setAnnouncementActiveAction } from './actions';
 
 export function AnnouncementRow({
@@ -18,10 +19,6 @@ export function AnnouncementRow({
   createdAt: string;
 }) {
   const [pending, startTransition] = useTransition();
-  // Client component -- render in the viewer's own browser zone rather than
-  // a hardcoded one, same trick used throughout the app's client forms.
-  const browserTimeZone =
-    typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined;
 
   return (
     <div className="flex items-start justify-between gap-3 border-b border-line py-3 last:border-0">
@@ -32,7 +29,7 @@ export function AnnouncementRow({
             day: 'numeric',
             month: 'short',
             year: 'numeric',
-            timeZone: browserTimeZone,
+            timeZone: browserTimeZone(),
           })}
         </p>
       </div>
