@@ -1,7 +1,22 @@
 // Week math lives here and only here (CLAUDE.md rule). Mirrors the
 // Postgres function public.week_start(date) exactly — both must agree, or a
 // client-computed week boundary will disagree with the RPCs that use it.
-import { resolveTimeZone } from './notifications/window';
+import { resolveTimeZone, DEFAULT_TIME_ZONE } from './notifications/window';
+
+/**
+ * The browser's own resolved IANA zone -- for 'use client' components that
+ * need "what day/time is it right now for this person" without a server
+ * round trip (form date defaults, the "Today" chip, etc). Falls back to
+ * DEFAULT_TIME_ZONE on the vanishingly rare browser without Intl support,
+ * same fallback todayIso/formatDisplayTime use elsewhere.
+ *
+ * Only meaningful when called client-side: on the server this would
+ * resolve to whatever zone the server process itself runs in, not any
+ * particular user's, so never call this outside a 'use client' component.
+ */
+export function browserTimeZone(): string {
+  return typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : DEFAULT_TIME_ZONE;
+}
 
 /** Monday-start week boundary for the given date, as a YYYY-MM-DD string. */
 export function weekStart(date: Date): string {
@@ -11,8 +26,27 @@ export function weekStart(date: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+/**
+ * Today's calendar date as YYYY-MM-DD, in the given IANA zone -- pass the
+ * viewing/acting agent's `time_zone`. `Date.toISOString()` is always UTC
+ * regardless of where the code runs (server or browser), so calling this
+ * with no zone silently used UTC's calendar day everywhere it mattered
+ * (default log/appointment/sale/recruiting dates, "cannot be in the future"
+ * validation, "today"/"this week" query boundaries) -- wrong for roughly
+ * half of every day for any agent not in UTC, and always wrong during each
+ * zone's evening hours already past midnight UTC. Falls back to
+ * {@link DEFAULT_TIME_ZONE} (via `resolveTimeZone`) when no zone is given,
+ * same fallback the notification scheduler and formatDisplayTime/DateTime use.
+ */
+export function todayIso(timeZone?: string | null): string {
+  // en-CA already formats as yyyy-mm-dd (same trick used by formatDisplayDate
+  // et al. below), so no manual part-assembly needed.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: resolveTimeZone(timeZone),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 }
 
 export function formatDisplayDate(iso: string): string {

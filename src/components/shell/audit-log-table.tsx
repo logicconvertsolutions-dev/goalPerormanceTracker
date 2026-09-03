@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { resolveTimeZone } from '@/lib/notifications/window';
 
 export interface AuditLogRow {
   id: number;
@@ -15,7 +16,20 @@ export interface AuditLogRow {
 // the same table. Neither query ever selects a prospect-facing column —
 // audit_log only ever carries action/entity/entity_id/metadata, none of
 // which are contact_name/notes.
-export function AuditLogTable({ rows, title }: { rows: AuditLogRow[]; title: string }) {
+export function AuditLogTable({
+  rows,
+  title,
+  viewerTimeZone,
+}: {
+  rows: AuditLogRow[];
+  title: string;
+  /** The signed-in viewer's own `time_zone` -- this is a Server Component,
+   * so `new Date(...).toLocaleString()` with no explicit zone would render
+   * in whatever zone the server process happens to run in (UTC on most
+   * hosts), not the viewer's. "When" needs to read as when it actually
+   * happened for the person reading it. */
+  viewerTimeZone: string | null;
+}) {
   return (
     <Card>
       <CardHeader>
@@ -42,6 +56,7 @@ export function AuditLogTable({ rows, title }: { rows: AuditLogRow[]; title: str
                       {new Date(row.created_at).toLocaleString('en-CA', {
                         dateStyle: 'medium',
                         timeStyle: 'short',
+                        timeZone: resolveTimeZone(viewerTimeZone),
                       })}
                     </td>
                     <td className="py-1.5 pr-3 text-fg">{row.actor_name ?? 'System'}</td>

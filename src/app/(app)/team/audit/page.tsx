@@ -4,7 +4,7 @@ import { AuditLogTable, type AuditLogRow } from '@/components/shell/audit-log-ta
 import { BackLink } from '@/components/shell/back-link';
 
 export default async function TeamAuditPage() {
-  await requireLeader();
+  const session = await requireLeader();
   const supabase = await createClient();
 
   // audit_leader_read (p6a) scopes this to the caller's own org already —
@@ -37,7 +37,7 @@ export default async function TeamAuditPage() {
       <p className="text-sm text-fg-3">
         Goal changes, invitations, and deactivations for your team. Who, what, when.
       </p>
-      <AuditLogTable rows={rows} title="Recent activity" />
+      <AuditLogTable rows={rows} title="Recent activity" viewerTimeZone={session.agent!.time_zone} />
     </div>
   );
 }

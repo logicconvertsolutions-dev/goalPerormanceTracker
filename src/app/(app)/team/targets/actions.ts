@@ -30,7 +30,7 @@ export async function setTargetAction(formData: FormData) {
 
   const supabase = await createClient();
   const { data: me } = await supabase.auth.getUser();
-  const { data: agent } = await supabase.from('agents').select('org_id').eq('id', me.user!.id).single();
+  const { data: agent } = await supabase.from('agents').select('org_id, time_zone').eq('id', me.user!.id).single();
   if (!agent) return { ok: false, error: 'Not signed in.' };
 
   const { error } = await supabase.from('targets').insert({
@@ -38,7 +38,9 @@ export async function setTargetAction(formData: FormData) {
     org_id: agent.org_id!,
     agent_id: parsed.data.agentId,
     set_by: me.user!.id,
-    effective_from: nextMonday(todayIso()),
+    // "Next Monday" from the leader's own local today -- not the server's
+    // UTC one, which could be a day ahead/behind near their midnight.
+    effective_from: nextMonday(todayIso(agent.time_zone)),
     calls_per_week: parsed.data.callsPerWeek,
     appts_held_per_week: parsed.data.apptsHeldPerWeek,
     premium_cents_per_week: Math.round(parsed.data.premiumDollarsPerWeek * 100),

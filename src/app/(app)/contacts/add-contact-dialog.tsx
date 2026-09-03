@@ -53,8 +53,8 @@ export function AddContactDialog() {
             <Input id="fullName" name="fullName" placeholder="Full name" required />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="phone">Phone</Label>
-            <Input id="phone" name="phone" type="tel" placeholder="Phone number" required />
+            <Label htmlFor="phone">Phone (optional)</Label>
+            <Input id="phone" name="phone" type="tel" placeholder="Phone number" />
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={pending}>

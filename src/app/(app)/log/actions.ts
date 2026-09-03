@@ -24,34 +24,34 @@ const CALL_OUTCOMES = [
   'not_interested',
 ] as const;
 
-const logCallSchema = z
-  .object({
-    contactName: z.string().min(1, 'Enter who you called.').max(200),
-    contactId: z.string().uuid().optional(),
-    contactPhone: z.string().max(30).optional(),
-    callDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
-    source: z.enum(CALL_SOURCES),
-    outcome: z.enum(CALL_OUTCOMES),
-    notes: z.string().max(2000).optional(),
-    followUpOn: z.string().optional(),
-    clientRequestId: z.string().optional(),
-  })
-  // Phone is only required when creating a brand-new contact (no contactId
-  // picked from the autocomplete) -- an existing contact's phone is already on file.
-  .refine((d) => d.contactId || d.contactPhone?.trim(), {
-    message: 'Enter a phone number for a new contact.',
-    path: ['contactPhone'],
-  });
+const logCallSchema = z.object({
+  contactName: z.string().min(1, 'Enter who you called.').max(200),
+  contactId: z.string().uuid().optional(),
+  // Optional even for a brand-new contact -- phone is no longer required
+  // (compliance). findOrCreateContact matches/creates by name either way.
+  contactPhone: z.string().max(30).optional(),
+  callDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
+  source: z.enum(CALL_SOURCES),
+  outcome: z.enum(CALL_OUTCOMES),
+  notes: z.string().max(2000).optional(),
+  followUpOn: z.string().optional(),
+  clientRequestId: z.string().optional(),
+});
 
 // Postgres unique-violation error code.
 const UNIQUE_VIOLATION = '23505';
 
 export async function logCallAction(formData: FormData) {
+  // Fetched before validation so the callDate fallback below (when a
+  // request somehow omits it) uses the agent's own local today, not the
+  // server's UTC one.
+  const session = await requireAgent();
+
   const parsed = logCallSchema.safeParse({
     contactName: formData.get('contactName'),
     contactId: formData.get('contactId') || undefined,
     contactPhone: formData.get('contactPhone') || undefined,
-    callDate: formData.get('callDate') || todayIso(),
+    callDate: formData.get('callDate') || todayIso(session.agent!.time_zone),
     source: formData.get('source'),
     outcome: formData.get('outcome'),
     notes: formData.get('notes') || undefined,
@@ -63,7 +63,6 @@ export async function logCallAction(formData: FormData) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input.' };
   }
 
-  const session = await requireAgent();
   const agentId = session.agent!.id;
   // Non-null: only associates/leaders reach this action (admin has no org).
   const orgId = session.agent!.org_id!;

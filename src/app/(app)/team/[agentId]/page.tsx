@@ -24,7 +24,7 @@ export default async function TeamAgentPage({
   params: Promise<{ agentId: string }>;
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  await requireLeader();
+  const session = await requireLeader();
   const supabase = await createClient();
   const { agentId } = await routeParams;
 
@@ -38,7 +38,9 @@ export default async function TeamAgentPage({
   if (!agent) notFound();
 
   const params = await searchParams;
-  const today = todayIso();
+  // The viewing leader's own local today, not the viewed agent's -- same
+  // "viewer's frame of reference" the rest of the app uses for date display.
+  const today = todayIso(session.agent!.time_zone);
   const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'this_week';
   const { from, to } = resolvePeriod(preset, today, params.from, params.to);
   const targetWeek = weekStart(new Date(from + 'T00:00:00Z'));

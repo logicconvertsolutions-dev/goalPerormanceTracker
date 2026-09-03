@@ -93,8 +93,7 @@ export function ContactPicker({
           name={phoneFieldName}
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
-          placeholder="Phone number"
-          required
+          placeholder="Phone number (optional)"
           className="mt-1.5"
         />
       )}

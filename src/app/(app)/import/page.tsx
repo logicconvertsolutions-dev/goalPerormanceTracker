@@ -10,7 +10,7 @@ export default async function ImportPage() {
     <div className="max-w-2xl space-y-4">
       <PageHeader
         title="Import from spreadsheet"
-        subtitle="Upload a .xlsx workbook — a plain Contacts sheet (Contact Name, Phone Number), or Call Log, Appointment Log, Sales Log, and Recruiting Log sheets. Contacts are created automatically from any sheet; a Sales Log row also creates the client record. Matching is by phone first, then name, so re-uploading the same file (or a file with contacts you already have) never creates duplicates."
+        subtitle="Upload a .xlsx workbook — a plain Contacts sheet (Contact Name, optionally Phone Number), or Call Log, Appointment Log, Sales Log, and Recruiting Log sheets. Contacts are created automatically from any sheet; a Sales Log row also creates the client record. Matching is by name (phone is optional and only used as a backup signal), so re-uploading the same file — or a file with contacts you already have — never creates duplicates."
       />
       <p className="text-sm text-fg-3">
         Not sure of the format?{' '}

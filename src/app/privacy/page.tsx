@@ -43,8 +43,9 @@ export default function PrivacyPage() {
             </p>
             <p>
               Data minimisation: a contact&apos;s full name is required today, so the app can tell
-              two prospects apart and let you find them again. We store what the product needs and
-              nothing more.
+              two prospects apart and let you find them again. Phone number is optional — we never
+              require it, and it&apos;s only stored if you choose to enter one. We store what the
+              product needs and nothing more.
             </p>
           </CardContent>
         </Card>

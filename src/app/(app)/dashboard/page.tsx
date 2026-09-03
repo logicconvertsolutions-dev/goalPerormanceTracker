@@ -33,7 +33,7 @@ export default async function DashboardPage({
   const agentId = session.agent!.id;
   const supabase = await createClient();
 
-  const today = todayIso();
+  const today = todayIso(session.agent!.time_zone);
   const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'this_week';
   const { from, to } = resolvePeriod(preset, today, params.from, params.to);
   const targetWeek = weekStart(new Date(from + 'T00:00:00Z'));

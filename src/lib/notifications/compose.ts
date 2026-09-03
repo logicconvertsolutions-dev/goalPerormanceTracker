@@ -186,11 +186,17 @@ export async function composeMondayDigest(
   };
 }
 
-/** The SMD's ad-hoc per-agent nudge (public.nudge_agent already rate-limits to 1/7 days). */
+/**
+ * The SMD's per-agent nudge -- either the manual one-off (public.nudge_agent
+ * rate-limits to 1/7 days) or, when `recurring` is set, the automatic daily
+ * version (p12a: agents.auto_call_nudges_enabled). See nudgeEmail's own doc
+ * comment for why only the recurring one carries an unsubscribe link.
+ */
 export async function composeNudge(
   admin: AdminClient,
   agent: NotifiableAgent,
-  sentByName: string
+  sentByName: string,
+  recurring = false
 ): Promise<{ to: string; content: EmailContent } | null> {
   const localDateIso = localParts(resolveTimeZone(agent.time_zone), new Date()).dateIso;
   const target = await fetchTarget(admin, agent.id, localDateIso);
@@ -204,6 +210,7 @@ export async function composeNudge(
       sentByName,
       streakDays,
       minCallsPerDay: target.min_calls_per_day,
+      recurring,
     }),
   };
 }

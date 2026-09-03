@@ -96,13 +96,12 @@ export interface RecruitingImportData {
 }
 
 // The simple "just my contacts" sheet — no activity, no dedicated sheet type
-// elsewhere handles phone this directly. Phone is required here (unlike the
-// four activity sheets' trailing Phone column, which stays optional for
-// backward compatibility with existing templates) since this sheet's whole
-// point is capturing it.
+// elsewhere handles phone this directly. Phone is optional here, same as the
+// four activity sheets' trailing Phone column — we no longer require
+// collecting it (compliance); name is the only thing this sheet needs.
 export interface ContactOnlyImportData {
   fullName: string;
-  phone: string;
+  phone: string | null;
 }
 
 export type ImportSheetName = 'Contacts' | 'Call Log' | 'Appointment Log' | 'Sales Log' | 'Recruiting Log';
@@ -134,6 +133,14 @@ const IMPORTED_SHEETS: ImportSheetName[] = [
   'Sales Log',
   'Recruiting Log',
 ];
+
+// commitImport batches its writes (bulk contact resolution + chunked
+// inserts), but an unbounded workbook still means an unbounded number of
+// chunks inside one server-action invocation -- and an unbounded parse
+// itself, before that. Cap total data rows across all sheets so an
+// oversized file fails fast with a clear message instead of quietly running
+// long enough to hit the platform's execution-time limit.
+export const MAX_IMPORT_ROWS = 20000;
 
 /** Handles both ISO date strings ("2026-07-06") and Excel serial numbers. */
 export function parseWorkbookDate(cell: unknown): string | null {
@@ -193,12 +200,9 @@ function parseContactRow(cells: unknown[]): { data: ContactOnlyImportData | null
   const name = toTextOrNull(contactName);
   if (!name) errors.push('Missing contact name.');
 
-  const phone = toTextOrNull(phoneCell);
-  if (!phone) errors.push('Missing phone number.');
+  if (errors.length > 0 || !name) return { data: null, errors };
 
-  if (errors.length > 0 || !name || !phone) return { data: null, errors };
-
-  return { data: { fullName: name, phone }, errors: [] };
+  return { data: { fullName: name, phone: toTextOrNull(phoneCell) }, errors: [] };
 }
 
 function parseCallLogRow(cells: unknown[]): { data: CallLogImportData | null; errors: string[] } {
@@ -366,6 +370,12 @@ export function parseWorkbook(buffer: Buffer): ParseResult {
         errors,
       });
     });
+  }
+
+  if (rows.length > MAX_IMPORT_ROWS) {
+    throw new Error(
+      `This workbook has ${rows.length} rows — the max per import is ${MAX_IMPORT_ROWS}. Split it into smaller files and import them one at a time.`
+    );
   }
 
   return { fileHash, rows, skippedBlankRows };

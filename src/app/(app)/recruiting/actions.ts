@@ -31,9 +31,13 @@ const UNIQUE_VIOLATION = '23505';
 
 // P3: minimal CRUD only. Filters/summary/CSV land in P4 per docs/08-screen-specs.md.
 export async function createRecruitingLogAction(formData: FormData) {
+  // Fetched before validation so the logDate fallback below uses the
+  // agent's own local today, not the server's UTC one.
+  const session = await requireAgent();
+
   const parsed = recruitingSchema.safeParse({
     prospectName: formData.get('prospectName'),
-    logDate: formData.get('logDate') || todayIso(),
+    logDate: formData.get('logDate') || todayIso(session.agent!.time_zone),
     source: formData.get('source') || undefined,
     status: formData.get('status') || 'contacted',
     notes: formData.get('notes') || undefined,
@@ -44,7 +48,6 @@ export async function createRecruitingLogAction(formData: FormData) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input.' };
   }
 
-  const session = await requireAgent();
   const agentId = session.agent!.id;
   // Non-null: only associates/leaders reach this action (admin has no org).
   const orgId = session.agent!.org_id!;

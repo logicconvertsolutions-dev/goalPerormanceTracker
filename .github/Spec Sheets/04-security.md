@@ -96,9 +96,12 @@ re-check whenever a new admin or cross-agent RPC is added.
   `check_rate_limit()` RPC (`private.rate_limits`, P6e) keyed on
   `auth.uid()`. Import specifically is capped at 5/hour.
 - Import path: validated MIME + size cap, parsed server-side, no formula
-  evaluation. Confirmed unchanged in spirit; see `docs/08-screen-specs.md`
+  evaluation, plus a 20,000-row cap added post-P12 (an oversized workbook
+  fails fast with a specific message instead of risking the execution-time
+  limit). Confirmed unchanged in spirit; see `docs/08-screen-specs.md`
   for how much the import UI itself has grown (preview/commit flow, per-sheet
-  validation, phone-based dedup).
+  validation, name-based dedup with phone as a secondary signal — reversed
+  from phone-based, see "Privacy" below).
 - Dependabot + `npm audit` in CI — `npm audit --audit-level=high` is present
   but `continue-on-error: true` (reports, doesn't block); commit `7bad83a`
   addressed real CVEs this surfaced (xlsx parser, Next.js) directly rather
@@ -107,12 +110,20 @@ re-check whenever a new admin or cross-agent RPC is added.
 ### Privacy (PIPEDA — Ontario)
 - Purpose limitation, data minimisation as principles — unchanged, but the
   concrete claim changed: **`contacts.phone` was added in P9**, reversing the
-  original "no phone or email column" decision. The privacy notice and this
-  doc's "full names are stored" framing should now explicitly say phone
-  numbers are stored too, since the original rationale ("we do not need
-  them... not storing them keeps the PIPEDA surface small") no longer holds
-  as written — confirm the in-product privacy notice was updated to match
-  when P9 shipped; this doc can't verify that from code alone.
+  original "no phone or email column" decision, then **made optional again
+  post-P12** on an explicit compliance decision — collecting it is no
+  longer required anywhere a contact is created (manual add, log/appointment
+  /sale forms, device-contact import, Excel import), and name is the
+  primary de-dup key everywhere, phone only a secondary signal. This is
+  a partial return toward the original data-minimisation intent (an agent
+  who never enters a phone number never has one stored for that contact),
+  but the column itself and the ability to store phone when an agent
+  chooses to enter one are both unchanged, so the privacy notice's "full
+  names are stored" framing should still explicitly say phone numbers may
+  be stored too, just not that doing so is required — confirm the
+  in-product privacy notice reflects "optional" rather than either the
+  original "not collected" or the P9 "collected" framing; this doc can't
+  verify that from code alone.
 - Retention: **auto-purge is implemented, not just planned.** A nightly
   pg_cron job (`private.purge_old_call_logs()`, P6) deletes `call_logs` older
   than `organizations.call_log_retention_months` (default 24, nullable to

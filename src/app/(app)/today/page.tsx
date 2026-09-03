@@ -21,7 +21,12 @@ export default async function TodayPage() {
   if (session.agent!.role === 'admin') redirect('/admin/agents');
   const supabase = await createClient();
 
-  const { data: followUps } = await supabase.rpc('my_followups');
+  // p_as_of defaults to the DB server's own current_date (UTC) when omitted
+  // -- explicit here so "overdue"/"due today" reflects the agent's local
+  // calendar day, not the server's.
+  const { data: followUps } = await supabase.rpc('my_followups', {
+    p_as_of: todayIso(session.agent!.time_zone),
+  });
   // Already ordered by follow_up_on ascending (most overdue first) by the RPC.
   const rows = followUps ?? [];
   const [nextUp, ...remaining] = rows;
@@ -30,7 +35,7 @@ export default async function TodayPage() {
     .from('call_logs')
     .select('id', { count: 'exact', head: true })
     .eq('agent_id', session.agent!.id)
-    .eq('call_date', todayIso());
+    .eq('call_date', todayIso(session.agent!.time_zone));
 
   const recentActivity = await fetchRecentActivity(supabase, session.agent!.id, 7);
 
@@ -44,7 +49,7 @@ export default async function TodayPage() {
           <h1 className="text-[34px] font-bold leading-[40px] tracking-heading-tight text-fg">
             My Day
           </h1>
-          <p className="mt-0.5 text-sm text-fg-3">{formatFullDisplayDate(todayIso())}</p>
+          <p className="mt-0.5 text-sm text-fg-3">{formatFullDisplayDate(todayIso(session.agent!.time_zone))}</p>
         </div>
         <LogActivityButton variant="primary" size="sm" className="mt-1.5 shrink-0">
           <Plus className="h-4 w-4" aria-hidden="true" />

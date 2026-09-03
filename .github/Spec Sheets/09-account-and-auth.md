@@ -205,7 +205,15 @@ Matches spec closely.
   the UI), email (read-only here — still no self-service change flow from
   `/profile` itself; the original spec's "change requires confirming both
   addresses" is now implemented, but only reachable admin-side, see
-  `/admin/agents/[agentId]` below), role (read-only), joined date.
+  `/admin/agents/[agentId]` below), role (read-only), joined date. **Fix,
+  post-P12:** joined date was being run through the agent's own IANA time
+  zone to display — `joined_at` is a `date` column with no time-of-day, and
+  converting a date-only value through any negative-UTC-offset zone (every
+  zone in the picker) silently shifts it back a calendar day, so every
+  agent's own Profile page showed a "Joined" date one day earlier than
+  reality. Now locked to UTC display instead (no zone conversion — there's
+  no time-of-day to convert). Same fix applied to `/admin/agents/[agentId]`'s
+  joined date below.
 - MFA status: Enabled/Not enabled badge, with a context-appropriate action —
   Set up (not enrolled), Reset (enrolled + this session verified, behind a
   confirm dialog and a live `aal2` re-check), or "Verify to manage"
@@ -251,7 +259,13 @@ navigating to the page.
 - **`/team/invites`** — matches spec: bulk paste (comma/newline-separated
   emails), pending list with sent/expiry dates, an "Expired" badge, per-row
   **Resend**/**Revoke**. Successfully-sent invites also show a copyable link
-  inline as an email-delivery fallback.
+  inline as an email-delivery fallback. **Fix, post-P12:** a Resend delivery
+  failure (as opposed to Resend being unconfigured, which already no-oped
+  safely) previously threw out of the server action unguarded — the
+  invitation row was still created, but the SMD got an unhandled error
+  instead of the invite link. Now caught: the invite still reports success
+  and the link is still shown, with an inline "email failed, share link
+  directly" note when delivery didn't go through.
 - **`/team/members`** — matches spec's "active roster with Deactivate," plus
   a second, earlier-stage section not in the original design: a **team
   roster** (name/email/phone, no login) an SMD can populate *before* sending
@@ -276,7 +290,12 @@ navigating to the page.
   SELECT policy). **P11:** the "Audit" quick-link was removed from the My
   Team page's button row (product request — an SMD reaching it by URL still
   works, it's just no longer a one-click nav item next to Members/Invites/
-  Goals/Organization).
+  Goals/Organization). **Fix, post-P12:** the "When" column was rendered
+  server-side with no explicit time zone, so it showed in the server's own
+  runtime zone (effectively always UTC) instead of the viewing SMD's — an
+  action taken at, say, 3pm local could display as a different hour
+  entirely. Now threads the viewer's own `time_zone` through
+  `AuditLogTable`.
 
 ### Admin screens — grown well past the original one-line sketch
 The original spec covered these in a single line each; they're now full
@@ -322,7 +341,9 @@ screens:
     RLS policies at all, same lockdown as `invitations`' token lookup.
 - **`/admin/audit`** — same table component as `/team/audit`, unscoped
   ("everything, every organization"), capped at 500 rows vs. `/team/audit`'s
-  200.
+  200. Same viewer-timezone display fix as `/team/audit` above (this was the
+  reported symptom: an admin's own audit entries showed a different time
+  than when they actually made the change).
 - **`/admin/pilot`** (new, not in the original spec at all) — a purpose-built
   dashboard for the P7 pilot-readiness question, not a stub: pulls a 10-
   business-day active-logger window per org, flags an org "at risk" (red)
@@ -357,7 +378,23 @@ it into this pass.
 **Mechanism, not in the original spec's level of detail:**
 - Timezone resolution is per-instant via `Intl.DateTimeFormat` (handles DST
   automatically), defaulting to `America/New_York` if an agent has no time
-  zone set.
+  zone set. **Fix, post-P12:** the browser's/agent's zone is now captured at
+  invite-accept time and auto-persisted the first time an existing agent
+  (created before that capture existed) loads `/settings` — previously
+  `agents.time_zone` stayed `null` until a manual visit to `/settings`,
+  during which every scheduled send silently used the `America/New_York`
+  default instead of the agent's real zone. The same pass fixed `todayIso()`
+  (`lib/dates.ts`), which had been computing *UTC's* calendar day rather
+  than the viewing/acting agent's local one — used app-wide for
+  log/appointment/sale/recruiting date defaults, "date cannot be in the
+  future" validation, and "today"/"this week" query boundaries, so this was
+  wrong for roughly half of every day for any agent not in UTC. It also
+  fixed `/admin/audit` and `/team/audit` (see below), `/profile`'s "Joined"
+  date, and a few other server-rendered timestamps that either used the
+  server's own runtime zone instead of the viewer's, or (a distinct bug)
+  ran a `date`-only column like `joined_at` through an IANA zone at all,
+  which silently shifts a date-only value back a calendar day in any
+  negative-UTC-offset zone — every zone in the picker.
 - Cron cadence is **every 15 minutes via GitHub Actions**, not Vercel Cron
   — see `docs/02-data-model.md` and `docs/06-build-phases.md`'s "manual
   steps" note for why (Vercel Hobby only allows daily schedules; a 15-minute
@@ -401,6 +438,41 @@ nudges.
 - `/team/members` shows a small "Auto: Wed & Sat" badge on each roster row
   with this enabled, next to the existing "Invited" badge and the manual
   "Send reminder" button.
+
+**P12a, new: automatic per-agent SMD nudge.** Same shape as the roster
+reminders above, but for `nudge_agent`'s manual, 7-day-cooldown "Nudge"
+button on `/team`'s "Quiet — nothing logged in 7+ days" list — an SMD can
+now flip a persistent **"Daily reminders: On/Off"** toggle next to Nudge for
+a quiet associate (`agents.auto_call_nudges_enabled`, default `false`,
+`set_auto_call_nudges` RPC scoped to the caller's downline), and the cron
+route emails that associate automatically every weekday evening from then
+on until they start logging again — no further clicks required. The manual
+Nudge button and its cooldown stay as the on-demand option on top.
+- Reuses `evening_nudge`'s own 7pm-local/weekday send window
+  (`kindsInWindow`) rather than a separate schedule, and skips anyone who
+  already has activity logged today (same rule as `evening_nudge`) — both
+  via a new `agent_auto_nudge_log (agent_id, local_date)` idempotency table,
+  same insert-first shape as `notification_log`.
+- **Shares `notification_prefs.evening_nudge`** rather than getting its own,
+  unreachable opt-out: from the associate's side this is the same "reminder
+  to log calls" concept whether the system or their SMD sent it, so turning
+  off evening nudges in `/settings` (or via the email's unsubscribe link)
+  stops both. An earlier version only checked the SMD's toggle, so an
+  associate's own opt-out was silently ignored — fixed.
+- Carries an unsubscribe link (reusing `evening_nudge`'s kind/token) since
+  it's now a recurring send, unlike the manual Nudge button's email, which
+  still has none (no standing preference to unsubscribe from a one-off).
+- The cron route runs this pass only *after* the main per-agent loop
+  finishes writing to `notification_log` for the tick, not concurrently
+  with it — its own "did this associate already get the plain evening email
+  this run" check reads that table, and running them concurrently let the
+  read happen before the write, occasionally double-emailing an associate
+  with both the toggle and their own `evening_nudge` preference on. Fixed
+  by sequencing the two passes; `team_roster`'s Wed/Sat pass stays
+  concurrent since it shares no state with either.
+- No pgTAP coverage yet for the new schema (`auto_call_nudges_enabled`,
+  `agent_auto_nudge_log`, `set_auto_call_nudges`) — same gap as P11's
+  admin/org-detachment schema, see `TODOS.md`.
 
 ---
 
