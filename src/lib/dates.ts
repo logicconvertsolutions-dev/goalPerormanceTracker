@@ -11,8 +11,27 @@ export function weekStart(date: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+/**
+ * Today's calendar date as YYYY-MM-DD, in the given IANA zone -- pass the
+ * viewing/acting agent's `time_zone`. `Date.toISOString()` is always UTC
+ * regardless of where the code runs (server or browser), so calling this
+ * with no zone silently used UTC's calendar day everywhere it mattered
+ * (default log/appointment/sale/recruiting dates, "cannot be in the future"
+ * validation, "today"/"this week" query boundaries) -- wrong for roughly
+ * half of every day for any agent not in UTC, and always wrong during each
+ * zone's evening hours already past midnight UTC. Falls back to
+ * {@link DEFAULT_TIME_ZONE} (via `resolveTimeZone`) when no zone is given,
+ * same fallback the notification scheduler and formatDisplayTime/DateTime use.
+ */
+export function todayIso(timeZone?: string | null): string {
+  // en-CA already formats as yyyy-mm-dd (same trick used by formatDisplayDate
+  // et al. below), so no manual part-assembly needed.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: resolveTimeZone(timeZone),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 }
 
 export function formatDisplayDate(iso: string): string {

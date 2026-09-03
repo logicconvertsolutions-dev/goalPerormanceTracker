@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { AuditLogTable, type AuditLogRow } from '@/components/shell/audit-log-table';
 
 export default async function AdminAuditPage() {
-  await requireAdmin();
+  const session = await requireAdmin();
   const supabase = await createClient();
 
   // audit_admin_read (p1h) has no org filter -- everything, every org.
@@ -30,7 +30,7 @@ export default async function AdminAuditPage() {
     <div className="space-y-4 max-w-4xl">
       <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Audit</h1>
       <p className="text-sm text-fg-3">Everything, every organization. Who, what, when.</p>
-      <AuditLogTable rows={rows} title="Recent activity" />
+      <AuditLogTable rows={rows} title="Recent activity" viewerTimeZone={session.agent!.time_zone} />
     </div>
   );
 }

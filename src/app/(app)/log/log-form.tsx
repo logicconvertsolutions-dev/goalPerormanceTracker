@@ -83,7 +83,14 @@ export function LogForm({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [callDate, setCallDate] = useState(defaultValues?.callDate ?? defaultDate ?? todayIso());
+  // Client component -- todayIso() with no zone would fall back to UTC's
+  // calendar day, wrong for exactly the evening hours a "today" default
+  // matters most. The browser's own resolved zone is the correct "what day
+  // is it right now for this person" source here, same trick used by
+  // time-zone-select.tsx and the invite-accept form.
+  const browserTimeZone =
+    typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined;
+  const [callDate, setCallDate] = useState(defaultValues?.callDate ?? defaultDate ?? todayIso(browserTimeZone));
   const [showDatePicker, setShowDatePicker] = useState(Boolean(defaultValues ?? defaultDate));
   const [source, setSource] = useState(defaultValues?.source ?? 'warm_market');
   // True once an existing contact with a known prior source is picked --
@@ -93,7 +100,7 @@ export function LogForm({
   const [followUpOn, setFollowUpOn] = useState(defaultValues?.followUpOn ?? '');
   const [showFollowUpPicker, setShowFollowUpPicker] = useState(false);
 
-  const isToday = callDate === todayIso();
+  const isToday = callDate === todayIso(browserTimeZone);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -136,7 +143,7 @@ export function LogForm({
           <Chip
             active={isToday}
             onClick={() => {
-              setCallDate(todayIso());
+              setCallDate(todayIso(browserTimeZone));
               setShowDatePicker(false);
             }}
           >
@@ -149,7 +156,7 @@ export function LogForm({
             <Input
               type="date"
               value={callDate}
-              max={todayIso()}
+              max={todayIso(browserTimeZone)}
               onChange={(e) => setCallDate(e.target.value)}
               className="w-auto"
             />

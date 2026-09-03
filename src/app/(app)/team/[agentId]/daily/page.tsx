@@ -20,7 +20,7 @@ export default async function TeamAgentDailyPage({
   params: Promise<{ agentId: string }>;
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  await requireLeader();
+  const session = await requireLeader();
   const supabase = await createClient();
   const { agentId } = await routeParams;
 
@@ -32,7 +32,8 @@ export default async function TeamAgentDailyPage({
   if (!agent) notFound();
 
   const params = await searchParams;
-  const today = todayIso();
+  // The viewing leader's own local today, same as team/[agentId]/page.tsx.
+  const today = todayIso(session.agent!.time_zone);
   const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'this_week';
   const { from, to } = resolvePeriod(preset, today, params.from, params.to);
 

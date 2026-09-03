@@ -13,10 +13,10 @@ const saleSchema = z.object({
   // Optional even for a brand-new contact -- phone is no longer required
   // (compliance). findOrCreateContact matches/creates by name either way.
   contactPhone: z.string().max(30).optional(),
-  saleDate: z
-    .string()
-    .refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.')
-    .refine((v) => v <= todayIso(), 'Sale date cannot be in the future.'),
+  // "Cannot be in the future" is checked below in createSaleAction, against
+  // the acting agent's own local today -- see the identical comment in
+  // appointments/actions.ts for why that can't live in a .refine() here.
+  saleDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
   productType: z.string().max(200).optional(),
   premiumCents: z.coerce.number().int().min(0).default(0),
   notes: z.string().max(2000).optional(),
@@ -29,11 +29,15 @@ const UNIQUE_VIOLATION = '23505';
 
 // P3: minimal CRUD only. Filters/summary/CSV land in P4 per docs/08-screen-specs.md.
 export async function createSaleAction(formData: FormData) {
+  // Fetched before validation -- see createAppointmentAction for why.
+  const session = await requireAgent();
+  const today = todayIso(session.agent!.time_zone);
+
   const parsed = saleSchema.safeParse({
     clientName: formData.get('clientName'),
     contactId: formData.get('contactId') || undefined,
     contactPhone: formData.get('contactPhone') || undefined,
-    saleDate: formData.get('saleDate') || todayIso(),
+    saleDate: formData.get('saleDate') || today,
     productType: formData.get('productType') || undefined,
     premiumCents: formData.get('premiumCents') || 0,
     notes: formData.get('notes') || undefined,
@@ -44,8 +48,10 @@ export async function createSaleAction(formData: FormData) {
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input.' };
   }
+  if (parsed.data.saleDate > today) {
+    return { ok: false, error: 'Sale date cannot be in the future.' };
+  }
 
-  const session = await requireAgent();
   const agentId = session.agent!.id;
   // Non-null: only associates/leaders reach this action (admin has no org).
   const orgId = session.agent!.org_id!;
@@ -105,6 +111,9 @@ export async function updateSaleAction(formData: FormData) {
   }
 
   const session = await requireAgent();
+  if (parsed.data.saleDate && parsed.data.saleDate > todayIso(session.agent!.time_zone)) {
+    return { ok: false, error: 'Sale date cannot be in the future.' };
+  }
   const supabase = await createClient();
 
   const { error } = await supabase

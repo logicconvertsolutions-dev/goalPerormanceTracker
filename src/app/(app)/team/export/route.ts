@@ -16,11 +16,11 @@ function csvField(v: string | number): string {
 // reflects the true filtered period rather than whatever happened to be
 // rendered client-side (08-screen-specs.md: "/team ... CSV export of the roster").
 export async function GET(request: NextRequest) {
-  await requireLeader();
+  const session = await requireLeader();
   const supabase = await createClient();
   const url = new URL(request.url);
 
-  const today = todayIso();
+  const today = todayIso(session.agent!.time_zone);
   const preset: PeriodPreset = isPeriodPreset(url.searchParams.get('period'))
     ? (url.searchParams.get('period') as PeriodPreset)
     : 'this_week';

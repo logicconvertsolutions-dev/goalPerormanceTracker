@@ -79,7 +79,12 @@ export function SaleForm({
   );
   const [followUpOn, setFollowUpOn] = useState(defaultValues?.followUpOn ?? '');
   const [showFollowUpPicker, setShowFollowUpPicker] = useState(false);
-  const saleDate = defaultValues?.saleDate ?? todayIso();
+  // Client component -- the browser's own resolved zone is the correct
+  // "what day is it right now" source here (todayIso() with no zone falls
+  // back to UTC's calendar day). Same trick as time-zone-select.tsx.
+  const browserTimeZone =
+    typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined;
+  const saleDate = defaultValues?.saleDate ?? todayIso(browserTimeZone);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -125,7 +130,7 @@ export function SaleForm({
           name="saleDate"
           type="date"
           defaultValue={saleDate}
-          max={todayIso()}
+          max={todayIso(browserTimeZone)}
           required
         />
       </div>

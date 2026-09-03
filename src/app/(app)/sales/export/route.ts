@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const url = new URL(request.url);
 
-  const today = todayIso();
+  const today = todayIso(session.agent!.time_zone);
   const preset: PeriodPreset = isPeriodPreset(url.searchParams.get('period')) ? (url.searchParams.get('period') as PeriodPreset) : 'this_week';
   const { from, to } = resolvePeriod(
     preset,

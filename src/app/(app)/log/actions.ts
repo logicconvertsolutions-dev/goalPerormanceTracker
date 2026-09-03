@@ -42,11 +42,16 @@ const logCallSchema = z.object({
 const UNIQUE_VIOLATION = '23505';
 
 export async function logCallAction(formData: FormData) {
+  // Fetched before validation so the callDate fallback below (when a
+  // request somehow omits it) uses the agent's own local today, not the
+  // server's UTC one.
+  const session = await requireAgent();
+
   const parsed = logCallSchema.safeParse({
     contactName: formData.get('contactName'),
     contactId: formData.get('contactId') || undefined,
     contactPhone: formData.get('contactPhone') || undefined,
-    callDate: formData.get('callDate') || todayIso(),
+    callDate: formData.get('callDate') || todayIso(session.agent!.time_zone),
     source: formData.get('source'),
     outcome: formData.get('outcome'),
     notes: formData.get('notes') || undefined,
@@ -58,7 +63,6 @@ export async function logCallAction(formData: FormData) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input.' };
   }
 
-  const session = await requireAgent();
   const agentId = session.agent!.id;
   // Non-null: only associates/leaders reach this action (admin has no org).
   const orgId = session.agent!.org_id!;

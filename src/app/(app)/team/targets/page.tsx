@@ -27,7 +27,7 @@ export default async function TeamTargetsPage() {
   const session = await requireLeader();
   const supabase = await createClient();
 
-  const today = todayIso();
+  const today = todayIso(session.agent!.time_zone);
   const upcomingWeek = nextMonday(today);
   const effectiveMonday = formatDisplayDate(upcomingWeek);
 

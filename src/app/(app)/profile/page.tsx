@@ -1,5 +1,4 @@
 import { requireVerifiedAgent } from '@/lib/auth/guards';
-import { resolveTimeZone } from '@/lib/notifications/window';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/shell/page-header';
@@ -33,11 +32,16 @@ export default async function ProfilePage() {
           <div>
             <p className="text-xs text-fg-3">Joined</p>
             <p className="text-sm text-fg">
+              {/* joined_at is a `date` column (no time-of-day) -- locked to
+                  UTC rather than the agent's own IANA zone, since converting
+                  a date-only value through a negative-offset zone (every
+                  zone in the picker is America/*) shifted this back a
+                  calendar day for literally every agent. */}
               {new Date(session.agent!.joined_at).toLocaleDateString('en-CA', {
                 day: 'numeric',
                 month: 'short',
                 year: 'numeric',
-                timeZone: resolveTimeZone(session.agent!.time_zone),
+                timeZone: 'UTC',
               })}
             </p>
           </div>
