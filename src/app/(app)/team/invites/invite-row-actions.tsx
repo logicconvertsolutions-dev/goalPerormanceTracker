@@ -25,7 +25,11 @@ export function InviteRowActions({
             const result = await resendInvitationAction(email);
             if (result.ok && result.inviteUrl) {
               navigator.clipboard.writeText(result.inviteUrl);
-              toast.success('Invitation resent — link copied too, in case email doesn\'t arrive');
+              toast.success(
+                result.emailSent
+                  ? 'Invitation resent — link copied too, in case email doesn\'t arrive'
+                  : 'Could not email the invite — link copied, share it directly'
+              );
             } else {
               toast.error('Could not resend — try again');
             }
