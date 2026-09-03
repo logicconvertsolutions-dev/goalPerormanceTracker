@@ -153,6 +153,12 @@ create table public.contacts (
   -- P9a: phone was deliberately omitted in the original design to keep
   -- PIPEDA surface small ("we do not need them"). Reversed by explicit
   -- product decision once import needed a reliable de-dup key beyond name.
+  -- Later made optional again (compliance: collecting it should never be
+  -- required) -- name is the primary de-dup key everywhere a contact is
+  -- created (findOrCreateContact, the Excel importer, the device-contact
+  -- importer), phone only a secondary signal when a name match misses. No
+  -- schema change needed for that reversal -- this column was already
+  -- nullable.
   phone            text,
   phone_normalized text generated always as
     (nullif(regexp_replace(phone, '\D', '', 'g'), '')) stored,

@@ -110,8 +110,9 @@ as unshipped, not removed.)*
 
 **Header actions:** "Import from phone" (Contact Picker API, feature-detected
 — Android Chrome/Edge and flag-gated WebKit only), "Download template,"
-"Import from Excel" (→ `/import`), "Add contact" (name + **phone, both
-required**). **P10:** the shared `<PageHeader>` stacks the action row below
+"Import from Excel" (→ `/import`), "Add contact" (name required, **phone
+optional** — reversed from the earlier "both required" shape; see
+`docs/02-data-model.md`'s phone history). **P10:** the shared `<PageHeader>` stacks the action row below
 the title under `sm:` instead of forcing it into a `shrink-0` slot beside a
 truncating title — fixes these four buttons overflowing the viewport on
 narrow phones (every page using `<PageHeader>` with an action got the same
@@ -127,7 +128,7 @@ call." or "No contacts matching "{q}"." when searching.
 ## `/contacts/[id]` — contact detail
 
 Matches spec: full call history, appointments, sales, Log a call entry
-point. Header shows name + phone, with "Log appointment" and "Log a call"
+point. Header shows name + phone (phone omitted if none on file), with "Log appointment" and "Log a call"
 actions. "Appointments & sales" card only renders if either exists; "Call
 history" card shows every call with outcome badge, notes, and follow-up
 status. Read-only — no inline editing on this page, only quick-add entry
@@ -322,25 +323,33 @@ Substantially more built out than the original spec's basic-xlsx-upload
 description.
 
 **Two templates**, downloadable from `/import/template?type=contacts|clients`:
-- **Contacts** — `Contacts` sheet, `Contact Name` + `Phone Number`
-  (**phone mandatory**).
+- **Contacts** — `Contacts` sheet, `Contact Name` + `Phone Number (optional)`.
 - **Clients** — `Sales Log` sheet, `Date, Client Name, Product Type, Premium
-  Amount, Notes, Phone` — a row both creates the contact and the sale.
+  Amount, Notes, Phone (optional)` — a row both creates the contact and the sale.
 
 **Five recognized sheets:** `Contacts`, `Call Log`, `Appointment Log`,
-`Sales Log`, `Recruiting Log`. The four activity sheets accept an optional
-trailing `Phone` column; only the plain `Contacts` sheet requires it. Enum
-labels are Title-Case in the sheet, mapped to snake_case DB values, with
-legacy recruiting labels explicitly remapped onto the current pipeline
-vocabulary (P8a).
+`Sales Log`, `Recruiting Log`. Phone is an optional trailing column on all
+five, including the plain `Contacts` sheet (reversed from an earlier
+phone-mandatory-on-Contacts-only shape — see `docs/02-data-model.md`'s
+phone history). Enum labels are Title-Case in the sheet, mapped to
+snake_case DB values, with legacy recruiting labels explicitly remapped
+onto the current pipeline vocabulary (P8a).
 
 **Flow:** Upload → Preview (ready/error/skipped-blank counts, per-sheet
 breakdown, scrollable error list `{sheet} row {n}: {errors}`, "Commit {n}
 rows") → Done (imported/skipped/failed summary, links to `/today` and
-`/contacts`).
+`/contacts`). A workbook over 20,000 total data rows across all sheets is
+rejected at parse time with a specific "split it into smaller files"
+message rather than silently running long enough to hit the platform's
+execution-time limit.
 
-**Dedup:** phone-first then name matching, so re-uploading the same file
-never creates duplicates. **Rate-limited:** 5 imports/hour via
+**Dedup:** name-first, phone only as a secondary signal when no name match
+is found (reversed priority — was phone-first), so re-uploading the same
+file never creates duplicates. Commit resolves every row's contact in one
+bulk pass (consolidating the same new person appearing across multiple
+sheets into a single contact) and bulk-inserts each activity table in
+chunks, rather than a per-row sequential loop — the per-row version could
+time out on larger workbooks. **Rate-limited:** 5 imports/hour via
 `check_rate_limit`.
 
 ---
