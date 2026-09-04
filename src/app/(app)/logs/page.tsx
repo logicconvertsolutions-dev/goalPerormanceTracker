@@ -5,19 +5,30 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/shell/page-header';
 import { LogActivityButton } from '@/components/shell/log-activity-button';
-import { FilterBar } from '@/components/shell/filter-bar';
+import { FilterBar, type FilterChip } from '@/components/shell/filter-bar';
 import { ACTIVITY_META, type ActivityKind } from '@/components/shell/activity-icons';
 import { resolvePeriod, todayIso, type PeriodPreset, PERIOD_PRESETS } from '@/lib/dates';
 import { CallRow } from '../log/call-row';
 import { AppointmentRow } from '../appointments/appointment-row';
 import { SaleRow } from '../sales/sale-row';
 import { RecruitingRow } from '../recruiting/recruiting-row';
+import { CallsSourceFilter } from './calls-source-filter';
 
 function isPeriodPreset(v: string | undefined): v is PeriodPreset {
   return !!v && (PERIOD_PRESETS as readonly string[]).includes(v);
 }
 
 const TABS: ActivityKind[] = ['call', 'appointment', 'sale', 'recruiting'];
+
+const CALL_SOURCES = ['warm_market', 'referral', 'cold', 'social_media', 'friend', 'other'] as const;
+const CALL_SOURCE_LABELS: Record<(typeof CALL_SOURCES)[number], string> = {
+  warm_market: 'Warm market',
+  referral: 'Referral',
+  cold: 'Cold',
+  social_media: 'Social media',
+  friend: 'Friend',
+  other: 'Other',
+};
 
 /**
  * One entry point for "everything I've logged", switchable by activity type.
@@ -44,6 +55,10 @@ export default async function LogsPage({
   )
     ? (params.type as ActivityKind)
     : 'call';
+  const sourceFilter: (typeof CALL_SOURCES)[number] | '' =
+    type === 'call' && params.source && (CALL_SOURCES as readonly string[]).includes(params.source)
+      ? (params.source as (typeof CALL_SOURCES)[number])
+      : '';
 
   const [{ count: callCount }, { count: apptCount }, { count: saleCount }, { count: recruitCount }] =
     await Promise.all([
@@ -82,10 +97,17 @@ export default async function LogsPage({
 
   function tabHref(kind: ActivityKind) {
     const next = new URLSearchParams();
-    for (const [k, v] of Object.entries(params)) if (v !== undefined && k !== 'type') next.set(k, v);
+    for (const [k, v] of Object.entries(params)) {
+      if (v === undefined || k === 'type') continue;
+      if (k === 'source' && kind !== 'call') continue; // source only applies to the Calls tab
+      next.set(k, v);
+    }
     next.set('type', kind);
     return `/logs?${next.toString()}`;
   }
+
+  const chips: FilterChip[] = [];
+  if (sourceFilter) chips.push({ key: 'source', label: CALL_SOURCE_LABELS[sourceFilter] });
 
   return (
     <div className="space-y-4 max-w-3xl">
@@ -128,24 +150,38 @@ export default async function LogsPage({
         })}
       </div>
 
-      <FilterBar preset={preset} customFrom={params.from} customTo={params.to} />
+      <FilterBar preset={preset} customFrom={params.from} customTo={params.to} chips={chips}>
+        {type === 'call' && <CallsSourceFilter value={sourceFilter} />}
+      </FilterBar>
 
-      {type === 'call' && <CallsTab agentId={agentId} from={from} to={to} />}
+      {type === 'call' && <CallsTab agentId={agentId} from={from} to={to} source={sourceFilter} />}
       {type === 'appointment' && <AppointmentsTab agentId={agentId} from={from} to={to} />}
       {type === 'sale' && <SalesTab agentId={agentId} from={from} to={to} />}
       {type === 'recruiting' && <RecruitingTab agentId={agentId} from={from} to={to} />}
     </div>
   );
 
-  async function CallsTab({ agentId, from, to }: { agentId: string; from: string; to: string }) {
-    const { data } = await supabase
+  async function CallsTab({
+    agentId,
+    from,
+    to,
+    source,
+  }: {
+    agentId: string;
+    from: string;
+    to: string;
+    source: (typeof CALL_SOURCES)[number] | '';
+  }) {
+    let query = supabase
       .from('call_logs')
       .select('id, call_date, source, outcome, notes, contacts(full_name)')
       .eq('agent_id', agentId)
       .gte('call_date', from)
-      .lte('call_date', to)
-      .order('call_date', { ascending: false })
-      .limit(50);
+      .lte('call_date', to);
+
+    if (source) query = query.eq('source', source);
+
+    const { data } = await query.order('call_date', { ascending: false }).limit(50);
     const rows = data ?? [];
 
     if (rows.length === 0) return <EmptyState label="calls" />;

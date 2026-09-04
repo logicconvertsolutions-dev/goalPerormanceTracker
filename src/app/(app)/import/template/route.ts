@@ -12,16 +12,16 @@ const TEMPLATES = {
     filename: 'contacts-import-template.xlsx',
     sheetName: 'Contacts',
     rows: [
-      ['Contact Name', 'Phone Number (optional)'],
-      ['Jane Doe (delete this example row)', '555-123-4567'],
+      ['Contact Name'],
+      ['Jane Doe (delete this example row)'],
     ],
   },
   clients: {
     filename: 'clients-import-template.xlsx',
     sheetName: 'Sales Log',
     rows: [
-      ['Date', 'Client Name', 'Product Type', 'Premium Amount', 'Notes', 'Phone (optional)'],
-      ['2026-01-15', 'Jane Doe (delete this example row)', 'Universal Life', 1500, 'Referred by John', '555-123-4567'],
+      ['Date', 'Client Name', 'Product Type', 'Premium Amount', 'Notes'],
+      ['2026-01-15', 'Jane Doe (delete this example row)', 'Universal Life', 1500, 'Referred by John'],
     ],
   },
 } as const;

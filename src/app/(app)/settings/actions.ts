@@ -1,7 +1,6 @@
 'use server';
 
 import { z } from 'zod';
-import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 
@@ -54,19 +53,4 @@ export async function updateTimeZoneAction(timeZone: string) {
 
   revalidatePath('/settings');
   return { ok: !error };
-}
-
-// "Delete my account" (09-account-and-auth.md /settings "Your data"):
-// public.delete_my_account() (p6b) does the actual work -- deletes
-// contacts (cascading call_logs/appointments), scrubs sales/recruiting_logs
-// notes, anonymises the agent row, and sets status inactive. Signing out
-// here is what actually ends the session; the RPC alone doesn't invalidate
-// the current cookie.
-export async function deleteMyAccountAction() {
-  const supabase = await createClient();
-  const { error } = await supabase.rpc('delete_my_account');
-  if (error) return { ok: false, error: error.message };
-
-  await supabase.auth.signOut();
-  redirect('/login?reason=account-deleted');
 }

@@ -22,7 +22,6 @@ import { importDeviceContactsAction } from './actions';
 // browser supports it. See https://developer.mozilla.org/en-US/docs/Web/API/Contact_Picker_API.
 interface DeviceContact {
   name?: string[];
-  tel?: string[];
 }
 interface ContactsManager {
   select(properties: string[], options?: { multiple?: boolean }): Promise<DeviceContact[]>;
@@ -61,14 +60,14 @@ export function ImportFromPhoneButton() {
     startTransition(async () => {
       let picked: DeviceContact[];
       try {
-        picked = await navigator.contacts!.select(['name', 'tel'], { multiple: true });
+        picked = await navigator.contacts!.select(['name'], { multiple: true });
       } catch {
         // User cancelled the picker, or denied it -- not an error worth surfacing.
         return;
       }
 
       const contacts = picked
-        .map((c) => ({ fullName: (c.name?.[0] ?? '').trim(), phone: (c.tel?.[0] ?? '').trim() || undefined }))
+        .map((c) => ({ fullName: (c.name?.[0] ?? '').trim() }))
         .filter((c) => c.fullName);
 
       if (contacts.length === 0) {

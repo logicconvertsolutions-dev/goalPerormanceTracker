@@ -500,27 +500,24 @@ export type Database = {
           created_at: string
           full_name: string
           id: string
+          notes: string | null
           org_id: string
-          phone: string | null
-          phone_normalized: string | null
         }
         Insert: {
           agent_id: string
           created_at?: string
           full_name: string
           id?: string
+          notes?: string | null
           org_id: string
-          phone?: string | null
-          phone_normalized?: string | null
         }
         Update: {
           agent_id?: string
           created_at?: string
           full_name?: string
           id?: string
+          notes?: string | null
           org_id?: string
-          phone?: string | null
-          phone_normalized?: string | null
         }
         Relationships: [
           {
@@ -1324,7 +1321,6 @@ export type Database = {
         Returns: string
       }
       deactivate_agent: { Args: { p_agent_id: string }; Returns: undefined }
-      delete_my_account: { Args: never; Returns: undefined }
       drain_metrics: { Args: { p_limit?: number }; Returns: number }
       my_followups: {
         Args: { p_as_of?: string }

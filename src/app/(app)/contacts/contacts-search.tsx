@@ -34,7 +34,7 @@ export function ContactsSearch({ initialQuery }: { initialQuery: string }) {
       name="q"
       value={query}
       onChange={(e) => setQuery(e.target.value)}
-      placeholder="Search name"
+      placeholder="Search name or notes"
       className="max-w-sm"
     />
   );

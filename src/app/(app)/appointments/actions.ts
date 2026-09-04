@@ -12,9 +12,6 @@ const APPT_STATUSES = ['scheduled', 'held', 'no_show', 'rescheduled', 'cancelled
 const appointmentSchema = z.object({
   contactName: z.string().min(1, 'Enter who the appointment is with.').max(200),
   contactId: z.string().uuid().optional(),
-  // Optional even for a brand-new contact -- phone is no longer required
-  // (compliance). findOrCreateContact matches/creates by name either way.
-  contactPhone: z.string().max(30).optional(),
   // "Cannot be in the future" is checked below in createAppointmentAction,
   // against the acting agent's own local today -- a zod .refine() here can't
   // close over that per-request value (this schema is built once at module
@@ -46,7 +43,6 @@ export async function createAppointmentAction(formData: FormData) {
   const parsed = appointmentSchema.safeParse({
     contactName: formData.get('contactName'),
     contactId: formData.get('contactId') || undefined,
-    contactPhone: formData.get('contactPhone') || undefined,
     apptDate: formData.get('apptDate') || today,
     apptType: formData.get('apptType') || undefined,
     status: formData.get('status') || 'scheduled',
@@ -74,8 +70,7 @@ export async function createAppointmentAction(formData: FormData) {
     agentId,
     orgId,
     parsed.data.contactName,
-    parsed.data.contactId,
-    parsed.data.contactPhone
+    parsed.data.contactId
   );
   if ('error' in contact) return { ok: false, error: contact.error };
 

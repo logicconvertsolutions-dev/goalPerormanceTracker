@@ -7,6 +7,7 @@ import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -53,8 +54,8 @@ export function AddContactDialog() {
             <Input id="fullName" name="fullName" placeholder="Full name" required />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="phone">Phone (optional)</Label>
-            <Input id="phone" name="phone" type="tel" placeholder="Phone number" />
+            <Label htmlFor="notes">Notes (optional)</Label>
+            <Textarea id="notes" name="notes" placeholder="Anything worth remembering about this contact" />
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={pending}>

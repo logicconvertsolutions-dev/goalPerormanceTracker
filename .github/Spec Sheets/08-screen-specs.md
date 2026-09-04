@@ -99,28 +99,31 @@ dialog.
 
 ## `/contacts` — contact list
 
-Matches the original spec's shape, with **phone** added as a real column
-(P9 — see `docs/02-data-model.md`; the original design deliberately excluded
-phone) and richer import entry points than originally specified.
+Matches the original spec's shape. **P9** added `phone` as a real column;
+**P13a reversed that again outright** — phone is no longer collected,
+displayed, or stored anywhere, and `notes` (free text) replaced it as the
+column agents actually use to remember something about a contact.
 
-**Filters:** live-debounced name search (`q`, 250ms). *(The original spec
-also called for filtering by last-contacted range, source, last outcome, and
-has-open-follow-up — only text search is currently implemented; treat those
-as unshipped, not removed.)*
+**Filters:** live-debounced search (`q`, 250ms) — matches on **name or
+notes** as of P13a (`.or('full_name.ilike...,notes.ilike...')`), not name
+alone. *(The original spec also called for filtering by last-contacted
+range, source, last outcome, and has-open-follow-up — only this text search
+is currently implemented; treat those as unshipped, not removed.)*
 
 **Header actions:** "Import from phone" (Contact Picker API, feature-detected
-— Android Chrome/Edge and flag-gated WebKit only), "Download template,"
-"Import from Excel" (→ `/import`), "Add contact" (name required, **phone
-optional** — reversed from the earlier "both required" shape; see
-`docs/02-data-model.md`'s phone history). **P10:** the shared `<PageHeader>` stacks the action row below
-the title under `sm:` instead of forcing it into a `shrink-0` slot beside a
-truncating title — fixes these four buttons overflowing the viewport on
-narrow phones (every page using `<PageHeader>` with an action got the same
-fix, not just this one).
+— Android Chrome/Edge and flag-gated WebKit only; imports name only, no
+phone, since P13a), "Download template," "Import from Excel" (→ `/import`),
+"Add contact" (name required, **notes optional** — the Phone field this
+dialog used to have is gone as of P13a). **P10:** the shared `<PageHeader>`
+stacks the action row below the title under `sm:` instead of forcing it
+into a `shrink-0` slot beside a truncating title — fixes these four buttons
+overflowing the viewport on narrow phones (every page using `<PageHeader>`
+with an action got the same fix, not just this one).
 
-**Table:** Contact · Phone · Times called · Last called · Last outcome ·
-Next follow-up. Mobile collapses to cards. *(No CSV export currently on this
-page, despite the original spec calling for one.)*
+**Table:** Contact · Notes · Times called · Last called · Last outcome ·
+Next follow-up — the Phone column became a Notes column in P13a. Mobile
+collapses to cards. *(No CSV export currently on this page, despite the
+original spec calling for one.)*
 
 **Empty state:** "No contacts yet. They appear automatically when you log a
 call." or "No contacts matching "{q}"." when searching.
@@ -128,11 +131,12 @@ call." or "No contacts matching "{q}"." when searching.
 ## `/contacts/[id]` — contact detail
 
 Matches spec: full call history, appointments, sales, Log a call entry
-point. Header shows name + phone (phone omitted if none on file), with "Log appointment" and "Log a call"
-actions. "Appointments & sales" card only renders if either exists; "Call
-history" card shows every call with outcome badge, notes, and follow-up
-status. Read-only — no inline editing on this page, only quick-add entry
-points.
+point. Header shows just the contact's name (the phone-in-subtitle shape is
+gone as of P13a), with "Log appointment" and "Log a call" actions. A Notes
+card renders when the contact has notes on file (P13a). "Appointments &
+sales" card only renders if either exists; "Call history" card shows every
+call with outcome badge, notes, and follow-up status. Read-only — no inline
+editing on this page, only quick-add entry points.
 
 ---
 
@@ -227,7 +231,11 @@ time.
 **Tabs:** Call / Appointment / Sale / Recruiting (`type` param), each with an
 icon and a live count badge for the selected period.
 
-**Filters:** period + custom (shared `FilterBar`), tab selection.
+**Filters:** period + custom (shared `FilterBar`), tab selection. **Calls tab
+only, added P13:** a Source filter (`source` param, same six values as Log
+a call's Source field) — a small client component
+(`CallsSourceFilter`) so selecting a value actually re-queries immediately,
+unlike `/appointments`' plain-form status filter.
 
 **Per tab:** trimmed table (same row components as the dedicated pages),
 capped at 50 rows, same inline actions. Below appointment/sale/recruiting
@@ -323,17 +331,20 @@ Substantially more built out than the original spec's basic-xlsx-upload
 description.
 
 **Two templates**, downloadable from `/import/template?type=contacts|clients`:
-- **Contacts** — `Contacts` sheet, `Contact Name` + `Phone Number (optional)`.
+- **Contacts** — `Contacts` sheet, `Contact Name` only (the `Phone Number`
+  column was removed in P13a).
 - **Clients** — `Sales Log` sheet, `Date, Client Name, Product Type, Premium
-  Amount, Notes, Phone (optional)` — a row both creates the contact and the sale.
+  Amount, Notes` — a row both creates the contact and the sale (its trailing
+  `Phone` column was likewise removed in P13a).
 
 **Five recognized sheets:** `Contacts`, `Call Log`, `Appointment Log`,
-`Sales Log`, `Recruiting Log`. Phone is an optional trailing column on all
-five, including the plain `Contacts` sheet (reversed from an earlier
-phone-mandatory-on-Contacts-only shape — see `docs/02-data-model.md`'s
-phone history). Enum labels are Title-Case in the sheet, mapped to
-snake_case DB values, with legacy recruiting labels explicitly remapped
-onto the current pipeline vocabulary (P8a).
+`Sales Log`, `Recruiting Log`. **As of P13a, phone is never parsed on any
+sheet** — a trailing `Phone` column some legacy workbooks still carry is
+silently ignored rather than read, so re-uploading an old file with that
+column keeps working, it just contributes nothing. Enum labels are
+Title-Case in the sheet, mapped to snake_case DB values, with legacy
+recruiting labels explicitly remapped onto the current pipeline vocabulary
+(P8a).
 
 **Flow:** Upload → Preview (ready/error/skipped-blank counts, per-sheet
 breakdown, scrollable error list `{sheet} row {n}: {errors}`, "Commit {n}
@@ -343,9 +354,10 @@ rejected at parse time with a specific "split it into smaller files"
 message rather than silently running long enough to hit the platform's
 execution-time limit.
 
-**Dedup:** name-first, phone only as a secondary signal when no name match
-is found (reversed priority — was phone-first), so re-uploading the same
-file never creates duplicates. Commit resolves every row's contact in one
+**Dedup:** name only, as of P13a (previously name-first with phone as a
+secondary signal; phone is no longer collected at all, so there's no second
+signal left to fall back to) — re-uploading the same file never creates
+duplicates. Commit resolves every row's contact in one
 bulk pass (consolidating the same new person appearing across multiple
 sheets into a single contact) and bulk-inserts each activity table in
 chunks, rather than a per-row sequential loop — the per-row version could
@@ -370,8 +382,8 @@ CSV" (summary view only).
 (clickable — filters the multi-select to just those agents, matching spec).
 
 **Quiet agents card:** name link to `/team/[agentId]` + **Nudge** button per
-row, matching spec (7-day rate limit, atomic since the P9f fix — see
-`docs/04-security.md`).
+row, matching spec (rate limit: 7 days, atomic since the P9f fix, **shortened
+to 1 day in P13b** — see `docs/04-security.md`).
 
 **Summary view:** roster table (Agent w/ override marker and Quiet badge ·
 Calls n/target + bar · Appts Set · Appts Held · Premium · Streak · Last

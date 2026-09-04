@@ -27,9 +27,6 @@ const CALL_OUTCOMES = [
 const logCallSchema = z.object({
   contactName: z.string().min(1, 'Enter who you called.').max(200),
   contactId: z.string().uuid().optional(),
-  // Optional even for a brand-new contact -- phone is no longer required
-  // (compliance). findOrCreateContact matches/creates by name either way.
-  contactPhone: z.string().max(30).optional(),
   callDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
   source: z.enum(CALL_SOURCES),
   outcome: z.enum(CALL_OUTCOMES),
@@ -50,7 +47,6 @@ export async function logCallAction(formData: FormData) {
   const parsed = logCallSchema.safeParse({
     contactName: formData.get('contactName'),
     contactId: formData.get('contactId') || undefined,
-    contactPhone: formData.get('contactPhone') || undefined,
     callDate: formData.get('callDate') || todayIso(session.agent!.time_zone),
     source: formData.get('source'),
     outcome: formData.get('outcome'),
@@ -85,8 +81,7 @@ export async function logCallAction(formData: FormData) {
     agentId,
     orgId,
     parsed.data.contactName,
-    parsed.data.contactId,
-    parsed.data.contactPhone
+    parsed.data.contactId
   );
   if ('error' in contact) return { ok: false, error: contact.error };
 

@@ -11,7 +11,7 @@ function buildWorkbook(sheets: Record<string, unknown[][]>): Buffer {
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
 }
 
-const CONTACTS_HEADER = ['Contact Name', 'Phone Number'];
+const CONTACTS_HEADER = ['Contact Name'];
 const CALL_LOG_HEADER = ['Date', 'Contact Name', 'Company', 'Source', 'Outcome', 'Notes'];
 const APPT_HEADER = ['Date', 'Contact Name', 'Type', 'Status', 'Expected Premium ($)', 'Referrals Given', 'Notes'];
 const SALES_HEADER = ['Date', 'Client Name', 'Product Type', 'Premium Amount', 'Notes'];
@@ -98,28 +98,18 @@ describe('parseWorkbook', () => {
     });
   });
 
-  it('parses the simple Contacts sheet (name + optional phone)', () => {
+  it('parses the simple Contacts sheet (name only)', () => {
     const buf = buildWorkbook({
-      Contacts: [CONTACTS_HEADER, ['Jane Doe', '555-123-4567']],
+      Contacts: [CONTACTS_HEADER, ['Jane Doe']],
     });
 
     const result = parseWorkbook(buf);
     expect(result.rows).toHaveLength(1);
     expect(result.rows[0].errors).toEqual([]);
-    expect(result.rows[0].data).toEqual({ fullName: 'Jane Doe', phone: '555-123-4567' });
+    expect(result.rows[0].data).toEqual({ fullName: 'Jane Doe' });
   });
 
-  it('does not require a phone number on the Contacts sheet', () => {
-    const buf = buildWorkbook({
-      Contacts: [CONTACTS_HEADER, ['Jane Doe', null]],
-    });
-
-    const result = parseWorkbook(buf);
-    expect(result.rows[0].errors).toEqual([]);
-    expect(result.rows[0].data).toEqual({ fullName: 'Jane Doe', phone: null });
-  });
-
-  it('parses an optional trailing Phone column without disturbing existing columns', () => {
+  it('ignores a trailing Phone column without disturbing existing columns', () => {
     const buf = buildWorkbook({
       'Call Log': [
         [...CALL_LOG_HEADER, 'Phone'],
@@ -129,16 +119,8 @@ describe('parseWorkbook', () => {
 
     const result = parseWorkbook(buf);
     expect(result.rows[0].errors).toEqual([]);
-    expect(result.rows[0].data).toMatchObject({ contactName: 'Jane Doe', contactPhone: '555-123-4567' });
-  });
-
-  it('leaves contactPhone null when the workbook has no Phone column at all', () => {
-    const buf = buildWorkbook({
-      'Call Log': [CALL_LOG_HEADER, ['2026-07-06', 'Jane Doe', null, 'Warm Market', 'Connected', null]],
-    });
-
-    const result = parseWorkbook(buf);
-    expect(result.rows[0].data).toMatchObject({ contactPhone: null });
+    expect(result.rows[0].data).toMatchObject({ contactName: 'Jane Doe' });
+    expect(result.rows[0].data).not.toHaveProperty('contactPhone');
   });
 
   it('skips fully-blank rows without emitting them', () => {

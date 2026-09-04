@@ -61,8 +61,6 @@ class FakeQuery implements PromiseLike<{ data: Row[] | null; error: { code: stri
     if (this.tableName === 'contacts') {
       const nameKey = String(row.full_name).toLowerCase();
       if (this.table.some((r) => r.agent_id === row.agent_id && String(r.full_name).toLowerCase() === nameKey)) return true;
-      const norm = row.phone ? String(row.phone).replace(/\D/g, '') : '';
-      if (norm && this.table.some((r) => r.agent_id === row.agent_id && r.phone_normalized === norm)) return true;
       return false;
     }
     if (row.import_row_hash) {
@@ -91,14 +89,10 @@ class FakeQuery implements PromiseLike<{ data: Row[] | null; error: { code: stri
         seenInBatch.add(key);
       }
     }
-    const inserted = this.payload.map((row, i) => {
-      const withId: Row = { id: `${this.tableName}-${this.table.length + i + 1}`, ...row };
-      if (this.tableName === 'contacts') {
-        const norm = row.phone ? String(row.phone).replace(/\D/g, '') : '';
-        withId.phone_normalized = norm || null;
-      }
-      return withId;
-    });
+    const inserted = this.payload.map((row, i) => ({
+      id: `${this.tableName}-${this.table.length + i + 1}`,
+      ...row,
+    }));
     this.table.push(...inserted);
     return { data: this.project(inserted), error: null };
   }
@@ -125,7 +119,7 @@ function fakeClient() {
 const AGENT_ID = 'agent-1';
 const ORG_ID = 'org-1';
 
-function callLogRow(rowNumber: number, contactName: string, phone: string | null): ParsedRow {
+function callLogRow(rowNumber: number, contactName: string): ParsedRow {
   return {
     sheet: 'Call Log',
     rowNumber,
@@ -133,7 +127,6 @@ function callLogRow(rowNumber: number, contactName: string, phone: string | null
     errors: [],
     data: {
       contactName,
-      contactPhone: phone,
       callDate: '2026-08-01',
       source: 'referral',
       outcome: 'connected',
@@ -142,7 +135,7 @@ function callLogRow(rowNumber: number, contactName: string, phone: string | null
   };
 }
 
-function saleRow(rowNumber: number, clientName: string, phone: string | null): ParsedRow {
+function saleRow(rowNumber: number, clientName: string): ParsedRow {
   return {
     sheet: 'Sales Log',
     rowNumber,
@@ -150,7 +143,6 @@ function saleRow(rowNumber: number, clientName: string, phone: string | null): P
     errors: [],
     data: {
       clientName,
-      contactPhone: phone,
       saleDate: '2026-08-01',
       productType: null,
       premiumCents: 10000,
@@ -159,20 +151,20 @@ function saleRow(rowNumber: number, clientName: string, phone: string | null): P
   };
 }
 
-function contactOnlyRow(rowNumber: number, fullName: string, phone: string | null): ParsedRow {
+function contactOnlyRow(rowNumber: number, fullName: string): ParsedRow {
   return {
     sheet: 'Contacts',
     rowNumber,
     rowHash: `contact-${rowNumber}`,
     errors: [],
-    data: { fullName, phone },
+    data: { fullName },
   };
 }
 
 describe('commitImport', () => {
   it('resolves the same new person across multiple sheets to one contact', async () => {
     const supabase = fakeClient();
-    const rows = [callLogRow(2, 'John Doe', '555-1111'), saleRow(2, 'John Doe', null)];
+    const rows = [callLogRow(2, 'John Doe'), saleRow(2, 'John Doe')];
 
     const result = await commitImport(supabase, AGENT_ID, ORG_ID, rows);
 
@@ -186,19 +178,20 @@ describe('commitImport', () => {
     expect(sales[0].contact_id).toBe(contacts[0].id);
   });
 
-  it('does not require a phone number for a brand-new contact', async () => {
+  it('creates a brand-new contact with just a name', async () => {
     const supabase = fakeClient();
-    const result = await commitImport(supabase, AGENT_ID, ORG_ID, [contactOnlyRow(2, 'Jane Doe', null)]);
+    const result = await commitImport(supabase, AGENT_ID, ORG_ID, [contactOnlyRow(2, 'Jane Doe')]);
 
     expect(result.errors).toEqual([]);
     expect(result.imported).toBe(1);
     const contacts = (supabase as unknown as FakeSupabase).tables.contacts;
-    expect(contacts[0]).toMatchObject({ full_name: 'Jane Doe', phone: null });
+    expect(contacts[0]).toMatchObject({ full_name: 'Jane Doe' });
+    expect(contacts[0]).not.toHaveProperty('phone');
   });
 
   it('is idempotent on re-import: skips already-imported rows without duplicating contacts or activity rows', async () => {
     const supabase = fakeClient();
-    const rows = [callLogRow(2, 'John Doe', '555-1111'), saleRow(3, 'Mary Smith', '555-2222')];
+    const rows = [callLogRow(2, 'John Doe'), saleRow(3, 'Mary Smith')];
 
     const first = await commitImport(supabase, AGENT_ID, ORG_ID, rows);
     expect(first.imported).toBe(2);
@@ -214,31 +207,28 @@ describe('commitImport', () => {
     expect((supabase as unknown as FakeSupabase).tables.sales).toHaveLength(1);
   });
 
-  it('matches an existing contact by name when phone differs from what is on file', async () => {
+  it('matches an existing contact by name', async () => {
     const supabase = fakeClient();
     (supabase as unknown as FakeSupabase).tables.contacts.push({
       id: 'existing-1',
       agent_id: AGENT_ID,
       org_id: ORG_ID,
       full_name: 'John Doe',
-      phone: null,
-      phone_normalized: null,
     });
 
-    const result = await commitImport(supabase, AGENT_ID, ORG_ID, [callLogRow(2, 'John Doe', '555-9999')]);
+    const result = await commitImport(supabase, AGENT_ID, ORG_ID, [callLogRow(2, 'John Doe')]);
 
     expect(result.errors).toEqual([]);
     expect(result.imported).toBe(1);
     const contacts = (supabase as unknown as FakeSupabase).tables.contacts;
     expect(contacts).toHaveLength(1); // matched, not duplicated
-    expect(contacts[0].phone).toBe('555-9999'); // backfilled
     expect((supabase as unknown as FakeSupabase).tables.call_logs[0].contact_id).toBe('existing-1');
   });
 
   it('reports a row error without losing the rest of a mixed chunk', async () => {
     const supabase = fakeClient();
     const rows: ParsedRow[] = [
-      callLogRow(2, 'Good Contact', null),
+      callLogRow(2, 'Good Contact'),
       { sheet: 'Call Log', rowNumber: 3, rowHash: 'bad-1', errors: ['Invalid or missing date.'], data: null },
     ];
 

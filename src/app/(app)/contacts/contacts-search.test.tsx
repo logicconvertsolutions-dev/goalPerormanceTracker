@@ -30,7 +30,7 @@ describe('ContactsSearch', () => {
   it('pushes the typed query into the q search param after the debounce', () => {
     render(<ContactsSearch initialQuery="" />);
 
-    fireEvent.change(screen.getByPlaceholderText('Search name'), { target: { value: 'Deepak' } });
+    fireEvent.change(screen.getByPlaceholderText('Search name or notes'), { target: { value: 'Deepak' } });
     vi.advanceTimersByTime(300);
 
     expect(replace).toHaveBeenCalledWith('/contacts?q=Deepak');
@@ -40,7 +40,7 @@ describe('ContactsSearch', () => {
     mockSearchParams = new URLSearchParams('q=Deepak');
     render(<ContactsSearch initialQuery="Deepak" />);
 
-    fireEvent.change(screen.getByPlaceholderText('Search name'), { target: { value: '' } });
+    fireEvent.change(screen.getByPlaceholderText('Search name or notes'), { target: { value: '' } });
     vi.advanceTimersByTime(300);
 
     expect(replace).toHaveBeenCalledWith('/contacts?');
@@ -49,7 +49,7 @@ describe('ContactsSearch', () => {
   it('does not navigate before the debounce window elapses', () => {
     render(<ContactsSearch initialQuery="" />);
 
-    fireEvent.change(screen.getByPlaceholderText('Search name'), { target: { value: 'D' } });
+    fireEvent.change(screen.getByPlaceholderText('Search name or notes'), { target: { value: 'D' } });
     vi.advanceTimersByTime(100);
 
     expect(replace).not.toHaveBeenCalled();

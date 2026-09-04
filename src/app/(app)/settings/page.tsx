@@ -3,7 +3,6 @@ import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { weekStart } from '@/lib/dates';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/shell/page-header';
 import { NotificationToggles } from './notification-toggles';
 import { TimeZoneSelect } from './time-zone-select';
@@ -101,21 +100,6 @@ export default async function SettingsPage() {
             <p className="text-xs text-fg-3">Week start</p>
             <p className="text-sm text-fg">Monday</p>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Import from spreadsheet</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <p className="text-sm text-fg-2">
-            Bring in calls, appointments, sales, and recruiting conversations from your
-            existing tracker workbook.
-          </p>
-          <Button asChild variant="secondary">
-            <Link href="/import">Import a workbook</Link>
-          </Button>
         </CardContent>
       </Card>
 
