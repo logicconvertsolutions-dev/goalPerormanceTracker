@@ -10,9 +10,6 @@ import { todayIso } from '@/lib/dates';
 const saleSchema = z.object({
   clientName: z.string().min(1, 'Enter the client name.').max(200),
   contactId: z.string().uuid().optional(),
-  // Optional even for a brand-new contact -- phone is no longer required
-  // (compliance). findOrCreateContact matches/creates by name either way.
-  contactPhone: z.string().max(30).optional(),
   // "Cannot be in the future" is checked below in createSaleAction, against
   // the acting agent's own local today -- see the identical comment in
   // appointments/actions.ts for why that can't live in a .refine() here.
@@ -36,7 +33,6 @@ export async function createSaleAction(formData: FormData) {
   const parsed = saleSchema.safeParse({
     clientName: formData.get('clientName'),
     contactId: formData.get('contactId') || undefined,
-    contactPhone: formData.get('contactPhone') || undefined,
     saleDate: formData.get('saleDate') || today,
     productType: formData.get('productType') || undefined,
     premiumCents: formData.get('premiumCents') || 0,
@@ -62,8 +58,7 @@ export async function createSaleAction(formData: FormData) {
     agentId,
     orgId,
     parsed.data.clientName,
-    parsed.data.contactId,
-    parsed.data.contactPhone
+    parsed.data.contactId
   );
   if ('error' in contact) return { ok: false, error: contact.error };
 

@@ -236,17 +236,21 @@ Matches spec closely, in the same card order.
   browser-detected. **Week start is a hardcoded "Monday" label, not an
   editable setting** — matches the original spec's "shown as a fact not a
   setting" description exactly.
-- **Import** — link to `/import`.
+- **Import** — the "Import from spreadsheet" card that used to live here was
+  **removed in P13c** (product request). The underlying `/import` flow is
+  unchanged and still reachable from `/contacts` and `/clients` ("Import
+  from Excel") — only this settings-page entry point is gone.
 - **Your data** — "Download everything" (`GET /settings/export`, a single
-  JSON bundle of every own-scoped table) and "Delete my account" (destructive
-  confirm requiring the literal text `DELETE` to be typed before the button
-  enables). Matches spec's intent; the export is JSON only, not JSON+CSV as
-  the original spec listed.
+  JSON bundle of every own-scoped table) only. The export is JSON only, not
+  JSON+CSV as the original spec listed. "Delete my account" was **removed
+  in P13c** (product request) — see below.
 
-Account deletion (`delete_my_account()` RPC) — see `docs/02-data-model.md`
-and `docs/04-security.md` for exactly what's retained vs. erased; the
-Server Action also explicitly signs the session out afterward, since the
-RPC alone doesn't invalidate the cookie.
+**P13c: self-service account deletion removed.** `delete_my_account()` (was:
+see `docs/02-data-model.md` and `docs/04-security.md` for exactly what it
+used to retain vs. erase) and the `/settings` "Delete my account" button/
+dialog are gone outright — confirmed unreferenced by any other RPC, trigger,
+or policy before dropping the function. An agent who wants their data gone
+now goes through an admin.
 
 ### `/logout`
 Matches spec, plus one implementation detail: the page itself
@@ -282,8 +286,9 @@ navigating to the page.
   one of the fixed gaps). **P11:** every roster member added here is now
   automatically enrolled in a Wednesday/Saturday training-reminder email —
   a small "Auto: Wed & Sat" badge on the row confirms it — independent of
-  the manual "Send reminder" button and its 7-day cooldown, which stays as
-  an on-demand option on top. See "Notifications" below for the mechanism.
+  the manual "Send reminder" button and its cooldown (7 days, **shortened to
+  1 day in P13b**), which stays as an on-demand option on top. See
+  "Notifications" below for the mechanism.
 - **`/team/audit`** — matches spec: goal changes, invitations, deactivations,
   who/what/when, org-scoped via a dedicated RLS policy (added since the
   original design — the audit table originally had only one, admin-global,
@@ -419,7 +424,8 @@ it into this pass.
 **P11, new: automatic team_roster training reminders.** Distinct from the
 three notifications above (which are per-agent, role/pref-gated) and from
 the existing manual "Send reminder" button (`send_roster_training_reminder`,
-rate-limited to once per 7 days per roster row) — every `team_roster` entry
+rate-limited to once per 7 days per roster row — **shortened to once per day
+in P13b**) — every `team_roster` entry
 is now automatically enrolled in a recurring Wednesday/Saturday reminder the
 moment an SMD adds them (`team_roster.auto_reminders_enabled`, default
 `true`). This is the fix for the manual button's own limitation: an SMD had
@@ -440,8 +446,9 @@ nudges.
   "Send reminder" button.
 
 **P12a, new: automatic per-agent SMD nudge.** Same shape as the roster
-reminders above, but for `nudge_agent`'s manual, 7-day-cooldown "Nudge"
-button on `/team`'s "Quiet — nothing logged in 7+ days" list — an SMD can
+reminders above, but for `nudge_agent`'s manual "Nudge" button (cooldown:
+7 days, **shortened to 1 day in P13b**) on `/team`'s "Quiet — nothing logged
+in 7+ days" list — an SMD can
 now flip a persistent **"Daily reminders: On/Off"** toggle next to Nudge for
 a quiet associate (`agents.auto_call_nudges_enabled`, default `false`,
 `set_auto_call_nudges` RPC scoped to the caller's downline), and the cron

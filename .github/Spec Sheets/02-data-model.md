@@ -152,21 +152,19 @@ create table public.contacts (
   -- or displayed anywhere in the product.
   -- P9a: phone was deliberately omitted in the original design to keep
   -- PIPEDA surface small ("we do not need them"). Reversed by explicit
-  -- product decision once import needed a reliable de-dup key beyond name.
-  -- Later made optional again (compliance: collecting it should never be
-  -- required) -- name is the primary de-dup key everywhere a contact is
-  -- created (findOrCreateContact, the Excel importer, the device-contact
-  -- importer), phone only a secondary signal when a name match misses. No
-  -- schema change needed for that reversal -- this column was already
-  -- nullable.
-  phone            text,
-  phone_normalized text generated always as
-    (nullif(regexp_replace(phone, '\D', '', 'g'), '')) stored,
+  -- product decision once import needed a reliable de-dup key beyond name,
+  -- then made optional again (compliance: collecting it should never be
+  -- required). P13a REMOVED it again, for good: agents should never be
+  -- asked for, shown, or store a contact's phone number, in any create or
+  -- import path. `phone`/`phone_normalized` and their unique index are
+  -- dropped outright (existing data goes with them), and `notes` is added
+  -- in their place -- free text captured at creation (Add contact dialog)
+  -- and searchable from /contacts search, same shape as call/appointment/
+  -- sale notes elsewhere in this schema. Name is the sole de-dup key now.
+  notes      text,
   created_at timestamptz not null default now()
 );
 create unique index contacts_agent_name_uq on public.contacts (agent_id, lower(full_name));
-create unique index contacts_agent_phone_uq on public.contacts (agent_id, phone_normalized)
-  where phone_normalized is not null;
 create index on public.contacts (agent_id);
 
 create table public.call_logs (
@@ -378,9 +376,12 @@ Added over P2–P11, none anticipated by the original P1 schema:
   service-role client, never a client-writable policy.
 - **`agent_nudges`** (P5a, restructured P9f) — single row per agent
   (`agent_id` is the PK), `last_sent_at`, `last_sent_by`. Started as an
-  append-only send log; P9f collapsed it to one row per agent so the 7-day
-  cooldown can be enforced atomically (see "Security-fix migrations" below).
-  No RLS policies at all — reachable only via `nudge_agent()`.
+  append-only send log; P9f collapsed it to one row per agent so the cooldown
+  can be enforced atomically (see "Security-fix migrations" below). **P13b**
+  shortened the cooldown from 7 days to 1 day (product ask: SMDs want to be
+  able to nudge a quiet agent daily, not weekly) — same atomic
+  `on conflict ... where` shape, just a shorter interval. No RLS policies at
+  all — reachable only via `nudge_agent()`.
 - **`notification_log`** (P5.5) — one row per `(agent_id, kind, local_date)`,
   unique-constrained. The unique index *is* the daily rate limit: the cron
   route inserts before sending, so two concurrent cron runs can't double-send.
@@ -394,11 +395,13 @@ Added over P2–P11, none anticipated by the original P1 schema:
   local_date)`, unique-constrained, same idempotency shape as
   `notification_log`. Backs the automatic Wednesday/Saturday reminder every
   `team_roster` row with `auto_reminders_enabled = true` gets, independent
-  of the manual `send_roster_training_reminder()` button and its 7-day
-  cooldown. No RLS policies — cron route (service-role) only.
+  of the manual `send_roster_training_reminder()` button and its cooldown
+  (7 days, **shortened to 1 day in P13b**). No RLS policies — cron route
+  (service-role) only.
 - **`agent_training_reminders`** (P9b, restructured P9f) — same
   single-row-per-agent shape as `agent_nudges`, for reminding an
-  already-onboarded agent to complete training.
+  already-onboarded agent to complete training. Cooldown shortened from
+  7 days to 1 day in **P13b**, same as `agent_nudges`.
 - **`agent_email_changes`** (P11b) — backs the admin "change an agent's
   email" flow (`/admin/agents/[agentId]`): `agent_id`, `new_email`,
   `token_hash` (unique), `requested_by`, `expires_at` (7 days),
@@ -483,7 +486,8 @@ The column-level protection (`revoke update`, `grant update (full_name)`,
 the `guard_agent_privileged_columns` trigger) is unchanged in principle, but
 the trigger gained one exception in **P6a**: role/upline/org/status changes
 made by an already-vetted SECURITY DEFINER function (`deactivate_agent()`,
-`delete_my_account()`) set a transaction-scoped flag
+`delete_my_account()` — the latter **removed outright in P13c**, see below)
+set a transaction-scoped flag
 (`set_config('app.privileged_agent_write', 'on', true)`) immediately before
 writing, so the trigger doesn't block a write that a different authorization
 path already approved. This closed a real bug where a leader's own
@@ -687,3 +691,29 @@ rate-limited via `check_rate_limit()` (P6e). See `docs/08-screen-specs.md`
 for what the import UI actually looks like now (native contact import with
 downloadable templates, not just a bare `.xlsx` upload) — that's grown
 well beyond this file's original one-paragraph description.
+
+## P13 — phone removed again, daily reminders, self-delete removed (unplanned)
+
+Three independent product decisions, one migration set each:
+
+- **`contacts.phone`/`phone_normalized` dropped, `contacts.notes` added
+  (P13a).** The P9a reversal (phone added back for import dedup) is itself
+  reversed: agents must never be asked for, shown, or store a contact's
+  phone number, in any create or import path (manual Add contact, the
+  device Contact Picker import, or the Excel importer's Contacts/activity
+  sheets). The column and its unique index are dropped outright, taking any
+  existing data with them — this is not just a UI hide. `contacts.notes`
+  (free text) is added in its place, captured on the Add contact dialog and
+  searched from `/contacts` alongside `full_name` (`.or('full_name.ilike...,
+  notes.ilike...')`). Name is now the sole de-dup key in `findOrCreateContact`
+  and the bulk importers.
+- **Manual nudge/reminder cooldown: 7 days → 1 day (P13b).** `nudge_agent()`,
+  `send_training_reminder()`, and `send_roster_training_reminder()` all keep
+  their exact P9f/P9e atomic check-and-set shape — only the interval
+  literal changes (`interval '7 days'` → `interval '1 day'`). The automatic
+  Wednesday/Saturday roster reminder (P11a) is untouched; this only shortens
+  the on-demand button's cooldown.
+- **`delete_my_account()` removed (P13c).** Self-service account deletion
+  is removed from `/settings` for all users — `drop function`, no
+  replacement. Confirmed unreferenced by any other RPC, trigger, or policy
+  before dropping.

@@ -10,7 +10,6 @@ import { formatDisplayDate } from '@/lib/dates';
 interface ClientRow {
   id: string;
   full_name: string;
-  phone: string | null;
   sales: { sale_date: string; premium_cents: number }[];
 }
 
@@ -31,7 +30,7 @@ export default async function ClientsPage({
 
   let query = supabase
     .from('contacts')
-    .select('id, full_name, phone, sales!inner(sale_date, premium_cents)')
+    .select('id, full_name, sales!inner(sale_date, premium_cents)')
     .eq('agent_id', session.agent!.id);
 
   if (q) {
@@ -103,7 +102,6 @@ export default async function ClientsPage({
               <thead className="bg-bg-2 text-fg-3 text-xs uppercase tracking-wide">
                 <tr>
                   <th className="text-left font-medium px-4 py-2.5">Client</th>
-                  <th className="text-left font-medium px-4 py-2.5">Phone</th>
                   <th className="text-left font-medium px-4 py-2.5">Sales</th>
                   <th className="text-left font-medium px-4 py-2.5">Last sale</th>
                   <th className="text-right font-medium px-4 py-2.5">Total premium</th>
@@ -120,7 +118,6 @@ export default async function ClientsPage({
                           {c.full_name}
                         </Link>
                       </td>
-                      <td className="px-4 py-2.5 text-fg-2">{c.phone ?? '—'}</td>
                       <td className="px-4 py-2.5 text-fg-2">{c.sales.length}</td>
                       <td className="px-4 py-2.5 text-fg-2">
                         {mostRecent ? formatDisplayDate(mostRecent.sale_date) : '—'}

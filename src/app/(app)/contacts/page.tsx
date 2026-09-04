@@ -12,7 +12,7 @@ import { ContactsSearch } from './contacts-search';
 interface ContactRow {
   id: string;
   full_name: string;
-  phone: string | null;
+  notes: string | null;
   call_logs: { call_date: string; outcome: string; follow_up_on: string | null; follow_up_done_at: string | null }[];
 }
 
@@ -28,12 +28,12 @@ export default async function ContactsPage({
 
   let query = supabase
     .from('contacts')
-    .select('id, full_name, phone, call_logs(call_date, outcome, follow_up_on, follow_up_done_at)')
+    .select('id, full_name, notes, call_logs(call_date, outcome, follow_up_on, follow_up_done_at)')
     .eq('agent_id', session.agent!.id);
 
   if (q) {
     const escaped = q.replace(/[%_]/g, '\\$&');
-    query = query.ilike('full_name', `%${escaped}%`);
+    query = query.or(`full_name.ilike.%${escaped}%,notes.ilike.%${escaped}%`);
   }
 
   const { data: contacts } = await query
@@ -90,7 +90,7 @@ export default async function ContactsPage({
                     <p className="truncate text-[15px] font-semibold text-fg">{c.full_name}</p>
                     <span className="shrink-0 text-xs text-fg-3">{calls.length} calls</span>
                   </div>
-                  {c.phone && <p className="mt-0.5 truncate text-sm text-fg-2">{c.phone}</p>}
+                  {c.notes && <p className="mt-0.5 truncate text-sm text-fg-2">{c.notes}</p>}
                   <p className="mt-0.5 truncate text-sm text-fg-3">
                     {last
                       ? `${formatDisplayDate(last.call_date)} · ${last.outcome.replace('_', ' ')}`
@@ -108,7 +108,7 @@ export default async function ContactsPage({
               <thead className="bg-bg-2 text-fg-3 text-xs uppercase tracking-wide">
                 <tr>
                   <th className="text-left font-medium px-4 py-2.5">Contact</th>
-                  <th className="text-left font-medium px-4 py-2.5">Phone</th>
+                  <th className="text-left font-medium px-4 py-2.5">Notes</th>
                   <th className="text-left font-medium px-4 py-2.5">Times called</th>
                   <th className="text-left font-medium px-4 py-2.5">Last called</th>
                   <th className="text-left font-medium px-4 py-2.5">Last outcome</th>
@@ -130,7 +130,7 @@ export default async function ContactsPage({
                           {c.full_name}
                         </Link>
                       </td>
-                      <td className="px-4 py-2.5 text-fg-2">{c.phone ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-fg-2 max-w-xs truncate">{c.notes ?? '—'}</td>
                       <td className="px-4 py-2.5 text-fg-2">{calls.length}</td>
                       <td className="px-4 py-2.5 text-fg-2">
                         {last ? formatDisplayDate(last.call_date) : '—'}

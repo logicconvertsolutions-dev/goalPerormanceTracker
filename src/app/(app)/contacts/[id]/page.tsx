@@ -18,7 +18,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
 
   const { data: contact } = await supabase
     .from('contacts')
-    .select('id, full_name, phone, created_at')
+    .select('id, full_name, notes, created_at')
     .eq('id', id)
     .eq('agent_id', session.agent!.id)
     .maybeSingle();
@@ -49,7 +49,6 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
     <div className="space-y-4 max-w-2xl">
       <PageHeader
         title={contact.full_name}
-        subtitle={contact.phone ?? undefined}
         action={
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="secondary" size="sm">
@@ -67,6 +66,17 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           </div>
         }
       />
+
+      {contact.notes && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Notes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-fg-2 whitespace-pre-wrap">{contact.notes}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {Boolean(appointments?.length || sales?.length) && (
         <Card>

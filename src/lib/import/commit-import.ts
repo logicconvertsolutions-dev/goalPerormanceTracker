@@ -1,7 +1,6 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../../types/database';
-import { normalizePhone } from '@/lib/contacts';
 import type {
   AppointmentImportData,
   CallLogImportData,
@@ -38,7 +37,6 @@ interface ActivityRow {
   rowNumber: number;
   sheet: ParsedRow['sheet'];
   contactName: string;
-  contactPhone: string | null;
   rowHash: string;
   insert: Record<string, unknown>;
 }
@@ -84,10 +82,10 @@ export async function commitImport(
   });
   if (validRows.length === 0) return result;
 
-  // One name/phone ref per valid row, in a single combined pass across every
-  // sheet -- so e.g. the same person appearing in both Call Log and Sales
-  // Log resolves to the same contact instead of two separate lookups/creates.
-  const refs = validRows.map(({ rowIndex, row }) => ({ rowIndex, ...contactRefFor(row) }));
+  // One name per valid row, in a single combined pass across every sheet --
+  // so e.g. the same person appearing in both Call Log and Sales Log
+  // resolves to the same contact instead of two separate lookups/creates.
+  const refs = validRows.map(({ rowIndex, row }) => ({ rowIndex, name: contactNameFor(row) }));
   const contactIdByRowIndex = await resolveContactsBulk(supabase, agentId, orgId, refs);
 
   // Split into "Contacts" sheet rows (nothing left to do once the contact
@@ -127,28 +125,18 @@ const ACTIVITY_TABLE_BY_SHEET: Record<Exclude<ParsedRow['sheet'], 'Contacts'>, A
   'Recruiting Log': 'recruiting_logs',
 };
 
-function contactRefFor(row: ParsedRow): { name: string; phone: string | null } {
+function contactNameFor(row: ParsedRow): string {
   switch (row.sheet) {
-    case 'Contacts': {
-      const data = row.data as ContactOnlyImportData;
-      return { name: data.fullName, phone: data.phone };
-    }
-    case 'Call Log': {
-      const data = row.data as CallLogImportData;
-      return { name: data.contactName, phone: data.contactPhone };
-    }
-    case 'Appointment Log': {
-      const data = row.data as AppointmentImportData;
-      return { name: data.contactName, phone: data.contactPhone };
-    }
-    case 'Sales Log': {
-      const data = row.data as SalesImportData;
-      return { name: data.clientName, phone: data.contactPhone };
-    }
-    case 'Recruiting Log': {
-      const data = row.data as RecruitingImportData;
-      return { name: data.prospectName, phone: data.contactPhone };
-    }
+    case 'Contacts':
+      return (row.data as ContactOnlyImportData).fullName;
+    case 'Call Log':
+      return (row.data as CallLogImportData).contactName;
+    case 'Appointment Log':
+      return (row.data as AppointmentImportData).contactName;
+    case 'Sales Log':
+      return (row.data as SalesImportData).clientName;
+    case 'Recruiting Log':
+      return (row.data as RecruitingImportData).prospectName;
   }
 }
 
@@ -160,7 +148,7 @@ function activityRowFor(
   orgId: string
 ): ActivityRow {
   const base = { agent_id: agentId, org_id: orgId, contact_id: contactId, import_row_hash: row.rowHash };
-  const { name, phone } = contactRefFor(row);
+  const name = contactNameFor(row);
 
   let insert: Record<string, unknown>;
   switch (row.sheet) {
@@ -202,7 +190,7 @@ function activityRowFor(
       throw new Error(`activityRowFor called for non-activity sheet: ${row.sheet}`);
   }
 
-  return { rowIndex, rowNumber: row.rowNumber, sheet: row.sheet, contactName: name, contactPhone: phone, rowHash: row.rowHash, insert };
+  return { rowIndex, rowNumber: row.rowNumber, sheet: row.sheet, contactName: name, rowHash: row.rowHash, insert };
 }
 
 const ACTIVITY_ERROR_MESSAGE: Record<ActivityTable, string> = {
@@ -275,60 +263,49 @@ async function commitActivityRows(
 
 /**
  * Resolves every row's contact in one bulk pass: fetch the agent's existing
- * contacts once, match each row against them in memory (name first, phone
- * as a fallback signal — same priority as findOrCreateContact, see
- * lib/contacts.ts for why), collapse rows that need a brand-new contact
- * down to one insert per unique name (so the same new person appearing on
- * multiple sheets/rows becomes a single contact, not several), and
- * bulk-insert those in chunks.
+ * contacts once, match each row against them in memory by name, collapse
+ * rows that need a brand-new contact down to one insert per unique name (so
+ * the same new person appearing on multiple sheets/rows becomes a single
+ * contact, not several), and bulk-insert those in chunks.
  */
 async function resolveContactsBulk(
   supabase: SupabaseClient<Database>,
   agentId: string,
   orgId: string,
-  refs: { rowIndex: number; name: string; phone: string | null }[]
+  refs: { rowIndex: number; name: string }[]
 ): Promise<Map<number, string>> {
   const resolved = new Map<number, string>();
   if (refs.length === 0) return resolved;
 
   const { data: existingRows } = await supabase
     .from('contacts')
-    .select('id, full_name, phone, phone_normalized')
+    .select('id, full_name')
     .eq('agent_id', agentId);
 
-  const byName = new Map<string, { id: string; phone: string | null }>();
-  const byPhone = new Map<string, { id: string; phone: string | null }>();
+  const byName = new Map<string, { id: string }>();
   for (const row of existingRows ?? []) {
     byName.set(row.full_name.toLowerCase(), row);
-    if (row.phone_normalized) byPhone.set(row.phone_normalized, row);
   }
 
-  const backfills: { id: string; phone: string }[] = [];
-  const pendingByKey = new Map<string, { fullName: string; phone: string | null; rowIndices: number[] }>();
+  const pendingByKey = new Map<string, { fullName: string; rowIndices: number[] }>();
 
   for (const ref of refs) {
     const trimmed = ref.name.trim();
     if (!trimmed) continue; // parser already validated a name exists on every sheet; defensive only
     const nameKey = trimmed.toLowerCase();
-    const normalizedPhone = normalizePhone(ref.phone);
 
-    const existing = byName.get(nameKey) || (normalizedPhone ? byPhone.get(normalizedPhone) : undefined);
+    const existing = byName.get(nameKey);
     if (existing) {
       resolved.set(ref.rowIndex, existing.id);
-      if (normalizedPhone && !existing.phone) {
-        backfills.push({ id: existing.id, phone: ref.phone! });
-        existing.phone = ref.phone!;
-      }
       continue;
     }
 
     const pending = pendingByKey.get(nameKey);
     if (pending) {
       pending.rowIndices.push(ref.rowIndex);
-      if (!pending.phone && ref.phone) pending.phone = ref.phone;
       continue;
     }
-    pendingByKey.set(nameKey, { fullName: trimmed, phone: ref.phone, rowIndices: [ref.rowIndex] });
+    pendingByKey.set(nameKey, { fullName: trimmed, rowIndices: [ref.rowIndex] });
   }
 
   const pendingEntries = Array.from(pendingByKey.entries());
@@ -336,7 +313,6 @@ async function resolveContactsBulk(
     agent_id: agentId,
     org_id: orgId,
     full_name: p.fullName,
-    phone: p.phone || null,
   }));
 
   for (let i = 0; i < toInsert.length; i += INSERT_CHUNK_SIZE) {
@@ -351,10 +327,6 @@ async function resolveContactsBulk(
       const id = insertedByName.get(nameKey);
       if (id) for (const rowIndex of p.rowIndices) resolved.set(rowIndex, id);
     }
-  }
-
-  if (backfills.length > 0) {
-    await Promise.all(backfills.map((b) => supabase.from('contacts').update({ phone: b.phone }).eq('id', b.id)));
   }
 
   return resolved;

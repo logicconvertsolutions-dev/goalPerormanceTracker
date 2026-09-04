@@ -59,7 +59,6 @@ export const RECRUIT_STATUS_LABEL_MAP: Record<string, RecruitStatus> = {
 
 export interface CallLogImportData {
   contactName: string;
-  contactPhone: string | null;
   callDate: string;
   source: CallSource;
   outcome: CallOutcome;
@@ -68,7 +67,6 @@ export interface CallLogImportData {
 
 export interface AppointmentImportData {
   contactName: string;
-  contactPhone: string | null;
   apptDate: string;
   apptType: string | null;
   status: ApptStatus;
@@ -79,7 +77,6 @@ export interface AppointmentImportData {
 
 export interface SalesImportData {
   clientName: string;
-  contactPhone: string | null;
   saleDate: string;
   productType: string | null;
   premiumCents: number;
@@ -88,7 +85,6 @@ export interface SalesImportData {
 
 export interface RecruitingImportData {
   prospectName: string;
-  contactPhone: string | null;
   logDate: string;
   source: CallSource | null;
   status: RecruitStatus;
@@ -96,12 +92,10 @@ export interface RecruitingImportData {
 }
 
 // The simple "just my contacts" sheet — no activity, no dedicated sheet type
-// elsewhere handles phone this directly. Phone is optional here, same as the
-// four activity sheets' trailing Phone column — we no longer require
-// collecting it (compliance); name is the only thing this sheet needs.
+// elsewhere handles this directly. Only the name is imported — a contact's
+// phone number is never collected or stored (compliance).
 export interface ContactOnlyImportData {
   fullName: string;
-  phone: string | null;
 }
 
 export type ImportSheetName = 'Contacts' | 'Call Log' | 'Appointment Log' | 'Sales Log' | 'Recruiting Log';
@@ -194,7 +188,7 @@ function rowHashFor(fileHash: string, sheet: string, rowNumber: number): string 
 }
 
 function parseContactRow(cells: unknown[]): { data: ContactOnlyImportData | null; errors: string[] } {
-  const [contactName, phoneCell] = cells;
+  const [contactName] = cells;
   const errors: string[] = [];
 
   const name = toTextOrNull(contactName);
@@ -202,16 +196,16 @@ function parseContactRow(cells: unknown[]): { data: ContactOnlyImportData | null
 
   if (errors.length > 0 || !name) return { data: null, errors };
 
-  return { data: { fullName: name, phone: toTextOrNull(phoneCell) }, errors: [] };
+  return { data: { fullName: name }, errors: [] };
 }
 
 function parseCallLogRow(cells: unknown[]): { data: CallLogImportData | null; errors: string[] } {
   // Company was column index 2 in the source workbook layout — still
   // skipped positionally so existing import templates don't need to change,
-  // just no longer read into the app (company isn't collected anymore).
-  // Phone is a new *trailing* column (index 6) for the same reason — appending
-  // rather than inserting keeps every existing column index unchanged.
-  const [dateCell, contactName, , sourceLabel, outcomeLabel, notes, phone] = cells;
+  // just no longer read into the app (company isn't collected anymore). A
+  // trailing Phone column some workbooks carry (index 6) is likewise never
+  // read — a contact's phone number is not collected.
+  const [dateCell, contactName, , sourceLabel, outcomeLabel, notes] = cells;
   const errors: string[] = [];
 
   const callDate = parseWorkbookDate(dateCell);
@@ -231,7 +225,6 @@ function parseCallLogRow(cells: unknown[]): { data: CallLogImportData | null; er
   return {
     data: {
       contactName: name,
-      contactPhone: toTextOrNull(phone),
       callDate,
       source,
       outcome,
@@ -242,7 +235,7 @@ function parseCallLogRow(cells: unknown[]): { data: CallLogImportData | null; er
 }
 
 function parseAppointmentRow(cells: unknown[]): { data: AppointmentImportData | null; errors: string[] } {
-  const [dateCell, contactName, apptType, statusLabel, expectedPremium, referralsGiven, notes, phone] = cells;
+  const [dateCell, contactName, apptType, statusLabel, expectedPremium, referralsGiven, notes] = cells;
   const errors: string[] = [];
 
   const apptDate = parseWorkbookDate(dateCell);
@@ -259,7 +252,6 @@ function parseAppointmentRow(cells: unknown[]): { data: AppointmentImportData | 
   return {
     data: {
       contactName: name,
-      contactPhone: toTextOrNull(phone),
       apptDate,
       apptType: toTextOrNull(apptType),
       status,
@@ -272,7 +264,7 @@ function parseAppointmentRow(cells: unknown[]): { data: AppointmentImportData | 
 }
 
 function parseSalesRow(cells: unknown[]): { data: SalesImportData | null; errors: string[] } {
-  const [dateCell, clientName, productType, premium, notes, phone] = cells;
+  const [dateCell, clientName, productType, premium, notes] = cells;
   const errors: string[] = [];
 
   const saleDate = parseWorkbookDate(dateCell);
@@ -286,7 +278,6 @@ function parseSalesRow(cells: unknown[]): { data: SalesImportData | null; errors
   return {
     data: {
       clientName: name,
-      contactPhone: toTextOrNull(phone),
       saleDate,
       productType: toTextOrNull(productType),
       premiumCents: toMoneyCents(premium),
@@ -297,7 +288,7 @@ function parseSalesRow(cells: unknown[]): { data: SalesImportData | null; errors
 }
 
 function parseRecruitingRow(cells: unknown[]): { data: RecruitingImportData | null; errors: string[] } {
-  const [dateCell, prospectName, sourceLabel, statusLabel, notes, phone] = cells;
+  const [dateCell, prospectName, sourceLabel, statusLabel, notes] = cells;
   const errors: string[] = [];
 
   const logDate = parseWorkbookDate(dateCell);
@@ -318,7 +309,7 @@ function parseRecruitingRow(cells: unknown[]): { data: RecruitingImportData | nu
   if (errors.length > 0 || !logDate || !name || !status) return { data: null, errors };
 
   return {
-    data: { prospectName: name, contactPhone: toTextOrNull(phone), logDate, source, status, notes: toTextOrNull(notes) },
+    data: { prospectName: name, logDate, source, status, notes: toTextOrNull(notes) },
     errors: [],
   };
 }

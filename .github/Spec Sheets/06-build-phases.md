@@ -196,6 +196,26 @@ No security-audit-driven work this round (P11c's not-found fix was
 self-caught during the org_id migration, not an external finding) — see
 `docs/04-security.md` if that changes.
 
+## P13 — Contact phone reversed again, daily reminders, self-delete removed (unplanned)
+Three migrations, all product-requested bug fixes rather than planned feature
+work — see `docs/02-data-model.md`'s "P13" section for full detail:
+- `contacts.phone`/`phone_normalized` dropped again (reversing P9a), taking
+  any existing phone data with them; `contacts.notes` added in its place,
+  captured on Add contact and searched from `/contacts` alongside name.
+  Every create/import path (manual, device Contact Picker, Excel importer)
+  no longer asks for, shows, or stores a phone number.
+- `nudge_agent()` / `send_training_reminder()` / `send_roster_training_reminder()`
+  cooldown shortened from 7 days to 1 day (same atomic P9f/P9e shape, just a
+  shorter interval) — SMDs asked to be able to nudge/remind daily instead of
+  weekly. The automatic Wednesday/Saturday roster reminder (P11a) is
+  unaffected.
+- `delete_my_account()` and its `/settings` "Delete my account" button
+  removed outright — confirmed unreferenced elsewhere before dropping.
+- `/logs`' Calls tab gained a Source filter (same enum as Log a call's
+  Source field), client-driven via a small `CallsSourceFilter` so it
+  actually re-queries on change (unlike `/appointments`' plain-form status
+  filter).
+
 ---
 
 ## Working with Claude Code on this repo (token discipline)

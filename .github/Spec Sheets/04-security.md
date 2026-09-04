@@ -54,8 +54,9 @@ re-check whenever a new admin or cross-agent RPC is added.
   addition: the guard trigger now has a session-scoped bypass
   (`app.privileged_agent_write`) for the specific SECURITY DEFINER functions
   that need to write role/upline/org/status after already authorizing the
-  change themselves (`deactivate_agent()`, `delete_my_account()`). Anywhere
-  else a user can update a row they own, check the same class of bug.
+  change themselves (`deactivate_agent()`, and formerly `delete_my_account()`
+  — **removed in P13c**, see "Privacy" below). Anywhere else a user can
+  update a row they own, check the same class of bug.
 - `daily_metrics` is RLS-protected (own rows, select only) — unchanged.
 
 ### Auth
@@ -100,8 +101,7 @@ re-check whenever a new admin or cross-agent RPC is added.
   fails fast with a specific message instead of risking the execution-time
   limit). Confirmed unchanged in spirit; see `docs/08-screen-specs.md`
   for how much the import UI itself has grown (preview/commit flow, per-sheet
-  validation, name-based dedup with phone as a secondary signal — reversed
-  from phone-based, see "Privacy" below).
+  validation, name-only dedup as of P13a — see "Privacy" below).
 - Dependabot + `npm audit` in CI — `npm audit --audit-level=high` is present
   but `continue-on-error: true` (reports, doesn't block); commit `7bad83a`
   addressed real CVEs this surfaced (xlsx parser, Next.js) directly rather
@@ -109,31 +109,29 @@ re-check whenever a new admin or cross-agent RPC is added.
 
 ### Privacy (PIPEDA — Ontario)
 - Purpose limitation, data minimisation as principles — unchanged, but the
-  concrete claim changed: **`contacts.phone` was added in P9**, reversing the
-  original "no phone or email column" decision, then **made optional again
-  post-P12** on an explicit compliance decision — collecting it is no
-  longer required anywhere a contact is created (manual add, log/appointment
-  /sale forms, device-contact import, Excel import), and name is the
-  primary de-dup key everywhere, phone only a secondary signal. This is
-  a partial return toward the original data-minimisation intent (an agent
-  who never enters a phone number never has one stored for that contact),
-  but the column itself and the ability to store phone when an agent
-  chooses to enter one are both unchanged, so the privacy notice's "full
-  names are stored" framing should still explicitly say phone numbers may
-  be stored too, just not that doing so is required — confirm the
-  in-product privacy notice reflects "optional" rather than either the
-  original "not collected" or the P9 "collected" framing; this doc can't
-  verify that from code alone.
+  concrete claim has moved twice: **`contacts.phone` was added in P9**,
+  reversing the original "no phone or email column" decision, then made
+  optional post-P12, and **P13a removed it outright again** — the column
+  and its unique index are dropped (existing phone data goes with them),
+  and no create/import path (manual add, log/appointment/sale forms,
+  device-contact import, Excel import) asks for, shows, or stores a
+  contact's phone number anymore. This is now a full return to the original
+  data-minimisation intent, stronger than the P9-era "optional" state: not
+  just unrequired but structurally uncollectable. Name is the sole de-dup
+  key everywhere a contact is created. `contacts.notes` (free text,
+  searchable) is the new thing collected instead — the privacy notice's
+  framing should say full name and optional notes are stored, and that
+  phone numbers are never collected, not "optional."
 - Retention: **auto-purge is implemented, not just planned.** A nightly
   pg_cron job (`private.purge_old_call_logs()`, P6) deletes `call_logs` older
   than `organizations.call_log_retention_months` (default 24, nullable to
   disable) unless linked to a sale. Configurable per org.
-- Access + deletion: **both implemented.** `GET /settings/export` returns a
-  JSON bundle of every table scoped to the caller. `delete_my_account()`
-  hard-deletes contacts (cascading calls/appointments), scrubs sales/
-  recruiting notes, anonymizes the agent row, and sets `status='inactive'` —
-  distinct from the separate, admin-only, fully irreversible
-  `admin_hard_delete_agent()` (see `docs/02-data-model.md`).
+- Access: **implemented.** `GET /settings/export` returns a JSON bundle of
+  every table scoped to the caller. Self-service deletion
+  (`delete_my_account()`, "Delete my account" on `/settings`) was **removed
+  in P13c** (product request) — an agent who wants their data gone now goes
+  through an admin's separate, fully irreversible `admin_hard_delete_agent()`
+  (see `docs/02-data-model.md`); there is no self-service path anymore.
 - Privacy notice at signup — the accept-invitation form now has an explicit
   required checkbox ("I accept the privacy notice. My SMD sees my numbers,
   never my contacts.") gating account creation; onboarding step 2 reinforces
@@ -190,7 +188,9 @@ sending two notifications inside one supposed cooldown window. **Fix:**
 into single-row-per-agent trackers, rate-limited via
 `INSERT ... ON CONFLICT (agent_id) DO UPDATE ... WHERE last_sent_at <= now() - interval '7 days'`
 — the `WHERE` clause on the conflict update is the atomic check, evaluated
-by the same statement as the write. Migration: `p9f`.
+by the same statement as the write. Migration: `p9f`. **P13b** shortened the
+interval in that same `WHERE` clause from `7 days` to `1 day` (product
+request) — the atomic shape is unchanged, only the cooldown length.
 
 ### 4. Admin MFA bypass (application layer, not RLS) — commit `7bad83a`
 `requireAdmin()` checked `role === 'admin'` but never checked
