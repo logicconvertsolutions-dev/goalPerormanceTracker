@@ -23,8 +23,17 @@ jobs:
       # isn't required, any *.vercel.app URL works). Skip cleanly instead of
       # failing every 15 minutes until then, same as CI's own Supabase
       # advisor step does for its not-yet-configured secrets.
+      #
+      # BUG FIXED HERE: this `if:` used to read `env.CRON_TARGET_URL`, but a
+      # step's own `env:` block isn't in scope yet when that same step's
+      # `if:` is evaluated -- so the condition always saw an empty value and
+      # the step was skipped on every single run, regardless of whether the
+      # secret was actually configured. Confirmed via the Actions run
+      # history: every prior run of this workflow shows this step's
+      # conclusion as "skipped." Reading `secrets.CRON_TARGET_URL` directly
+      # (secrets *is* available to a step's own `if:`) fixes it.
       - name: Call the notifications cron route
-        if: ${{ env.CRON_TARGET_URL != '' }}
+        if: ${{ secrets.CRON_TARGET_URL != '' }}
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           CRON_TARGET_URL: ${{ secrets.CRON_TARGET_URL }}
