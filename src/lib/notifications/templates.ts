@@ -259,10 +259,15 @@ export interface TrainingReminderData {
 export function trainingReminderEmail(d: TrainingReminderData): EmailContent {
   const trainingUrl = appUrl('/today');
   const bodyHtml = `
-    <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
-    <p>${escapeHtml(d.sentByName)} sent you a reminder to complete your training.</p>
+    <p>Hello ${escapeHtml(firstName(d.fullName))},</p>
+    <p>This is the reminder to attend for today's training session.</p>
+    <p>It's a valuable opportunity for growth and improvement, and it will help everyone to take your business to the next level.</p>
+    <p>Training is the key to growth in the Business.</p>
+    <p>Kindly make sure to attend the training with your Video ON.</p>
+    <p>And please take some good notes to improve your identity and to achieve highest level in the Business.\u{1F51D}</p>
+    <p>Thanks!<br/>${escapeHtml(d.sentByName)}</p>
     ${button(trainingUrl, 'Open the app')}`;
-  const bodyText = `Hi ${firstName(d.fullName)},\n\n${d.sentByName} sent you a reminder to complete your training.\n\nOpen the app: ${trainingUrl}`;
+  const bodyText = `Hello ${firstName(d.fullName)},\n\nThis is the reminder to attend for today's training session.\n\nIt's a valuable opportunity for growth and improvement, and it will help everyone to take your business to the next level.\n\nTraining is the key to growth in the Business.\n\nKindly make sure to attend the training with your Video ON.\n\nAnd please take some good notes to improve your identity and to achieve highest level in the Business.\u{1F51D}\n\nThanks!\n${d.sentByName}\n\nOpen the app: ${trainingUrl}`;
   return {
     subject: `${d.sentByName} sent you a training reminder`,
     html: wrap(bodyHtml, d.agentId, null, d.logoUrl),
@@ -281,9 +286,14 @@ export interface RosterTrainingReminderData {
 // row, no account to manage preferences on, same reasoning as inviteEmail.
 export function rosterTrainingReminderEmail(d: RosterTrainingReminderData): EmailContent {
   const bodyHtml = `
-    <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
-    <p>${escapeHtml(d.sentByName)} sent you a reminder to complete your training.</p>`;
-  const bodyText = `Hi ${firstName(d.fullName)},\n\n${d.sentByName} sent you a reminder to complete your training.`;
+    <p>Hello ${escapeHtml(firstName(d.fullName))},</p>
+    <p>This is the reminder to attend for today's training session.</p>
+    <p>It's a valuable opportunity for growth and improvement, and it will help everyone to take your business to the next level.</p>
+    <p>Training is the key to growth in the Business.</p>
+    <p>Kindly make sure to attend the training with your Video ON.</p>
+    <p>And please take some good notes to improve your identity and to achieve highest level in the Business.\u{1F51D}</p>
+    <p>Thanks!<br/>${escapeHtml(d.sentByName)}</p>`;
+  const bodyText = `Hello ${firstName(d.fullName)},\n\nThis is the reminder to attend for today's training session.\n\nIt's a valuable opportunity for growth and improvement, and it will help everyone to take your business to the next level.\n\nTraining is the key to growth in the Business.\n\nKindly make sure to attend the training with your Video ON.\n\nAnd please take some good notes to improve your identity and to achieve highest level in the Business.\u{1F51D}\n\nThanks!\n${d.sentByName}`;
   return {
     subject: `${d.sentByName} sent you a training reminder`,
     html: `<div style="font-family:'Plus Jakarta Sans',-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;">
