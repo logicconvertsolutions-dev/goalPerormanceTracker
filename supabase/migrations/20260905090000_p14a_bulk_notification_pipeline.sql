@@ -169,8 +169,13 @@ grant execute on function public.pgmq_archive(text, bigint) to service_role;
 -- adding a new one.
 --
 -- enqueue-due-notifications: pure SQL, direct function call, no HTTP hop.
+-- 5 minutes, not 1 -- the widened "any time from the target local hour
+-- through end of local day" eligibility window (see the function above)
+-- means precision beyond "within a few minutes of the hour turning over"
+-- buys nothing; the once-per-day-per-agent guarantee is enforced by
+-- notification_log's unique index regardless of how often this runs.
 select cron.schedule(
-  'enqueue-due-notifications', '*/1 * * * *',
+  'enqueue-due-notifications', '*/5 * * * *',
   $$select private.enqueue_due_notifications();$$
 );
 

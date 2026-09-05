@@ -700,7 +700,7 @@ Split into two pg_cron jobs talking through a `pgmq` queue instead of a
 shared in-memory loop:
 
 ```
-pg_cron `enqueue-due-notifications`, every 1 minute
+pg_cron `enqueue-due-notifications`, every 5 minutes
    └─ private.enqueue_due_notifications(): pure SQL, no HTTP hop.
         Set-based query over active agents (mirrors the deleted
         src/lib/notifications/{window,eligibility}.ts, widened from an

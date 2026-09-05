@@ -225,7 +225,7 @@ due" and "send everyone's email" inside one HTTP request, which would also
 break outright at real scale (thousands of agents, sequential per-recipient
 Resend calls, one serverless function's execution-time limit) — see
 `docs/02-data-model.md`'s "P14a" section for the full design.
-- `private.enqueue_due_notifications()` (pg_cron, every 1 min, pure SQL) +
+- `private.enqueue_due_notifications()` (pg_cron, every 5 min, pure SQL) +
   a `pgmq` queue (`notification_sends`) + `/api/cron/notifications/drain`
   (pg_cron → `pg_net` → bounded-batch Resend `/emails/batch` sends) replace
   the old per-agent loop in `src/app/api/cron/notifications/route.ts` for
