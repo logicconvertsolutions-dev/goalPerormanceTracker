@@ -1354,8 +1354,14 @@ export type Database = {
         }[]
       }
       nudge_agent: { Args: { p_agent_id: string }; Returns: undefined }
-      pgmq_archive: { Args: { msg_id: number; queue_name: string }; Returns: boolean }
-      pgmq_delete: { Args: { msg_id: number; queue_name: string }; Returns: boolean }
+      pgmq_archive: {
+        Args: { msg_id: number; queue_name: string }
+        Returns: boolean
+      }
+      pgmq_delete: {
+        Args: { msg_id: number; queue_name: string }
+        Returns: boolean
+      }
       pgmq_read: {
         Args: { qty: number; queue_name: string; vt: number }
         Returns: {
