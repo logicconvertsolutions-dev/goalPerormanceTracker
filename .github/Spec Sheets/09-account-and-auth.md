@@ -407,11 +407,15 @@ it into this pass.
   silently skipped a send window in production — see `docs/02-data-model.md`
   and `docs/06-build-phases.md`'s "P14" entry for the full story. Three
   pg_cron jobs now drive this: `enqueue-due-notifications` (every 5 min,
-  pure SQL), `ping-notification-drain` (every 30s, pg_net → the bulk-send
+  pure SQL), `ping-notification-drain` (every minute, pg_net → the bulk-send
   route), and `ping-legacy-notifications` (every 5 min, pg_net → the
   roster/auto-nudge route). Same mechanism the `daily_metrics` pipeline's
   own cron jobs always used — there is now exactly one scheduler for this
-  entire product.
+  entire product. `ping-notification-drain` originally used a 6-field
+  "every 30 seconds" pg_cron schedule; Supabase's managed pg_cron scheduler
+  only polls at whole-minute boundaries and silently never fired it (caught
+  after go-live — see the P14b migration), so it's a standard 5-field
+  once-a-minute schedule like the other two.
 - Idempotency is an insert-first unique constraint
   (`notification_log (agent_id, kind, local_date)`), not application-level
   locking — losing the race just skips that send rather than double-sending.

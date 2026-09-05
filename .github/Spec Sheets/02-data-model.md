@@ -718,7 +718,11 @@ pg_cron `enqueue-due-notifications`, every 5 minutes
         can never double-claim. Only what it just claimed gets pushed onto
         pgmq's `notification_sends` queue.
 
-pg_cron `ping-notification-drain`, every 30 seconds
+pg_cron `ping-notification-drain`, every minute (originally every 30
+seconds via a 6-field pg_cron schedule; Supabase's managed pg_cron
+scheduler only polls at whole-minute boundaries and silently never fired
+it, caught after go-live and corrected to a standard 5-field schedule --
+see the P14b migration)
    └─ private.ping_notification_drain(): guarded exactly like sendEmail()
         already is -- no-ops with a `raise notice` instead of erroring
         every tick if the drain URL/secret aren't yet in Vault.
