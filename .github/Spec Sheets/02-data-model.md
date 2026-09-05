@@ -668,21 +668,27 @@ activity write (insert/update/delete)
         (default 24, NULL disables), skipping any row whose contact has a sale
 ```
 
-**One correction to the original spec's automation story:** the notifications
-cron (evening nudge / Sunday summary / Monday digest — a *different*
-pipeline, unrelated to `daily_metrics`) moved from Vercel Cron to a GitHub
-Actions workflow (`.github/workflows/notifications-cron.yml`, every 15
-minutes) because Vercel's Hobby plan only allows once-daily schedules and the
-notification send-window logic needs a 15-minute cadence to catch every
-agent's local time zone. The three `daily_metrics`/retention cron jobs above
-are still pg_cron jobs living inside Postgres, exactly as originally
-designed.
+**One correction to the original spec's automation story, since superseded:**
+the notifications cron (evening nudge / Sunday summary / Monday digest — a
+*different* pipeline, unrelated to `daily_metrics`) moved from Vercel Cron
+to a GitHub Actions workflow (`.github/workflows/notifications-cron.yml`,
+every 15 minutes) because Vercel's Hobby plan only allows once-daily
+schedules and the notification send-window logic needs a tighter cadence to
+catch every agent's local time zone. The three `daily_metrics`/retention
+cron jobs above were always pg_cron jobs living inside Postgres, exactly as
+originally designed — GitHub Actions was only ever a workaround for the
+notifications pipeline specifically.
 
-**P14a moved the per-agent half of that notifications pipeline again** —
-off GitHub Actions' `schedule:` trigger and onto pg_cron, after a live
-incident where GitHub's explicitly best-effort scheduler skipped the exact
-15-minute window an associate's evening_nudge needed, silently dropping
-their reminder for the day. Full writeup below.
+**P14a retired that GitHub Actions workaround entirely,** after a live
+incident where its explicitly best-effort scheduler skipped the exact
+window an associate's evening_nudge needed, silently dropping their
+reminder for the day. Rather than trade one external scheduler for a
+better-tuned one, every notification job — including the two that already
+weren't the scale problem (roster reminders, auto-call-nudges) — moved onto
+pg_cron, so there is exactly one scheduling mechanism for this entire
+product (this pipeline plus the pre-existing three `daily_metrics`/retention
+jobs), all living in Postgres, all maintained the same way. Full writeup
+below.
 
 ### P14a: bulk-load-safe notification pipeline
 
@@ -728,6 +734,15 @@ pg_cron `ping-notification-drain`, every 30 seconds
         retryable again) on failure, up to 5 attempts, then pgmq_archive +
         status = 'failed' so it stops retrying forever and shows up for
         investigation instead of silently vanishing.
+
+pg_cron `ping-legacy-notifications`, every 5 minutes
+   └─ private.ping_legacy_notifications() → net.http_post → /api/cron/notifications
+        team_roster's Wed/Sat auto-reminders (P11a) and the SMD's opt-in
+        auto_call_nudges (P12a) keep their original request-per-tick logic,
+        unbatched, in the same (now much smaller) route -- unbounded work
+        was never their problem, only their trigger was. Both ping
+        functions share the same private.ping_app_route(path) helper and
+        the same two Vault secrets (app_base_url, cron_secret).
 ```
 
 `notification_log` gained `status` (`queued` | `sent` | `failed`),
@@ -735,22 +750,27 @@ pg_cron `ping-notification-drain`, every 30 seconds
 unchanged, but a row now means "claimed for sending," not "confirmed
 delivered," since claiming and sending are two different processes now.
 
-**Deliberately out of scope:** `team_roster`'s Wed/Sat auto-reminders
-(P11a) and the SMD's opt-in `auto_call_nudges` (P12a) stay on the original
-GitHub-Actions-triggered request-per-tick path, unchanged, in the same
-route (`src/app/api/cron/notifications/route.ts`, now much smaller). Both
-are bounded by a far smaller set than the full agent base — a roster an
-SMD manually built, or agents explicitly opted into auto-nudging — so
-neither hits the wall this migration exists to solve. Revisit if either
-grows into the thousands.
+**Deliberately kept simple, not moved to the queue:** `team_roster`'s
+Wed/Sat auto-reminders (P11a) and the SMD's opt-in `auto_call_nudges`
+(P12a) are bounded by a far smaller set than the full agent base — a
+roster an SMD manually built, or agents explicitly opted into auto-nudging
+— so neither hits the wall the queue/batch-send half of this migration
+exists to solve, and moving them onto `pgmq` wasn't worth the added
+complexity. What *did* change for both: they're now triggered by pg_cron
+(`ping-legacy-notifications`) instead of GitHub Actions, and their own
+eligibility windows (`kindsInWindow`, `isRosterReminderWindow` in
+`window.ts`) were widened the same self-healing way as the per-agent path's
+— cheap to keep consistent, and a late or skipped pg_cron tick, while far
+less likely than GitHub Actions ever was, still isn't literally impossible.
 
-**Rollout:** both pipelines can run simultaneously without risk of a double
-send — `notification_log`'s unique constraint is the single source of
-truth for "already handled" regardless of which path claims a row first.
-The plan is to run them in parallel for a few days, confirm the pg_cron
-path's `sent` counts match what GitHub Actions was producing, then drop
-GitHub Actions' schedule for the per-agent kinds it no longer needs to
-cover.
+**Rollout:** running the old and new paths in parallel was the original
+plan for validating the per-agent kinds specifically (`notification_log`'s
+unique constraint makes that safe — it's the single source of truth for
+"already handled" regardless of which path claims a row first). Since this
+migration retires GitHub Actions outright rather than leaving it running
+alongside pg_cron, validation happens by comparing `notification_log`'s
+`sent`/`failed` counts against what GitHub Actions had been producing
+*before* cutover, not by running both schedulers at once.
 
 **Scaling path — do not pre-build these.** Unchanged from the original
 design; see `docs/06-build-phases.md` for current scale in practice.

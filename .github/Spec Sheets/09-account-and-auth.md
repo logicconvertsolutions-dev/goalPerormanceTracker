@@ -400,12 +400,18 @@ it into this pass.
   ran a `date`-only column like `joined_at` through an IANA zone at all,
   which silently shifts a date-only value back a calendar day in any
   negative-UTC-offset zone — every zone in the picker.
-- Cron cadence is **every 15 minutes via GitHub Actions**, not Vercel Cron
-  — see `docs/02-data-model.md` and `docs/06-build-phases.md`'s "manual
-  steps" note for why (Vercel Hobby only allows daily schedules; a 15-minute
-  cadence is needed to catch every agent's local send window). This is
-  scoped to notifications only — the `daily_metrics` pipeline's own cron
-  jobs are unaffected and still run as pg_cron inside Postgres.
+- Cron cadence: **pg_cron, inside Postgres** — not Vercel Cron, and, as of
+  P14a, not GitHub Actions either. Vercel Hobby only allows daily schedules
+  (too coarse for catching every agent's local send window); the interim
+  GitHub Actions workaround was retired after its best-effort scheduler
+  silently skipped a send window in production — see `docs/02-data-model.md`
+  and `docs/06-build-phases.md`'s "P14" entry for the full story. Three
+  pg_cron jobs now drive this: `enqueue-due-notifications` (every 5 min,
+  pure SQL), `ping-notification-drain` (every 30s, pg_net → the bulk-send
+  route), and `ping-legacy-notifications` (every 5 min, pg_net → the
+  roster/auto-nudge route). Same mechanism the `daily_metrics` pipeline's
+  own cron jobs always used — there is now exactly one scheduler for this
+  entire product.
 - Idempotency is an insert-first unique constraint
   (`notification_log (agent_id, kind, local_date)`), not application-level
   locking — losing the race just skips that send rather than double-sending.

@@ -91,21 +91,28 @@ re-check whenever a new admin or cross-agent RPC is added.
   actually blocks a merge versus reports.
 - Security headers via `next.config.js` — unchanged, confirmed live (CSP,
   HSTS, nosniff, referrer-policy, frame-deny).
-- **P14a, new: the notification send queue's surface.** `private.
-  enqueue_due_notifications()` (SECURITY DEFINER, revoked from public/anon/
-  authenticated same as every other `private.*` function) is the only thing
-  that reads eligibility across all agents and writes to the send queue —
-  nothing about "who's due for an email" is reachable from a client
-  session. The three `public.pgmq_*` wrapper functions the drain route
-  calls (`pgmq_read`/`pgmq_delete`/`pgmq_archive` — thin passthroughs to the
-  `pgmq` extension, needed only because PostgREST doesn't expose non-public
-  schemas for RPC) are granted to `service_role` only, revoked from
-  everyone else, same lockdown shape as every other service-role-only RPC
-  in this schema (`system_effective_target`, `system_team_week_summary`).
-  `pg_net`'s outbound call (pg_cron → the drain route) carries the same
-  bearer-token `CRON_SECRET` the GitHub-Actions-triggered route already
-  authenticates with, now read from Supabase Vault instead of a GitHub
-  Actions secret — never inlined in a migration file.
+- **P14a, new: the notification send queue's surface, and GitHub Actions
+  retired.** `private.enqueue_due_notifications()` (SECURITY DEFINER,
+  revoked from public/anon/authenticated same as every other `private.*`
+  function) is the only thing that reads eligibility across all agents and
+  writes to the send queue — nothing about "who's due for an email" is
+  reachable from a client session. The three `public.pgmq_*` wrapper
+  functions the drain route calls (`pgmq_read`/`pgmq_delete`/`pgmq_archive`
+  — thin passthroughs to the `pgmq` extension, needed only because
+  PostgREST doesn't expose non-public schemas for RPC) are granted to
+  `service_role` only, revoked from everyone else, same lockdown shape as
+  every other service-role-only RPC in this schema
+  (`system_effective_target`, `system_team_week_summary`). `private.
+  ping_app_route()` and its two callers (`ping_notification_drain`,
+  `ping_legacy_notifications`) are likewise `private`-schema and
+  revoked from every client role — pg_cron calls them directly, no RPC
+  surface at all. `pg_net`'s outbound calls (pg_cron → both routes) carry
+  the same bearer-token `CRON_SECRET` the routes already authenticate with,
+  now read from two Supabase Vault secrets (`app_base_url`, `cron_secret`)
+  instead of GitHub repo secrets — never inlined in a migration file. With
+  this migration, `.github/workflows/notifications-cron.yml` is deleted:
+  no scheduled job in this product depends on GitHub Actions, or on any
+  secret stored there, anymore.
 - Rate limit `/api/import` and the log mutation path — implemented, but not
   as an HTTP-route limiter: there is no literal `/api/import` endpoint, import
   and logging are Server Actions, rate-limited via a new general-purpose
