@@ -80,6 +80,7 @@ export default async function SettingsPage() {
           </CardHeader>
           <CardContent>
             <NotificationToggles
+              role={session.agent!.role}
               initial={{
                 eveningNudge: prefs?.evening_nudge ?? true,
                 sundaySummary: prefs?.sunday_summary ?? true,

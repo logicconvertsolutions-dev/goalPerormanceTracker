@@ -43,20 +43,23 @@ describe('resolveTimeZone', () => {
 // skipped cron tick (whatever triggers the caller). The per-day dedup lives
 // in each caller's own claim table, not in how narrow this window is.
 describe('kindsInWindow', () => {
-  it('matches evening_nudge any time from 19:00 through 23:59 on a weekday', () => {
+  it('matches evening_nudge any time from 19:00 through 23:59, every day of the week', () => {
     expect(kindsInWindow({ isoDow: 3, hour: 19, minute: 0, dateIso: '2026-08-26' })).toEqual(['evening_nudge']);
     expect(kindsInWindow({ isoDow: 3, hour: 19, minute: 45, dateIso: '2026-08-26' })).toEqual(['evening_nudge']);
     expect(kindsInWindow({ isoDow: 5, hour: 23, minute: 59, dateIso: '2026-08-28' })).toEqual(['evening_nudge']);
+    // Weekends, by product decision -- an associate who logs activity on a
+    // Saturday still gets the same reminder as any weekday.
+    expect(kindsInWindow({ isoDow: 6, hour: 20, minute: 0, dateIso: '2026-08-29' })).toEqual(['evening_nudge']);
   });
 
-  it('does not match evening_nudge before 19:00 or on a weekend', () => {
+  it('does not match evening_nudge before 19:00', () => {
     expect(kindsInWindow({ isoDow: 3, hour: 18, minute: 59, dateIso: '2026-08-26' })).toEqual([]);
-    expect(kindsInWindow({ isoDow: 6, hour: 20, minute: 0, dateIso: '2026-08-29' })).toEqual([]);
+    expect(kindsInWindow({ isoDow: 6, hour: 18, minute: 59, dateIso: '2026-08-29' })).toEqual([]);
   });
 
   it('matches sunday_summary any time from 18:00 onward, Sunday only', () => {
+    // Before evening_nudge's own 19:00 threshold, only sunday_summary is open.
     expect(kindsInWindow({ isoDow: 7, hour: 18, minute: 5, dateIso: '2026-08-30' })).toEqual(['sunday_summary']);
-    expect(kindsInWindow({ isoDow: 7, hour: 22, minute: 0, dateIso: '2026-08-30' })).toEqual(['sunday_summary']);
     expect(kindsInWindow({ isoDow: 6, hour: 18, minute: 5, dateIso: '2026-08-29' })).toEqual([]);
   });
 
@@ -68,20 +71,21 @@ describe('kindsInWindow', () => {
 
   it('hands Monday evening to evening_nudge, not monday_digest, once both would otherwise be open', () => {
     // Without the 19:00 cap on monday_digest, this would return both kinds
-    // for a Monday evening -- the exact overlap window.ts's own doc comment
-    // calls out. Real agents only have one role so this never double-sent
-    // in practice, but the function's own contract ("at most one kind")
-    // should hold regardless of who calls it.
+    // for a Monday evening. Unlike the Sunday case below, this pairing can
+    // never actually happen for one person (evening_nudge is associate-only,
+    // monday_digest is leader/admin-only), so the cap is defensive
+    // consistency with the SQL mirror, not a behavior anyone relies on.
     expect(kindsInWindow({ isoDow: 1, hour: 19, minute: 0, dateIso: '2026-08-24' })).toEqual(['evening_nudge']);
     expect(kindsInWindow({ isoDow: 1, hour: 23, minute: 0, dateIso: '2026-08-24' })).toEqual(['evening_nudge']);
   });
 
-  it('never matches more than one kind at once', () => {
-    for (let dow = 1; dow <= 7; dow++) {
-      for (let hour = 0; hour < 24; hour++) {
-        expect(kindsInWindow({ isoDow: dow, hour, minute: 0, dateIso: '2026-08-24' }).length).toBeLessThanOrEqual(1);
-      }
-    }
+  it('deliberately returns both evening_nudge and sunday_summary on a Sunday evening', () => {
+    // Both are associate-facing, so this is the one real case where the
+    // same person gets two kinds from a single call -- a product decision,
+    // not a bug (see this file's own doc comment). Each kind has its own
+    // notification_log dedup key, so both sends are independently rate-limited.
+    const kinds = kindsInWindow({ isoDow: 7, hour: 19, minute: 0, dateIso: '2026-08-30' });
+    expect(kinds.sort()).toEqual(['evening_nudge', 'sunday_summary']);
   });
 });
 

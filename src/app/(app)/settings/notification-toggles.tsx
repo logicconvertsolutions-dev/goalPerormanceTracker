@@ -26,13 +26,34 @@ const ROWS: { key: keyof Prefs; label: string; description: string }[] = [
   {
     key: 'mondayDigest',
     label: 'Monday team digest',
-    description: 'Leaders only — totals vs goal, who is quiet',
+    description: 'Totals vs goal, who is quiet',
   },
 ];
 
-export function NotificationToggles({ initial }: { initial: Prefs }) {
+// evening_nudge and sunday_summary only ever fire for associates;
+// monday_digest only ever fires for leaders/admins (private.
+// enqueue_due_notifications() enforces this in SQL regardless of what a
+// toggle here is set to) -- showing all three to everyone made it look like
+// an associate could opt into "Monday team digest" when it could never
+// actually reach them. Filtering by role here is purely a display fix; the
+// backend was already correct.
+const ROWS_BY_ROLE: Record<'associate' | 'leader' | 'admin', (keyof Prefs)[]> = {
+  associate: ['eveningNudge', 'sundaySummary'],
+  leader: ['mondayDigest'],
+  admin: [],
+};
+
+export function NotificationToggles({
+  initial,
+  role,
+}: {
+  initial: Prefs;
+  role: 'associate' | 'leader' | 'admin';
+}) {
   const [prefs, setPrefs] = useState(initial);
   const [, startTransition] = useTransition();
+  const visibleKeys = new Set(ROWS_BY_ROLE[role]);
+  const rows = ROWS.filter((row) => visibleKeys.has(row.key));
 
   function toggle(key: keyof Prefs) {
     const next = { ...prefs, [key]: !prefs[key] };
@@ -48,7 +69,7 @@ export function NotificationToggles({ initial }: { initial: Prefs }) {
 
   return (
     <div className="space-y-4">
-      {ROWS.map((row) => (
+      {rows.map((row) => (
         <div key={row.key} className="flex items-start gap-3">
           <Checkbox
             id={row.key}

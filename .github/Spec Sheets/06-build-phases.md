@@ -261,6 +261,35 @@ where every recurring job in this product lives and gets maintained — see
   notifications` keeps claiming and queuing regardless, so nothing is lost,
   it just doesn't go out yet.
 
+**P14b, found at go-live: `ping-notification-drain`'s schedule never fired.**
+P14a scheduled it as a 6-field pg_cron sub-minute schedule (`*/30 * * * * *`,
+"every 30 seconds"). Accepted without error by `cron.schedule()`, but
+Supabase's managed pg_cron scheduler only evaluates jobs at whole-minute
+boundaries — the job sat active with zero rows in `cron.job_run_details`
+ever, while the pre-existing once-a-minute `drain-metrics` job kept firing
+normally the whole time. Rescheduled to a standard 5-field once-a-minute
+cadence, same shape as every other cron job in this project.
+
+**P14c: `evening_nudge` widened to all 7 days (product decision).**
+Previously weekdays only. Sunday from 19:00 local can now independently
+qualify an associate for both `evening_nudge` and `sunday_summary` in the
+same enqueue tick — accepted as a deliberate outcome, not a bug, since the
+two serve different purposes and each has its own `notification_log` dedup
+key. Required restructuring `enqueue_due_notifications()`'s `candidates`
+CTE from a single-kind `case` expression (structurally one kind per agent)
+to a cross join against the three kinds, each with an independent
+condition. `auto_call_nudges` (P12a) inherits the same 7-day window since
+it reuses `kindsInWindow('evening_nudge')` rather than a separate schedule.
+
+**P14d: `/settings` notification toggles filtered by role.** All three
+toggles (evening nudge, Sunday summary, Monday team digest) previously
+showed to every non-admin agent, even though the backend only ever fires
+evening_nudge/sunday_summary for associates and monday_digest for
+leaders/admins — an associate could see and toggle "Monday team digest"
+even though it could never reach them. Display-only fix
+(`NotificationToggles` now takes a `role` prop and filters); the backend
+eligibility was already correct.
+
 ---
 
 ## Working with Claude Code on this repo (token discipline)

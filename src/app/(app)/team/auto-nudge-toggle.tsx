@@ -38,7 +38,7 @@ export function AutoNudgeToggle({
       size="sm"
       disabled={pending}
       onClick={handleClick}
-      title="Automatically remind this associate to log calls every weekday evening until they're logging again"
+      title="Automatically remind this associate to log calls every evening until they're logging again"
     >
       Daily reminders: {enabled ? 'On' : 'Off'}
     </Button>

@@ -59,9 +59,10 @@ export async function GET(request: Request) {
 // SMD-triggered daily "log your calls" reminder (p12a) -- distinct from
 // nudge_agent (manual, rate-limited) -- a leader/admin flips
 // auto_call_nudges_enabled on for a quiet associate and this fires every
-// weekday evening from then on, no further clicks required. Reuses
-// evening_nudge's own 7pm-local/weekday window via kindsInWindow rather than
-// re-deriving it, and skips anyone who already has activity logged today or
+// evening from then on (P14c: evening_nudge itself runs 7 days a week, not
+// just weekdays), no further clicks required. Reuses evening_nudge's own
+// 7pm-local window via kindsInWindow rather than re-deriving it, and skips
+// anyone who already has activity logged today or
 // already received the plain evening_nudge email today (checked directly
 // against notification_log, which P14a's enqueue function now writes to --
 // this still works correctly since it's a fresh read of the table, not

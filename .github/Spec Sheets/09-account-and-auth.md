@@ -229,9 +229,13 @@ Matches spec closely.
 ### `/settings`
 Matches spec closely, in the same card order.
 - **Goals** — read-only, "set by your SMD," from `my_target`.
-- **Notifications** — three independent toggles (evening nudge, Sunday
-  summary, Monday team digest — the last one described in-UI as "Leaders
-  only"), matching spec.
+- **Notifications** — three independent toggles, shown per role rather than
+  all three to everyone (P14d): associates see evening nudge and Sunday
+  summary; leaders see Monday team digest. Each toggle only ever fires for
+  the role it's shown to (`private.enqueue_due_notifications()` enforces
+  this regardless of a stored preference value), so this is a display fix,
+  not a new access rule — before P14d all three showed to every non-admin
+  agent, including toggles that could never actually reach them.
 - **Time zone** — a curated list of Canadian IANA zones, defaults to
   browser-detected. **Week start is a hardcoded "Monday" label, not an
   editable setting** — matches the original spec's "shown as a fact not a
@@ -363,10 +367,11 @@ screens:
 
 ## Notifications — matches spec closely
 
-The three notifications, cadence, and content match the original design
-exactly: evening nudge (weekdays 7 PM local, only if nothing logged that
-day), Sunday summary (6 PM local, unconditional), Monday SMD digest (8 AM
-local, leaders/admins only, unconditional). Role eligibility is enforced
+The three notifications, cadence, and content originally matched the
+design exactly: evening nudge (weekdays 7 PM local, only if nothing logged
+that day — **widened to all 7 days in P14c**, product decision), Sunday
+summary (6 PM local, unconditional), Monday SMD digest (8 AM local,
+leaders/admins only, unconditional). Role eligibility is enforced
 structurally (`roleAllows()` — an associate is never eligible for the digest
 and vice versa), which is also what guarantees "never more than one per
 person per day" without needing separate logic for it.
@@ -462,11 +467,12 @@ in 7+ days" list — an SMD can
 now flip a persistent **"Daily reminders: On/Off"** toggle next to Nudge for
 a quiet associate (`agents.auto_call_nudges_enabled`, default `false`,
 `set_auto_call_nudges` RPC scoped to the caller's downline), and the cron
-route emails that associate automatically every weekday evening from then
-on until they start logging again — no further clicks required. The manual
+route emails that associate automatically every evening from then on
+(P14c: `evening_nudge`'s own window runs 7 days a week, not just weekdays)
+until they start logging again — no further clicks required. The manual
 Nudge button and its cooldown stay as the on-demand option on top.
-- Reuses `evening_nudge`'s own 7pm-local/weekday send window
-  (`kindsInWindow`) rather than a separate schedule, and skips anyone who
+- Reuses `evening_nudge`'s own 7pm-local send window (`kindsInWindow`)
+  rather than a separate schedule, and skips anyone who
   already has activity logged today (same rule as `evening_nudge`) — both
   via a new `agent_auto_nudge_log (agent_id, local_date)` idempotency table,
   same insert-first shape as `notification_log`.

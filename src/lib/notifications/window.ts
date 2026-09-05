@@ -68,17 +68,20 @@ export function localParts(timeZone: string, at: Date): LocalParts {
 
 /**
  * Which notification kinds are in their send window for this agent right
- * now. The three windows are calendar-exclusive by construction -- Monday
- * is the one day two of them could otherwise both be true (evening_nudge
- * is every weekday from 19:00, monday_digest is Monday from 08:00), so
- * monday_digest is capped to end before evening_nudge's own window opens
- * that day rather than relying on the caller to notice an agent can't
- * plausibly be eligible for both (a real agent only has one role, so this
- * never mattered operationally, but this function doesn't know that).
+ * now. evening_nudge runs every day of the week (by product decision --
+ * associates who log activity on weekends still get reminded), which means
+ * Sunday from 19:00 can yield *both* evening_nudge and sunday_summary at
+ * once for the same associate -- a deliberate exception, not a bug, since
+ * the two serve different purposes (a daily reminder vs. a weekly recap)
+ * and each has its own notification_log dedup key. Monday still caps
+ * monday_digest to end before 19:00 purely for internal consistency (an
+ * agent is never both associate and leader/admin, so evening_nudge and
+ * monday_digest can never actually collide for one person -- unlike the
+ * Sunday case, where the same associate really can get both).
  */
 export function kindsInWindow(parts: LocalParts): NotificationKind[] {
   const kinds: NotificationKind[] = [];
-  if (parts.isoDow >= 1 && parts.isoDow <= 5 && parts.hour >= 19) {
+  if (parts.hour >= 19) {
     kinds.push('evening_nudge');
   }
   if (parts.isoDow === 7 && parts.hour >= 18) {
