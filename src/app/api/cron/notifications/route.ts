@@ -1,24 +1,31 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { agentsDueNow, type AgentForEligibility } from '@/lib/notifications/eligibility';
-import {
-  composeEveningNudge,
-  composeSundaySummary,
-  composeMondayDigest,
-  composeNudge,
-} from '@/lib/notifications/compose';
+import { composeNudge } from '@/lib/notifications/compose';
 import { sendEmail } from '@/lib/notifications/send';
 import { rosterTrainingReminderEmail, type EmailContent } from '@/lib/notifications/templates';
 import { isRosterReminderWindow, kindsInWindow, localParts, resolveTimeZone } from '@/lib/notifications/window';
 
 export const dynamic = 'force-dynamic';
 
-// Invoked every 15 minutes by .github/workflows/notifications-cron.yml
-// (Vercel Hobby only allows once-a-day cron, too coarse for per-agent local
-// send windows -- see window.ts). That workflow sends
-// `Authorization: Bearer ${CRON_SECRET}`, which also doubles as the auth
-// check keeping this route from being a public trigger for arbitrary email
-// sends.
+// Invoked by .github/workflows/notifications-cron.yml on its existing
+// best-effort ~15-minute GitHub Actions schedule, unchanged.
+//
+// P14a moved the three per-agent kinds (evening_nudge, sunday_summary,
+// monday_digest) off this route entirely -- they're now driven by
+// pg_cron's `enqueue-due-notifications` (pure SQL, private.
+// enqueue_due_notifications()) and drained by /api/cron/notifications/drain,
+// both on pg_cron rather than GitHub Actions, because that per-agent path
+// is the one that scales with total user count and needs a trigger that
+// can't silently skip a tick under load (see 20260905090000_p14a_bulk_
+// notification_pipeline.sql for the full reasoning).
+//
+// What's left here -- team_roster's Wed/Sat auto-reminders (p11a) and the
+// SMD's opt-in auto_call_nudges (p12a) -- deliberately stays on this
+// simpler, request-per-tick path: both are bounded by a much smaller set
+// (a roster an SMD manually built, or agents explicitly opted into
+// auto-nudging) that won't hit the thousands-of-recipients wall the P14a
+// pipeline exists to solve, so moving them wasn't worth the added
+// complexity yet. Revisit if either grows into that range.
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return true; // no secret configured (local dev) -- don't lock developers out
@@ -33,149 +40,27 @@ export async function GET(request: Request) {
   const admin = createAdminClient();
   const now = new Date();
 
-  // team_roster's Wed/Sat reminder pass is independent of everything below
-  // (a different table, no shared dedup state with the per-agent passes),
-  // so it runs concurrently rather than waiting its turn.
-  const rosterSentPromise = sendDueRosterReminders(admin, now);
-
-  const [{ data: agents }, { data: allPrefs }] = await Promise.all([
-    admin.from('agents').select('id, email, full_name, role, time_zone').eq('status', 'active'),
-    admin.from('notification_prefs').select('agent_id, evening_nudge, sunday_summary, monday_digest'),
+  const [rosterSent, autoNudgeSent] = await Promise.all([
+    sendDueRosterReminders(admin, now),
+    sendDueAutoCallNudges(admin, now),
   ]);
 
-  const prefsByAgent = new Map((allPrefs ?? []).map((p) => [p.agent_id, p]));
-  let sent = 0;
-  let candidates = 0;
-
-  if (agents && agents.length > 0) {
-    const eligibilityAgents: AgentForEligibility[] = agents.map((a) => {
-      const p = prefsByAgent.get(a.id);
-      return {
-        agentId: a.id,
-        role: a.role,
-        timeZone: a.time_zone,
-        prefs: {
-          eveningNudge: p?.evening_nudge ?? true,
-          sundaySummary: p?.sunday_summary ?? true,
-          mondayDigest: p?.monday_digest ?? true,
-        },
-      };
-    });
-
-    // Pass 1: who's in their local send window right now, ignoring the two
-    // checks that need extra queries (already sent, already logged) -- that
-    // tells us exactly which notification_log / daily_metrics rows to fetch.
-    const windowMatches = agentsDueNow({
-      agents: eligibilityAgents,
-      now,
-      alreadySent: new Set(),
-      loggedToday: new Set(),
-    });
-
-    if (windowMatches.length > 0) {
-      const candidateAgentIds = Array.from(new Set(windowMatches.map((m) => m.agentId)));
-      const candidateKinds = Array.from(new Set(windowMatches.map((m) => m.kind)));
-      const candidateDates = Array.from(new Set(windowMatches.map((m) => m.localDateIso)));
-
-      const { data: existingLog } = await admin
-        .from('notification_log')
-        .select('agent_id, kind, local_date')
-        .in('agent_id', candidateAgentIds)
-        .in('kind', candidateKinds)
-        .in('local_date', candidateDates);
-      const alreadySent = new Set((existingLog ?? []).map((r) => `${r.agent_id}:${r.kind}:${r.local_date}`));
-
-      const eveningCandidateIds = windowMatches
-        .filter((m) => m.kind === 'evening_nudge')
-        .map((m) => m.agentId);
-      const loggedToday = new Set<string>();
-      if (eveningCandidateIds.length > 0) {
-        const { data: metricsRows } = await admin
-          .from('daily_metrics')
-          .select('agent_id, activity_date, calls_made, appts_set, sales_count, recruiting_convos')
-          .in('agent_id', eveningCandidateIds)
-          .in('activity_date', candidateDates);
-        for (const row of metricsRows ?? []) {
-          const isMatch = windowMatches.some(
-            (m) => m.kind === 'evening_nudge' && m.agentId === row.agent_id && m.localDateIso === row.activity_date
-          );
-          if (!isMatch) continue;
-          const hasActivity =
-            row.calls_made > 0 || row.appts_set > 0 || row.sales_count > 0 || row.recruiting_convos > 0;
-          if (hasActivity) loggedToday.add(row.agent_id);
-        }
-      }
-
-      // Pass 2: the authoritative due list, now that alreadySent/loggedToday are known.
-      const due = agentsDueNow({ agents: eligibilityAgents, now, alreadySent, loggedToday });
-      candidates = due.length;
-
-      const agentById = new Map(agents.map((a) => [a.id, a]));
-
-      for (const item of due) {
-        // Insert-first: the unique (agent_id, kind, local_date) index is the
-        // real rate limit. Losing this race means a concurrent invocation
-        // already claimed the slot -- skip, don't double-send.
-        const { error: insertError } = await admin
-          .from('notification_log')
-          .insert({ agent_id: item.agentId, kind: item.kind, local_date: item.localDateIso });
-        if (insertError) continue;
-
-        const agent = agentById.get(item.agentId);
-        if (!agent) continue;
-
-        try {
-          let composed: { to: string; content: EmailContent } | null = null;
-          if (item.kind === 'evening_nudge') {
-            composed = await composeEveningNudge(admin, agent, item.localDateIso);
-          } else if (item.kind === 'sunday_summary') {
-            composed = await composeSundaySummary(admin, agent, item.localDateIso);
-          } else {
-            composed = await composeMondayDigest(admin, agent, item.localDateIso);
-          }
-          if (composed) {
-            await sendEmail({
-              to: composed.to,
-              subject: composed.content.subject,
-              html: composed.content.html,
-              text: composed.content.text,
-              unsubscribeUrl: composed.content.unsubscribeUrl,
-            });
-            sent += 1;
-          }
-        } catch (err) {
-          console.error(`[notifications] failed to send ${item.kind} to ${item.agentId}`, err);
-        }
-      }
-    }
-  }
-
-  // sendDueAutoCallNudges' own dedup reads notification_log for
-  // 'evening_nudge' rows to avoid double-emailing an associate who already
-  // got the plain evening email this run -- it must run only after the loop
-  // above has finished inserting those rows this tick, not concurrently
-  // with it (racing them let an opted-in associate get both emails at 7pm).
-  const autoNudgeSent = await sendDueAutoCallNudges(admin, now, prefsByAgent);
-
-  return NextResponse.json({ sent, candidates, rosterSent: await rosterSentPromise, autoNudgeSent });
+  return NextResponse.json({ rosterSent, autoNudgeSent });
 }
 
 // SMD-triggered daily "log your calls" reminder (p12a) -- distinct from
-// nudge_agent (manual, once per 7 days): a leader/admin flips
+// nudge_agent (manual, rate-limited) -- a leader/admin flips
 // auto_call_nudges_enabled on for a quiet associate and this fires every
 // weekday evening from then on, no further clicks required. Reuses
 // evening_nudge's own 7pm-local/weekday window via kindsInWindow rather than
-// re-deriving it, and skips anyone who already has activity logged today
-// (same as evening_nudge), already got the plain evening_nudge email this
-// run (only reliable because the caller awaits the main per-agent loop
-// before calling this), or has turned evening_nudge off for themselves --
-// this is the same "reminder to log calls" concept from the recipient's
-// side, so it shares that one preference rather than having its own,
-// unreachable opt-out.
+// re-deriving it, and skips anyone who already has activity logged today or
+// already received the plain evening_nudge email today (checked directly
+// against notification_log, which P14a's enqueue function now writes to --
+// this still works correctly since it's a fresh read of the table, not
+// dependent on running in the same request as that write).
 async function sendDueAutoCallNudges(
   admin: ReturnType<typeof createAdminClient>,
-  now: Date,
-  prefsByAgent: Map<string, { evening_nudge: boolean | null }>
+  now: Date
 ): Promise<number> {
   const { data: agents } = await admin
     .from('agents')
@@ -184,6 +69,9 @@ async function sendDueAutoCallNudges(
     .eq('role', 'associate')
     .eq('auto_call_nudges_enabled', true);
   if (!agents || agents.length === 0) return 0;
+
+  const { data: allPrefs } = await admin.from('notification_prefs').select('agent_id, evening_nudge');
+  const prefsByAgent = new Map((allPrefs ?? []).map((p) => [p.agent_id, p]));
 
   const dueAgents = agents
     .filter((a) => (prefsByAgent.get(a.id)?.evening_nudge ?? true))
@@ -261,10 +149,10 @@ async function sendDueAutoCallNudges(
 }
 
 // team_roster's automatic Wed/Sat reminder (p11a) -- independent of the
-// per-agent pass above: a roster entry isn't an agent (no role, no prefs,
-// no own time_zone), so it doesn't fit agentsDueNow/kindsInWindow. Resolved
-// against the roster's upline's time zone since that's the closest "whose
-// local time" concept a login-less roster row has.
+// per-agent pass: a roster entry isn't an agent (no role, no prefs, no own
+// time_zone), so it doesn't fit agentsDueNow/kindsInWindow. Resolved against
+// the roster's upline's time zone since that's the closest "whose local
+// time" concept a login-less roster row has.
 async function sendDueRosterReminders(
   admin: ReturnType<typeof createAdminClient>,
   now: Date
@@ -294,7 +182,7 @@ async function sendDueRosterReminders(
     if (insertError) continue;
 
     try {
-      const content = rosterTrainingReminderEmail({
+      const content: EmailContent = rosterTrainingReminderEmail({
         fullName: member.full_name,
         sentByName: upline?.full_name ?? 'Your SMD',
       });
