@@ -33,12 +33,12 @@ const ROWS: { key: keyof Prefs; label: string; description: string }[] = [
 // evening_nudge and sunday_summary only ever fire for associates;
 // monday_digest only ever fires for leaders/admins (private.
 // enqueue_due_notifications() enforces this in SQL regardless of what a
-// toggle here is set to, or who can see it). Associates see the Monday team
-// digest toggle too (product ask) even though it can never actually reach
-// them yet -- flipping it just persists a preference for if/when that
-// changes; the SQL-side role gate is what actually keeps it from sending.
+// toggle here is set to) -- showing all three to everyone made it look like
+// an associate could opt into "Monday team digest" when it could never
+// actually reach them. Filtering by role here is purely a display fix; the
+// backend was already correct.
 const ROWS_BY_ROLE: Record<'associate' | 'leader' | 'admin', (keyof Prefs)[]> = {
-  associate: ['eveningNudge', 'sundaySummary', 'mondayDigest'],
+  associate: ['eveningNudge', 'sundaySummary'],
   leader: ['mondayDigest'],
   admin: [],
 };
