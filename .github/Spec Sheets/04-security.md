@@ -91,6 +91,21 @@ re-check whenever a new admin or cross-agent RPC is added.
   actually blocks a merge versus reports.
 - Security headers via `next.config.js` — unchanged, confirmed live (CSP,
   HSTS, nosniff, referrer-policy, frame-deny).
+- **P14a, new: the notification send queue's surface.** `private.
+  enqueue_due_notifications()` (SECURITY DEFINER, revoked from public/anon/
+  authenticated same as every other `private.*` function) is the only thing
+  that reads eligibility across all agents and writes to the send queue —
+  nothing about "who's due for an email" is reachable from a client
+  session. The three `public.pgmq_*` wrapper functions the drain route
+  calls (`pgmq_read`/`pgmq_delete`/`pgmq_archive` — thin passthroughs to the
+  `pgmq` extension, needed only because PostgREST doesn't expose non-public
+  schemas for RPC) are granted to `service_role` only, revoked from
+  everyone else, same lockdown shape as every other service-role-only RPC
+  in this schema (`system_effective_target`, `system_team_week_summary`).
+  `pg_net`'s outbound call (pg_cron → the drain route) carries the same
+  bearer-token `CRON_SECRET` the GitHub-Actions-triggered route already
+  authenticates with, now read from Supabase Vault instead of a GitHub
+  Actions secret — never inlined in a migration file.
 - Rate limit `/api/import` and the log mutation path — implemented, but not
   as an HTTP-route limiter: there is no literal `/api/import` endpoint, import
   and logging are Server Actions, rate-limited via a new general-purpose

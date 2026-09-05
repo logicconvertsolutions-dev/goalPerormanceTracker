@@ -216,6 +216,43 @@ work — see `docs/02-data-model.md`'s "P13" section for full detail:
   actually re-queries on change (unlike `/appointments`' plain-form status
   filter).
 
+## P14 — Bulk-load-safe notification pipeline (unplanned)
+One migration, driven by a live incident: an associate's 7pm evening_nudge
+was silently dropped because GitHub Actions' `schedule:` trigger (explicitly
+best-effort) skipped the exact 15-minute window it needed. Investigating
+that surfaced a second, bigger problem: the per-agent send path did "who's
+due" and "send everyone's email" inside one HTTP request, which would also
+break outright at real scale (thousands of agents, sequential per-recipient
+Resend calls, one serverless function's execution-time limit) — see
+`docs/02-data-model.md`'s "P14a" section for the full design.
+- `private.enqueue_due_notifications()` (pg_cron, every 1 min, pure SQL) +
+  a `pgmq` queue (`notification_sends`) + `/api/cron/notifications/drain`
+  (pg_cron → `pg_net` → bounded-batch Resend `/emails/batch` sends) replace
+  the old per-agent loop in `src/app/api/cron/notifications/route.ts` for
+  evening_nudge/sunday_summary/monday_digest.
+- `notification_log` gained `status`/`attempts`/`last_error` — a row now
+  means "claimed," not "confirmed sent," now that claiming and sending are
+  two different processes.
+- `src/lib/notifications/{window,eligibility}.ts`'s eligibility logic
+  (`agentsDueNow`) is deleted — reimplemented as SQL inside
+  `enqueue_due_notifications()`, since that's now the only place it runs.
+  `window.ts` itself stays (`kindsInWindow`/`localParts`/`resolveTimeZone`
+  are still used by the roster/auto-nudge paths that didn't move).
+- team_roster auto-reminders (P11a) and `auto_call_nudges` (P12a)
+  deliberately stay on the original GitHub-Actions-triggered path, in the
+  same (now much smaller) route — both are bounded by sets far smaller than
+  the full agent base, so neither needed this yet.
+- Rollout: both pipelines can run in parallel with zero double-send risk
+  (`notification_log`'s unique constraint is still the single source of
+  truth for "already handled"); GitHub Actions' schedule for the per-agent
+  kinds gets dropped once the pg_cron path's send counts are confirmed to
+  match.
+- Manual, un-migrated follow-up: two Vault secrets
+  (`notifications_drain_url`, `notifications_drain_secret`) must be created
+  once via the SQL editor before the drain leg does anything — see the
+  migration file's own trailing comment. Until then it no-ops harmlessly
+  every 30 seconds and the queue just accumulates.
+
 ---
 
 ## Working with Claude Code on this repo (token discipline)
