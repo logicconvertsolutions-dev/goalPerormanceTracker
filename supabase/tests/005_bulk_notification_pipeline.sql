@@ -174,18 +174,22 @@ select pgmq.send('notification_sends', jsonb_build_object(
 ));
 
 select tests.authenticate_as_service_role();
+
+-- Read once and reuse the result -- pgmq_read() sets a visibility timeout on
+-- every message it returns, so calling it a second time here would find the
+-- same message still hidden from the first call and see zero rows.
+create temporary table tmp_bulk_notif_read as
+  select * from public.pgmq_read('notification_sends', 30, 10)
+  where (message->>'agent_id')::uuid = '00000000-0000-0000-0000-0000000000e1';
+
 select is(
-  (select count(*)::int from public.pgmq_read('notification_sends', 30, 10)
-   where (message->>'agent_id')::uuid = '00000000-0000-0000-0000-0000000000e1'),
+  (select count(*)::int from tmp_bulk_notif_read),
   1,
   'service_role can read the message back via the pgmq_read wrapper'
 );
 
 select ok(
-  (select public.pgmq_delete('notification_sends', msg_id)
-   from public.pgmq_read('notification_sends', 30, 10)
-   where (message->>'agent_id')::uuid = '00000000-0000-0000-0000-0000000000e1'
-   limit 1),
+  (select public.pgmq_delete('notification_sends', msg_id) from tmp_bulk_notif_read limit 1),
   'service_role can delete the message via the pgmq_delete wrapper'
 );
 select tests.clear_authentication();

@@ -10,8 +10,23 @@ create schema if not exists tests;
 select plan(6);
 
 -- ---------------------------------------------------------------------
--- Seed: one org, one leader, one associate, one call logged today.
+-- Seed: one org, one leader, one associate, one call logged on the most
+-- recent business day.
+--
+-- Deliberately not `current_date` directly: admin_daily_active_loggers()'s
+-- own window is business-days-only (Mon-Fri), so a suite run that happens
+-- to land on a Saturday or Sunday would log the call on a date its own
+-- window excludes entirely -- failing "today is marked logged" and "exactly
+-- one logged day" not because of a real bug, but because the test picked a
+-- date the function being tested was never meant to cover.
 -- ---------------------------------------------------------------------
+create or replace function tests.recent_business_day()
+returns date language sql stable as $$
+  select max(d)::date from generate_series(current_date - 7, current_date, interval '1 day') d
+  where extract(isodow from d) < 6;
+$$;
+grant execute on function tests.recent_business_day() to authenticated, anon, service_role;
+
 insert into public.organizations (id, name) values
   ('00000000-0000-0000-0000-00000000ee41', 'org_pilot_suite');
 
@@ -29,7 +44,7 @@ update public.agents set upline_id = '000000000000000000000000000000c1'
 insert into public.contacts (id, agent_id, full_name) values
   ('000000000000000000000000000000c3', '000000000000000000000000000000c2', 'Pilot Suite Contact');
 insert into public.call_logs (agent_id, contact_id, call_date, source, outcome) values
-  ('000000000000000000000000000000c2', '000000000000000000000000000000c3', current_date, 'warm_market', 'connected');
+  ('000000000000000000000000000000c2', '000000000000000000000000000000c3', tests.recent_business_day(), 'warm_market', 'connected');
 select public.drain_metrics(1000);
 
 -- Impersonation helpers, same convention as every other suite in this repo.
@@ -101,13 +116,13 @@ select is(
 );
 
 select ok(
-  (select logged from tmp_pilot where activity_date = current_date),
-  'today is marked logged after logging a call'
+  (select logged from tmp_pilot where activity_date = tests.recent_business_day()),
+  'the most recent business day is marked logged after logging a call'
 );
 
 select is(
   (select count(*)::int from tmp_pilot where logged), 1,
-  'exactly one logged day in the window (today, the only one with activity)'
+  'exactly one logged day in the window (the most recent business day, the only one with activity)'
 );
 
 select * from finish();
