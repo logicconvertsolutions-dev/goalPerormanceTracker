@@ -38,34 +38,42 @@ describe('resolveTimeZone', () => {
   });
 });
 
+// P14a widened these from an exact 15-minute slot to "any time from the
+// target hour through end of local day" -- self-healing against a late or
+// skipped cron tick (whatever triggers the caller). The per-day dedup lives
+// in each caller's own claim table, not in how narrow this window is.
 describe('kindsInWindow', () => {
-  it('matches evening_nudge on a weekday at 19:00-19:14', () => {
-    expect(kindsInWindow({ isoDow: 3, hour: 19, minute: 0, dateIso: '2026-08-26' })).toEqual([
-      'evening_nudge',
-    ]);
-    expect(kindsInWindow({ isoDow: 3, hour: 19, minute: 14, dateIso: '2026-08-26' })).toEqual([
-      'evening_nudge',
-    ]);
+  it('matches evening_nudge any time from 19:00 through 23:59 on a weekday', () => {
+    expect(kindsInWindow({ isoDow: 3, hour: 19, minute: 0, dateIso: '2026-08-26' })).toEqual(['evening_nudge']);
+    expect(kindsInWindow({ isoDow: 3, hour: 19, minute: 45, dateIso: '2026-08-26' })).toEqual(['evening_nudge']);
+    expect(kindsInWindow({ isoDow: 5, hour: 23, minute: 59, dateIso: '2026-08-28' })).toEqual(['evening_nudge']);
   });
 
-  it('does not match evening_nudge outside the window or on a weekend', () => {
-    expect(kindsInWindow({ isoDow: 3, hour: 19, minute: 15, dateIso: '2026-08-26' })).toEqual([]);
-    expect(kindsInWindow({ isoDow: 3, hour: 20, minute: 0, dateIso: '2026-08-26' })).toEqual([]);
-    expect(kindsInWindow({ isoDow: 6, hour: 19, minute: 0, dateIso: '2026-08-29' })).toEqual([]);
+  it('does not match evening_nudge before 19:00 or on a weekend', () => {
+    expect(kindsInWindow({ isoDow: 3, hour: 18, minute: 59, dateIso: '2026-08-26' })).toEqual([]);
+    expect(kindsInWindow({ isoDow: 6, hour: 20, minute: 0, dateIso: '2026-08-29' })).toEqual([]);
   });
 
-  it('matches sunday_summary only on Sunday at 18:00-18:14', () => {
-    expect(kindsInWindow({ isoDow: 7, hour: 18, minute: 5, dateIso: '2026-08-30' })).toEqual([
-      'sunday_summary',
-    ]);
+  it('matches sunday_summary any time from 18:00 onward, Sunday only', () => {
+    expect(kindsInWindow({ isoDow: 7, hour: 18, minute: 5, dateIso: '2026-08-30' })).toEqual(['sunday_summary']);
+    expect(kindsInWindow({ isoDow: 7, hour: 22, minute: 0, dateIso: '2026-08-30' })).toEqual(['sunday_summary']);
     expect(kindsInWindow({ isoDow: 6, hour: 18, minute: 5, dateIso: '2026-08-29' })).toEqual([]);
   });
 
-  it('matches monday_digest only on Monday at 08:00-08:14', () => {
-    expect(kindsInWindow({ isoDow: 1, hour: 8, minute: 0, dateIso: '2026-08-24' })).toEqual([
-      'monday_digest',
-    ]);
-    expect(kindsInWindow({ isoDow: 1, hour: 9, minute: 0, dateIso: '2026-08-24' })).toEqual([]);
+  it('matches monday_digest from 08:00 up to (not including) 19:00, Monday only', () => {
+    expect(kindsInWindow({ isoDow: 1, hour: 8, minute: 0, dateIso: '2026-08-24' })).toEqual(['monday_digest']);
+    expect(kindsInWindow({ isoDow: 1, hour: 18, minute: 59, dateIso: '2026-08-24' })).toEqual(['monday_digest']);
+    expect(kindsInWindow({ isoDow: 1, hour: 7, minute: 59, dateIso: '2026-08-24' })).toEqual([]);
+  });
+
+  it('hands Monday evening to evening_nudge, not monday_digest, once both would otherwise be open', () => {
+    // Without the 19:00 cap on monday_digest, this would return both kinds
+    // for a Monday evening -- the exact overlap window.ts's own doc comment
+    // calls out. Real agents only have one role so this never double-sent
+    // in practice, but the function's own contract ("at most one kind")
+    // should hold regardless of who calls it.
+    expect(kindsInWindow({ isoDow: 1, hour: 19, minute: 0, dateIso: '2026-08-24' })).toEqual(['evening_nudge']);
+    expect(kindsInWindow({ isoDow: 1, hour: 23, minute: 0, dateIso: '2026-08-24' })).toEqual(['evening_nudge']);
   });
 
   it('never matches more than one kind at once', () => {
@@ -78,15 +86,14 @@ describe('kindsInWindow', () => {
 });
 
 describe('isRosterReminderWindow', () => {
-  it('matches Wednesday and Saturday at 09:00-09:14', () => {
+  it('matches Wednesday and Saturday any time from 09:00 onward', () => {
     expect(isRosterReminderWindow({ isoDow: 3, hour: 9, minute: 0, dateIso: '2026-08-26' })).toBe(true);
-    expect(isRosterReminderWindow({ isoDow: 3, hour: 9, minute: 14, dateIso: '2026-08-26' })).toBe(true);
+    expect(isRosterReminderWindow({ isoDow: 3, hour: 21, minute: 0, dateIso: '2026-08-26' })).toBe(true);
     expect(isRosterReminderWindow({ isoDow: 6, hour: 9, minute: 0, dateIso: '2026-08-29' })).toBe(true);
   });
 
-  it('does not match outside the window or on other days', () => {
-    expect(isRosterReminderWindow({ isoDow: 3, hour: 9, minute: 15, dateIso: '2026-08-26' })).toBe(false);
-    expect(isRosterReminderWindow({ isoDow: 3, hour: 10, minute: 0, dateIso: '2026-08-26' })).toBe(false);
+  it('does not match before 09:00 or on other days', () => {
+    expect(isRosterReminderWindow({ isoDow: 3, hour: 8, minute: 59, dateIso: '2026-08-26' })).toBe(false);
     expect(isRosterReminderWindow({ isoDow: 1, hour: 9, minute: 0, dateIso: '2026-08-24' })).toBe(false);
     expect(isRosterReminderWindow({ isoDow: 7, hour: 9, minute: 0, dateIso: '2026-08-30' })).toBe(false);
   });

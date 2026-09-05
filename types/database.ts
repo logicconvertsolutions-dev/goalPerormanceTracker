@@ -794,24 +794,33 @@ export type Database = {
       notification_log: {
         Row: {
           agent_id: string
+          attempts: number
           id: string
           kind: string
+          last_error: string | null
           local_date: string
           sent_at: string
+          status: Database["public"]["Enums"]["notification_send_status"]
         }
         Insert: {
           agent_id: string
+          attempts?: number
           id?: string
           kind: string
+          last_error?: string | null
           local_date: string
           sent_at?: string
+          status?: Database["public"]["Enums"]["notification_send_status"]
         }
         Update: {
           agent_id?: string
+          attempts?: number
           id?: string
           kind?: string
+          last_error?: string | null
           local_date?: string
           sent_at?: string
+          status?: Database["public"]["Enums"]["notification_send_status"]
         }
         Relationships: [
           {
@@ -1345,6 +1354,18 @@ export type Database = {
         }[]
       }
       nudge_agent: { Args: { p_agent_id: string }; Returns: undefined }
+      pgmq_archive: { Args: { msg_id: number; queue_name: string }; Returns: boolean }
+      pgmq_delete: { Args: { msg_id: number; queue_name: string }; Returns: boolean }
+      pgmq_read: {
+        Args: { qty: number; queue_name: string; vt: number }
+        Returns: {
+          enqueued_at: string
+          message: Json
+          msg_id: number
+          read_ct: number
+          vt: string
+        }[]
+      }
       provision_org: {
         Args: { p_org_name: string; p_smd_email: string; p_smd_name: string }
         Returns: {
@@ -1525,6 +1546,7 @@ export type Database = {
         | "other"
       feedback_category: "bug" | "feature_request" | "feedback" | "other"
       feedback_status: "new" | "reviewed" | "resolved"
+      notification_send_status: "queued" | "sent" | "failed"
       recruit_status:
         | "contacted"
         | "marketing_presented"
@@ -1679,6 +1701,7 @@ export const Constants = {
       ],
       feedback_category: ["bug", "feature_request", "feedback", "other"],
       feedback_status: ["new", "reviewed", "resolved"],
+      notification_send_status: ["queued", "sent", "failed"],
       recruit_status: [
         "contacted",
         "marketing_presented",

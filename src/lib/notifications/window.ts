@@ -1,10 +1,21 @@
 // Per-agent local time window matching. Each agent carries an IANA time_zone
-// (settings screen, defaults from the browser); the cron job runs on a
-// fixed UTC schedule (.github/workflows/notifications-cron.yml, every 15
-// minutes) and this is what maps "now, in UTC" to "is it 7:00pm for this
-// particular agent right now." Deliberately no manual DST math:
-// Intl.DateTimeFormat resolves the offset for the given instant + zone,
-// DST included.
+// (settings screen, defaults from the browser); the cron tick that calls
+// this maps "now, in UTC" to "is it evening yet for this particular agent."
+// Deliberately no manual DST math: Intl.DateTimeFormat resolves the offset
+// for the given instant + zone, DST included.
+//
+// P14a widened every window below from an exact narrow slot (originally
+// 15 minutes, matching a fixed cron cadence) to "any time from the target
+// local hour through the end of the local day" -- self-healing against a
+// late or skipped cron tick, whatever triggers the caller. This mirrors
+// private.enqueue_due_notifications()'s own SQL (which now owns the
+// evening_nudge/sunday_summary/monday_digest decision for real -- see that
+// migration); kindsInWindow/isRosterReminderWindow stay here only because
+// the roster-reminder and auto-call-nudge paths (src/app/api/cron/
+// notifications/route.ts) still use them directly. Each caller's own
+// insert-first dedup table (notification_log, team_roster_reminder_log,
+// agent_auto_nudge_log) is what actually prevents a widened window from
+// sending twice in one day, not the window's width.
 
 export type NotificationKind = 'evening_nudge' | 'sunday_summary' | 'monday_digest';
 
@@ -55,18 +66,25 @@ export function localParts(timeZone: string, at: Date): LocalParts {
   };
 }
 
-const WINDOW_MINUTES = 15; // matches the cron cadence in notifications-cron.yml
-
-/** Which notification kinds are in their send window for this agent right now. */
+/**
+ * Which notification kinds are in their send window for this agent right
+ * now. The three windows are calendar-exclusive by construction -- Monday
+ * is the one day two of them could otherwise both be true (evening_nudge
+ * is every weekday from 19:00, monday_digest is Monday from 08:00), so
+ * monday_digest is capped to end before evening_nudge's own window opens
+ * that day rather than relying on the caller to notice an agent can't
+ * plausibly be eligible for both (a real agent only has one role, so this
+ * never mattered operationally, but this function doesn't know that).
+ */
 export function kindsInWindow(parts: LocalParts): NotificationKind[] {
   const kinds: NotificationKind[] = [];
-  if (parts.isoDow >= 1 && parts.isoDow <= 5 && parts.hour === 19 && parts.minute < WINDOW_MINUTES) {
+  if (parts.isoDow >= 1 && parts.isoDow <= 5 && parts.hour >= 19) {
     kinds.push('evening_nudge');
   }
-  if (parts.isoDow === 7 && parts.hour === 18 && parts.minute < WINDOW_MINUTES) {
+  if (parts.isoDow === 7 && parts.hour >= 18) {
     kinds.push('sunday_summary');
   }
-  if (parts.isoDow === 1 && parts.hour === 8 && parts.minute < WINDOW_MINUTES) {
+  if (parts.isoDow === 1 && parts.hour >= 8 && parts.hour < 19) {
     kinds.push('monday_digest');
   }
   return kinds;
@@ -79,5 +97,5 @@ export function kindsInWindow(parts: LocalParts): NotificationKind[] {
 // whichever time zone the cron route resolves for that roster row (its
 // upline's, since a roster entry has none of its own).
 export function isRosterReminderWindow(parts: LocalParts): boolean {
-  return (parts.isoDow === 3 || parts.isoDow === 6) && parts.hour === 9 && parts.minute < WINDOW_MINUTES;
+  return (parts.isoDow === 3 || parts.isoDow === 6) && parts.hour >= 9;
 }

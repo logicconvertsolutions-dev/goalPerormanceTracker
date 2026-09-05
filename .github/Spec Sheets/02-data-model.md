@@ -668,15 +668,109 @@ activity write (insert/update/delete)
         (default 24, NULL disables), skipping any row whose contact has a sale
 ```
 
-**One correction to the original spec's automation story:** the notifications
-cron (evening nudge / Sunday summary / Monday digest — a *different*
-pipeline, unrelated to `daily_metrics`) moved from Vercel Cron to a GitHub
-Actions workflow (`.github/workflows/notifications-cron.yml`, every 15
-minutes) because Vercel's Hobby plan only allows once-daily schedules and the
-notification send-window logic needs a 15-minute cadence to catch every
-agent's local time zone. **This move is scoped entirely to the notifications
-route.** The three `daily_metrics`/retention cron jobs above are still
-pg_cron jobs living inside Postgres, exactly as originally designed.
+**One correction to the original spec's automation story, since superseded:**
+the notifications cron (evening nudge / Sunday summary / Monday digest — a
+*different* pipeline, unrelated to `daily_metrics`) moved from Vercel Cron
+to a GitHub Actions workflow (`.github/workflows/notifications-cron.yml`,
+every 15 minutes) because Vercel's Hobby plan only allows once-daily
+schedules and the notification send-window logic needs a tighter cadence to
+catch every agent's local time zone. The three `daily_metrics`/retention
+cron jobs above were always pg_cron jobs living inside Postgres, exactly as
+originally designed — GitHub Actions was only ever a workaround for the
+notifications pipeline specifically.
+
+**P14a retired that GitHub Actions workaround entirely,** after a live
+incident where its explicitly best-effort scheduler skipped the exact
+window an associate's evening_nudge needed, silently dropping their
+reminder for the day. Rather than trade one external scheduler for a
+better-tuned one, every notification job — including the two that already
+weren't the scale problem (roster reminders, auto-call-nudges) — moved onto
+pg_cron, so there is exactly one scheduling mechanism for this entire
+product (this pipeline plus the pre-existing three `daily_metrics`/retention
+jobs), all living in Postgres, all maintained the same way. Full writeup
+below.
+
+### P14a: bulk-load-safe notification pipeline
+
+Same root problem as `daily_metrics`' own dirty-queue design (recompute,
+don't do unbounded work synchronously) applied to email: the old path did
+"who's due, right now" and "send everyone's email" inside one HTTP request,
+which breaks in two independent ways at real scale (thousands of agents
+clustered in a handful of North American time zones) — GitHub Actions'
+scheduler can silently skip a tick under load, and even when it fires, a
+sequential per-recipient Resend call inside one request blows past any
+serverless function's execution-time limit long before a several-thousand-
+person tick finishes.
+
+Split into two pg_cron jobs talking through a `pgmq` queue instead of a
+shared in-memory loop:
+
+```
+pg_cron `enqueue-due-notifications`, every 5 minutes
+   └─ private.enqueue_due_notifications(): pure SQL, no HTTP hop.
+        Set-based query over active agents (mirrors the deleted
+        src/lib/notifications/{window,eligibility}.ts, widened from an
+        exact 15-minute slot to "any time from the target local hour
+        through end of local day" -- self-healing against a late or
+        skipped tick, whatever triggers this function). Claims via
+        notification_log's existing unique index (agent_id, kind,
+        local_date) BEFORE enqueueing, so a repeated or concurrent tick
+        can never double-claim. Only what it just claimed gets pushed onto
+        pgmq's `notification_sends` queue.
+
+pg_cron `ping-notification-drain`, every 30 seconds
+   └─ private.ping_notification_drain(): guarded exactly like sendEmail()
+        already is -- no-ops with a `raise notice` instead of erroring
+        every tick if the drain URL/secret aren't yet in Vault.
+   └─ net.http_post → /api/cron/notifications/drain
+        Pops a BOUNDED batch (500) off the queue via public.pgmq_read()
+        (a thin wrapper -- pgmq's own functions live outside the schema
+        PostgREST exposes for RPC), composes each email (reusing
+        compose{EveningNudge,SundaySummary,MondayDigest}), sends via
+        Resend's /emails/batch (100 recipients/call, several batches fired
+        concurrently) instead of one Resend call per recipient, then
+        reconciles: pgmq_delete + notification_log.status = 'sent' on
+        success; left in the queue (pgmq's visibility timeout makes it
+        retryable again) on failure, up to 5 attempts, then pgmq_archive +
+        status = 'failed' so it stops retrying forever and shows up for
+        investigation instead of silently vanishing.
+
+pg_cron `ping-legacy-notifications`, every 5 minutes
+   └─ private.ping_legacy_notifications() → net.http_post → /api/cron/notifications
+        team_roster's Wed/Sat auto-reminders (P11a) and the SMD's opt-in
+        auto_call_nudges (P12a) keep their original request-per-tick logic,
+        unbatched, in the same (now much smaller) route -- unbounded work
+        was never their problem, only their trigger was. Both ping
+        functions share the same private.ping_app_route(path) helper and
+        the same two Vault secrets (app_base_url, cron_secret).
+```
+
+`notification_log` gained `status` (`queued` | `sent` | `failed`),
+`attempts`, and `last_error` — its unique-index-as-rate-limit meaning is
+unchanged, but a row now means "claimed for sending," not "confirmed
+delivered," since claiming and sending are two different processes now.
+
+**Deliberately kept simple, not moved to the queue:** `team_roster`'s
+Wed/Sat auto-reminders (P11a) and the SMD's opt-in `auto_call_nudges`
+(P12a) are bounded by a far smaller set than the full agent base — a
+roster an SMD manually built, or agents explicitly opted into auto-nudging
+— so neither hits the wall the queue/batch-send half of this migration
+exists to solve, and moving them onto `pgmq` wasn't worth the added
+complexity. What *did* change for both: they're now triggered by pg_cron
+(`ping-legacy-notifications`) instead of GitHub Actions, and their own
+eligibility windows (`kindsInWindow`, `isRosterReminderWindow` in
+`window.ts`) were widened the same self-healing way as the per-agent path's
+— cheap to keep consistent, and a late or skipped pg_cron tick, while far
+less likely than GitHub Actions ever was, still isn't literally impossible.
+
+**Rollout:** running the old and new paths in parallel was the original
+plan for validating the per-agent kinds specifically (`notification_log`'s
+unique constraint makes that safe — it's the single source of truth for
+"already handled" regardless of which path claims a row first). Since this
+migration retires GitHub Actions outright rather than leaving it running
+alongside pg_cron, validation happens by comparing `notification_log`'s
+`sent`/`failed` counts against what GitHub Actions had been producing
+*before* cutover, not by running both schedulers at once.
 
 **Scaling path — do not pre-build these.** Unchanged from the original
 design; see `docs/06-build-phases.md` for current scale in practice.

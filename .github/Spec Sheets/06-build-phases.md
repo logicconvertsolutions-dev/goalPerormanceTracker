@@ -216,6 +216,51 @@ work — see `docs/02-data-model.md`'s "P13" section for full detail:
   actually re-queries on change (unlike `/appointments`' plain-form status
   filter).
 
+## P14 — Bulk-load-safe notification pipeline + GitHub Actions retired (unplanned)
+One migration, driven by a live incident: an associate's 7pm evening_nudge
+was silently dropped because GitHub Actions' `schedule:` trigger (explicitly
+best-effort) skipped the exact 15-minute window it needed. Investigating
+that surfaced a second, bigger problem: the per-agent send path did "who's
+due" and "send everyone's email" inside one HTTP request, which would also
+break outright at real scale (thousands of agents, sequential per-recipient
+Resend calls, one serverless function's execution-time limit). Product
+decision on top of both fixes: no more dependency on GitHub Actions for
+scheduling at all, so there's exactly one place (pg_cron, inside Postgres)
+where every recurring job in this product lives and gets maintained — see
+`docs/02-data-model.md`'s "P14a" section for the full design.
+- `private.enqueue_due_notifications()` (pg_cron, every 5 min, pure SQL) +
+  a `pgmq` queue (`notification_sends`) + `/api/cron/notifications/drain`
+  (pg_cron → `pg_net` → bounded-batch Resend `/emails/batch` sends) replace
+  the old per-agent loop in `src/app/api/cron/notifications/route.ts` for
+  evening_nudge/sunday_summary/monday_digest.
+- `notification_log` gained `status`/`attempts`/`last_error` — a row now
+  means "claimed," not "confirmed sent," now that claiming and sending are
+  two different processes.
+- `src/lib/notifications/eligibility.ts` (`agentsDueNow`) is deleted —
+  reimplemented as SQL inside `enqueue_due_notifications()`, since that's
+  now the only place it runs. `window.ts` stays — `kindsInWindow`/
+  `isRosterReminderWindow` are still used by the roster/auto-nudge paths
+  that didn't move onto the queue — but both were widened from an exact
+  15-minute slot to the same self-healing "any time from the target hour
+  through end of local day" shape `enqueue_due_notifications()` uses.
+- team_roster auto-reminders (P11a) and `auto_call_nudges` (P12a) keep
+  their original request-per-tick logic, unbatched, in the same (now much
+  smaller) route — neither is bounded by the full agent base, so neither
+  needed the queue. What changed for them is only the trigger.
+- **GitHub Actions retired entirely**: `.github/workflows/notifications-
+  cron.yml` is deleted. A new `private.ping_legacy_notifications()` (pg_cron,
+  every 5 min) now triggers the roster/auto-nudge route instead, sharing
+  the same `private.ping_app_route()` helper and Vault secrets
+  (`app_base_url`, `cron_secret`) as the drain-route pinger. No scheduled
+  job in this product depends on GitHub Actions anymore — all of them are
+  pg_cron, alongside `daily_metrics`' own three jobs.
+- Manual, un-migrated follow-up: two Vault secrets (`app_base_url`,
+  `cron_secret`) must be created once via the SQL editor before either
+  ping function does anything — see the migration file's own trailing
+  comment. Until then both no-op harmlessly on every tick; `enqueue-due-
+  notifications` keeps claiming and queuing regardless, so nothing is lost,
+  it just doesn't go out yet.
+
 ---
 
 ## Working with Claude Code on this repo (token discipline)
