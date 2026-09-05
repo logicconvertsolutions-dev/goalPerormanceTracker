@@ -20,7 +20,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 create schema if not exists tests;
 
-select plan(9);
+select plan(11);
 
 create or replace function tests.raises_sqlstate(p_sql text, p_expected text)
 returns boolean language plpgsql as $$
@@ -121,6 +121,28 @@ select tests.authenticate_as_anon();
 select ok(
   tests.raises_sqlstate($$select private.enqueue_due_notifications()$$, '42501'),
   'anon cannot call enqueue_due_notifications'
+);
+select tests.clear_authentication();
+
+-- ---------------------------------------------------------------------
+-- The three pg_cron trigger functions (private.ping_app_route and its two
+-- callers): revoked from every client role, same as enqueue_due_
+-- notifications above -- pg_cron calls these directly as the job owner,
+-- never through PostgREST, so there is no legitimate client-session caller
+-- at all, not even service_role.
+-- ---------------------------------------------------------------------
+select tests.authenticate_as('00000000-0000-0000-0000-0000000000e1');
+select ok(
+  tests.raises_sqlstate($$select private.ping_app_route('/api/cron/notifications/drain')$$, '42501'),
+  'an authenticated agent cannot call ping_app_route'
+);
+select ok(
+  tests.raises_sqlstate($$select private.ping_notification_drain()$$, '42501'),
+  'an authenticated agent cannot call ping_notification_drain'
+);
+select ok(
+  tests.raises_sqlstate($$select private.ping_legacy_notifications()$$, '42501'),
+  'an authenticated agent cannot call ping_legacy_notifications'
 );
 select tests.clear_authentication();
 

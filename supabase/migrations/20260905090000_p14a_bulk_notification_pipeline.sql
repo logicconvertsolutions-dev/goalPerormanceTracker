@@ -18,13 +18,20 @@
 -- halves talk via a queue (pgmq) instead of a shared in-memory loop.
 --
 -- Scope: only the three per-agent kinds (evening_nudge, sunday_summary,
--- monday_digest) move to this pipeline. team_roster's auto-reminders (p11a)
--- and the SMD's auto_call_nudges (p12a) stay on the existing
--- request-per-tick path in the same route -- both are bounded by a much
+-- monday_digest) move onto the new queue -- team_roster's auto-reminders
+-- (p11a) and the SMD's auto_call_nudges (p12a) keep their existing
+-- request-per-tick logic in the same route (src/app/api/cron/
+-- notifications/route.ts), unbatched, since both are bounded by a much
 -- smaller set (a roster an SMD manually built, or agents explicitly opted
--- into auto-nudging), so they don't hit the same wall this migration is
--- solving, and moving them isn't worth the added complexity yet. Revisit if
--- either grows into the thousands.
+-- into auto-nudging) that will never hit the scale wall this migration
+-- solves for. What *does* change for them is the trigger: this migration
+-- also retires GitHub Actions entirely (not just for the per-agent kinds)
+-- so every scheduled job in this product lives in one place -- Postgres --
+-- instead of split across GitHub and Supabase. Both routes' own eligibility
+-- windows (window.ts) were separately widened to the same self-healing
+-- "any time from the target hour through end of local day" shape, since
+-- they're now driven by a different scheduler and it costs nothing to keep
+-- them consistent.
 
 create extension if not exists pg_net;
 create extension if not exists pgmq;
@@ -48,13 +55,18 @@ alter table public.notification_log
 -- an indexed, active-only slice of `agents` costs microseconds no matter
 -- the total row count.
 --
--- Mirrors kindsInWindow()/agentsDueNow() (src/lib/notifications/{window,
--- eligibility}.ts), but widened from an exact 15-minute slot to "any time
--- from the target local hour through the end of the local day" -- the
--- self-healing counterpart to the trigger-reliability fix below: even if a
--- tick is late or one gets skipped entirely, the next one that does fire
--- still finds and claims anyone still due today, rather than losing that
--- day's reminder for them.
+-- Mirrors the deleted src/lib/notifications/eligibility.ts's agentsDueNow()
+-- and window.ts's kindsInWindow(), widened from an exact 15-minute slot to
+-- "any time from the target local hour through the end of the local day" --
+-- the self-healing counterpart to the trigger-reliability fix below: even
+-- if a tick is late or one gets skipped entirely, the next one that does
+-- fire still finds and claims anyone still due today, rather than losing
+-- that day's reminder for them. monday_digest is capped below 19:00 for
+-- the same reason window.ts's own copy is (see that file's doc comment):
+-- Monday is the one day two windows could otherwise both be open at once.
+-- Role already makes that impossible here (an agent is never both
+-- associate and leader/admin), but the cap keeps the two implementations
+-- honestly identical rather than relying on that as the only reason.
 -- ---------------------------------------------------------------------
 create or replace function private.enqueue_due_notifications()
 returns int language plpgsql security definer set search_path = '' as $$
@@ -86,6 +98,7 @@ begin
         when role in ('leader', 'admin')
              and extract(isodow from local_ts) = 1
              and extract(hour from local_ts) >= 8
+             and extract(hour from local_ts) < 19
         then 'monday_digest'
         else null
       end as kind
@@ -179,59 +192,85 @@ select cron.schedule(
   $$select private.enqueue_due_notifications();$$
 );
 
--- ping-notification-drain: the only step that needs HTTP (composing email
--- HTML and calling Resend's API is application logic, not something worth
--- reimplementing in PL/pgSQL). Guarded exactly like sendEmail() and the
--- GitHub Actions workflow already are -- no-ops with a warning instead of
--- erroring every tick when CRON_TARGET_URL/CRON_SECRET haven't been stored
--- in Vault yet (see this migration's own follow-up notes for how to set
--- those). Safe to apply this migration before that manual step is done.
-create or replace function private.ping_notification_drain()
+-- Both ping functions below share the same two Vault secrets -- one app
+-- base URL, one bearer secret -- rather than a URL+secret pair per route,
+-- since they're hitting two endpoints on the same deployment with the same
+-- auth. Guarded exactly like sendEmail() already is -- no-ops with a notice
+-- instead of erroring every tick when the secrets haven't been stored in
+-- Vault yet (see this migration's own trailing comment for how). Safe to
+-- apply this migration before that manual step is done -- both jobs just
+-- no-op harmlessly until then.
+create or replace function private.ping_app_route(p_path text)
 returns void language plpgsql security definer set search_path = '' as $$
 declare
-  v_url text;
+  v_base_url text;
   v_secret text;
 begin
-  select decrypted_secret into v_url from vault.decrypted_secrets where name = 'notifications_drain_url';
-  select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'notifications_drain_secret';
-  if v_url is null or v_secret is null or v_url = '' or v_secret = '' then
-    raise notice '[notifications] drain URL/secret not configured in Vault -- skipping ping';
+  select decrypted_secret into v_base_url from vault.decrypted_secrets where name = 'app_base_url';
+  select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'cron_secret';
+  if v_base_url is null or v_secret is null or v_base_url = '' or v_secret = '' then
+    raise notice '[notifications] app_base_url/cron_secret not configured in Vault -- skipping ping to %', p_path;
     return;
   end if;
 
   perform net.http_post(
-    url := v_url,
+    url := v_base_url || p_path,
     headers := jsonb_build_object('Authorization', 'Bearer ' || v_secret, 'Content-Type', 'application/json'),
     body := '{}'::jsonb,
     timeout_milliseconds := 25000
   );
 end $$;
-revoke all on function private.ping_notification_drain() from public, anon, authenticated;
+revoke all on function private.ping_app_route(text) from public, anon, authenticated;
 
 -- Every 30 seconds: a bounded batch per tick means more due agents just
 -- means more ticks doing useful work, never one tick doing unbounded work.
+create or replace function private.ping_notification_drain()
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  perform private.ping_app_route('/api/cron/notifications/drain');
+end $$;
+revoke all on function private.ping_notification_drain() from public, anon, authenticated;
+
 select cron.schedule(
   'ping-notification-drain', '*/30 * * * * *',
   $$select private.ping_notification_drain();$$
 );
 
+-- The GitHub-Actions-triggered route (roster auto-reminders, p11a; SMD
+-- auto_call_nudges, p12a) -- unbounded work was never the problem here
+-- (both are small, bounded sets), only the trigger reliability was.
+-- 5 minutes, matching enqueue-due-notifications: window.ts's own windows
+-- for both were widened the same way (see src/lib/notifications/window.ts),
+-- so, same as above, precision beyond "within a few minutes" buys nothing.
+create or replace function private.ping_legacy_notifications()
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  perform private.ping_app_route('/api/cron/notifications');
+end $$;
+revoke all on function private.ping_legacy_notifications() from public, anon, authenticated;
+
+select cron.schedule(
+  'ping-legacy-notifications', '*/5 * * * *',
+  $$select private.ping_legacy_notifications();$$
+);
+
 -- ---------------------------------------------------------------------
--- Manual follow-up required before the drain leg actually does anything
--- (run once, interactively, via the SQL editor -- never commit real secret
--- values into a migration file):
+-- Manual follow-up required before either ping function actually does
+-- anything (run once, interactively, via the SQL editor -- never commit
+-- real secret values into a migration file):
 --
---   select vault.create_secret(
---     '<your deployed app URL>/api/cron/notifications/drain',
---     'notifications_drain_url'
---   );
---   select vault.create_secret(
---     '<same value as the existing CRON_SECRET GitHub secret>',
---     'notifications_drain_secret'
---   );
+--   select vault.create_secret('<your deployed app URL, no trailing slash>', 'app_base_url');
+--   select vault.create_secret('<same value as the CRON_SECRET Vercel env var>', 'cron_secret');
 --
--- Until both exist, ping-notification-drain no-ops harmlessly every 30s
--- (see private.ping_notification_drain() above) and enqueue-due-
--- notifications keeps claiming + queuing as normal -- the queue just
--- accumulates unsent messages until the drain leg is wired up, nothing is
--- lost.
+-- Until both exist, ping-notification-drain and ping-legacy-notifications
+-- no-op harmlessly on every tick (see private.ping_app_route() above);
+-- enqueue-due-notifications keeps claiming + queuing as normal in the
+-- meantime -- the queue just accumulates unsent messages until the drain
+-- leg is wired up, nothing is lost.
+--
+-- This migration is also the point where GitHub Actions stops being
+-- involved in this product's scheduling at all -- .github/workflows/
+-- notifications-cron.yml is deleted in the same change, since pg_cron now
+-- triggers every cron-shaped job (daily_metrics' own three jobs already
+-- did; these three complete the move).
 -- ---------------------------------------------------------------------

@@ -7,25 +7,33 @@ import { isRosterReminderWindow, kindsInWindow, localParts, resolveTimeZone } fr
 
 export const dynamic = 'force-dynamic';
 
-// Invoked by .github/workflows/notifications-cron.yml on its existing
-// best-effort ~15-minute GitHub Actions schedule, unchanged.
+// Invoked by pg_cron's `ping-legacy-notifications` job (private.
+// ping_legacy_notifications(), every 5 minutes, via pg_net) -- see
+// 20260905090000_p14a_bulk_notification_pipeline.sql. Previously triggered
+// by a GitHub Actions `schedule:` workflow; that workflow is deleted and
+// GitHub Actions is no longer involved in scheduling anything in this
+// product -- every cron-shaped job now lives in Postgres via pg_cron,
+// alongside the daily_metrics pipeline's own three jobs, so there's one
+// place to look, one place to maintain, and no dependency on a scheduler
+// (GitHub's) that's explicitly documented as best-effort.
 //
 // P14a moved the three per-agent kinds (evening_nudge, sunday_summary,
 // monday_digest) off this route entirely -- they're now driven by
 // pg_cron's `enqueue-due-notifications` (pure SQL, private.
 // enqueue_due_notifications()) and drained by /api/cron/notifications/drain,
-// both on pg_cron rather than GitHub Actions, because that per-agent path
-// is the one that scales with total user count and needs a trigger that
-// can't silently skip a tick under load (see 20260905090000_p14a_bulk_
-// notification_pipeline.sql for the full reasoning).
+// because that per-agent path is the one that scales with total user count
+// and needed a bounded-batch send path, not just a different trigger.
 //
 // What's left here -- team_roster's Wed/Sat auto-reminders (p11a) and the
 // SMD's opt-in auto_call_nudges (p12a) -- deliberately stays on this
 // simpler, request-per-tick path: both are bounded by a much smaller set
 // (a roster an SMD manually built, or agents explicitly opted into
 // auto-nudging) that won't hit the thousands-of-recipients wall the P14a
-// pipeline exists to solve, so moving them wasn't worth the added
-// complexity yet. Revisit if either grows into that range.
+// pipeline exists to solve, so moving them onto the queue wasn't worth the
+// added complexity. Their own eligibility windows (window.ts) were widened
+// the same self-healing way as the per-agent path's, though, since a late
+// or skipped pg_cron tick -- while far less likely than GitHub Actions
+// ever was -- isn't literally impossible.
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return true; // no secret configured (local dev) -- don't lock developers out

@@ -1331,7 +1331,6 @@ export type Database = {
       }
       deactivate_agent: { Args: { p_agent_id: string }; Returns: undefined }
       drain_metrics: { Args: { p_limit?: number }; Returns: number }
-      enqueue_due_notifications: { Args: Record<PropertyKey, never>; Returns: number }
       my_followups: {
         Args: { p_as_of?: string }
         Returns: {
