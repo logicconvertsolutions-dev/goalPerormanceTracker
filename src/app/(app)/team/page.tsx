@@ -323,6 +323,8 @@ export default async function TeamPage({
                     { label: 'Social Media', value: breakdown?.[0]?.src_social_media ?? 0 },
                     { label: 'Friend', value: breakdown?.[0]?.src_friend ?? 0 },
                     { label: 'Other', value: breakdown?.[0]?.src_other ?? 0 },
+                    { label: 'Existing Client', value: breakdown?.[0]?.src_existing_client ?? 0 },
+                    { label: 'Existing Recruit', value: breakdown?.[0]?.src_existing_recruit ?? 0 },
                   ]}
                   categorical
                 />

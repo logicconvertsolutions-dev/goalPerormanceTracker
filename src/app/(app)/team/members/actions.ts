@@ -145,8 +145,9 @@ export async function inviteRosterMemberAction(formData: FormData) {
 /**
  * Sends a training reminder straight to a roster member's email — no invite
  * or app signup required first (send_roster_training_reminder rate-limits
- * to 1/7 days per roster row, mirroring send_training_reminder's cooldown
- * for real agents, 20260827090000_p9c).
+ * to 1/day per roster row, mirroring send_training_reminder's cooldown
+ * for real agents, 20260827090000_p9c, tightened to daily by
+ * 20260904023550_p13b).
  */
 export async function sendRosterTrainingReminderAction(rosterId: string) {
   const parsed = z.object({ rosterId: z.string().uuid() }).safeParse({ rosterId });

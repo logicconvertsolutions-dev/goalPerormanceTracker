@@ -2,6 +2,30 @@
 
 Design debt and deferred work surfaced by review. Newest first.
 
+## 2026-09-05 — types/database.ts hand-synced for P15 (new call sources); no pgTAP coverage yet
+
+**What:** P15a/P15b add two new `call_source` enum values
+(`existing_client`, `existing_recruit`), two new `daily_metrics` columns
+(`src_existing_client`, `src_existing_recruit`), and update
+`private.recompute_day`/`public.agent_aggregate`/`public.team_breakdown` to
+compute and return them. `types/database.ts` was hand-edited to match
+(same "no live Supabase instance in this sandbox" situation as
+`7a4e694`'s P14a type sync) rather than regenerated via `npm run types`.
+
+**Why deferred:** No local Supabase instance in this session
+(`supabase start` needs a Docker daemon this sandbox doesn't have).
+
+**Impact:** Low risk if the hand-edit is wrong (`7a4e694` confirmed the same
+pattern only had a whitespace diff against the real regeneration last time),
+but should still be verified: run `npm run types` against the applied
+migration and diff against the hand-edit. Also no pgTAP coverage for the two
+new enum values or columns — same gap as the P11/P12a entries above, same
+fix shape (seed a call_log with the new source, assert `recompute_day`
+counts it into the right column).
+
+**Depends on / blocked by:** nothing technical — needs a working local (or
+CI) Supabase instance to regenerate types and to write/run the pgTAP.
+
 ## 2026-09-03 — No pgTAP coverage for P12a's auto-nudge schema; golden-file import test not re-run
 
 **What:** `20260903165109_p12a_auto_call_nudges.sql` added

@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
@@ -10,6 +11,14 @@ import { KpiStat } from './kpi-stat';
 import { NextUpCard } from './next-up-card';
 import { TodayRow } from './today-row';
 import { ActivityRow } from './activity-row';
+import type { ActivityKind } from '@/components/shell/activity-icons';
+
+const ACTIVITY_EDIT_PATH: Record<ActivityKind, string> = {
+  call: '/log',
+  appointment: '/appointments',
+  sale: '/sales',
+  recruiting: '/recruiting',
+};
 
 export default async function TodayPage() {
   const session = await requireVerifiedAgent();
@@ -119,14 +128,19 @@ export default async function TodayPage() {
           ) : (
             <div className="divide-y divide-line">
               {recentActivity.map((item) => (
-                <ActivityRow
+                <Link
                   key={`${item.kind}-${item.id}`}
-                  kind={item.kind}
-                  contactName={item.contactName}
-                  summary={item.summary}
-                  createdAt={item.createdAt}
-                  timeZone={session.agent!.time_zone}
-                />
+                  href={`${ACTIVITY_EDIT_PATH[item.kind]}/${item.id}/edit`}
+                  className="block hover:bg-hover"
+                >
+                  <ActivityRow
+                    kind={item.kind}
+                    contactName={item.contactName}
+                    summary={item.summary}
+                    createdAt={item.createdAt}
+                    timeZone={session.agent!.time_zone}
+                  />
+                </Link>
               ))}
             </div>
           )}

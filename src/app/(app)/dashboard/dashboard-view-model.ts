@@ -31,6 +31,8 @@ export interface AgentAggregateTotals {
   src_social_media: number;
   src_friend: number;
   src_other: number;
+  src_existing_client: number;
+  src_existing_recruit: number;
   appt_scheduled: number;
   appt_no_show: number;
   appt_rescheduled: number;
@@ -183,6 +185,8 @@ export function buildDashboardViewModel(input: {
       { label: 'Social Media', value: t2?.src_social_media ?? 0 },
       { label: 'Friend', value: t2?.src_friend ?? 0 },
       { label: 'Other', value: t2?.src_other ?? 0 },
+      { label: 'Existing Client', value: t2?.src_existing_client ?? 0 },
+      { label: 'Existing Recruit', value: t2?.src_existing_recruit ?? 0 },
     ],
     trendWeeks,
     funnel,

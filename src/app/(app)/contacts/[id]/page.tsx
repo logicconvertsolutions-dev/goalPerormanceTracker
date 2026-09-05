@@ -10,6 +10,7 @@ import { LogActivityButton } from '@/components/shell/log-activity-button';
 import { formatDisplayDate } from '@/lib/dates';
 import { outcomeBadgeVariant } from '@/lib/call-outcomes';
 import { DeleteContactButton } from './delete-contact-button';
+import { EditContactDialog } from './edit-contact-dialog';
 
 export default async function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -51,6 +52,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
         title={contact.full_name}
         action={
           <div className="flex flex-wrap gap-2">
+            <EditContactDialog contactId={contact.id} fullName={contact.full_name} notes={contact.notes} />
             <Button asChild variant="secondary" size="sm">
               <Link href={`/appointments/new?contact=${contact.id}`}>Log appointment</Link>
             </Button>

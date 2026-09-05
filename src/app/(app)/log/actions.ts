@@ -14,6 +14,8 @@ const CALL_SOURCES = [
   'social_media',
   'friend',
   'other',
+  'existing_client',
+  'existing_recruit',
 ] as const;
 
 const CALL_OUTCOMES = [

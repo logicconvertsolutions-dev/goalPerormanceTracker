@@ -58,7 +58,8 @@ create schema if not exists private;   -- helper fns, NOT in exposed schemas
 create type public.agent_role   as enum ('associate','leader','admin');
 create type public.agent_status as enum ('active','inactive');
 create type public.call_source  as enum
-  ('warm_market','referral','cold','social_media','friend','other');
+  ('warm_market','referral','cold','social_media','friend','other',
+   'existing_client','existing_recruit');
 create type public.call_outcome as enum
   ('connected','voicemail','no_answer','appointment_set','not_interested');
 create type public.appt_status  as enum
@@ -312,6 +313,8 @@ create table public.daily_metrics (
   src_social_media int not null default 0,
   src_friend    int not null default 0,
   src_other     int not null default 0,
+  src_existing_client int not null default 0,
+  src_existing_recruit int not null default 0,
   appt_scheduled int not null default 0,
   appt_held      int not null default 0,
   appt_no_show   int not null default 0,

@@ -560,6 +560,8 @@ export type Database = {
           referrals_given: number
           sales_count: number
           src_cold: number
+          src_existing_client: number
+          src_existing_recruit: number
           src_friend: number
           src_other: number
           src_referral: number
@@ -590,6 +592,8 @@ export type Database = {
           referrals_given?: number
           sales_count?: number
           src_cold?: number
+          src_existing_client?: number
+          src_existing_recruit?: number
           src_friend?: number
           src_other?: number
           src_referral?: number
@@ -620,6 +624,8 @@ export type Database = {
           referrals_given?: number
           sales_count?: number
           src_cold?: number
+          src_existing_client?: number
+          src_existing_recruit?: number
           src_friend?: number
           src_other?: number
           src_referral?: number
@@ -1288,6 +1294,8 @@ export type Database = {
           referrals_given: number
           sales_count: number
           src_cold: number
+          src_existing_client: number
+          src_existing_recruit: number
           src_friend: number
           src_other: number
           src_referral: number
@@ -1441,6 +1449,8 @@ export type Database = {
           referrals_given: number
           sales_count: number
           src_cold: number
+          src_existing_client: number
+          src_existing_recruit: number
           src_friend: number
           src_other: number
           src_referral: number
@@ -1550,6 +1560,8 @@ export type Database = {
         | "social_media"
         | "friend"
         | "other"
+        | "existing_client"
+        | "existing_recruit"
       feedback_category: "bug" | "feature_request" | "feedback" | "other"
       feedback_status: "new" | "reviewed" | "resolved"
       notification_send_status: "queued" | "sent" | "failed"
@@ -1704,6 +1716,8 @@ export const Constants = {
         "social_media",
         "friend",
         "other",
+        "existing_client",
+        "existing_recruit",
       ],
       feedback_category: ["bug", "feature_request", "feedback", "other"],
       feedback_status: ["new", "reviewed", "resolved"],

@@ -255,7 +255,7 @@ export interface TrainingReminderData {
 // missed daily activity; this one is a leader pointing a teammate at their
 // training. No unsubscribe link for the same reason as nudgeEmail: it's a
 // one-off a leader sent by hand, not a standing preference (send_training_reminder
-// already rate-limits to 1/7 days per agent).
+// already rate-limits to 1/day per agent).
 export function trainingReminderEmail(d: TrainingReminderData): EmailContent {
   const trainingUrl = appUrl('/today');
   const bodyHtml = `
@@ -353,7 +353,7 @@ export interface NudgeData {
   logoUrl?: string | null;
   // Set for the automatic daily send (p12a: an SMD flips a persistent toggle
   // instead of clicking Nudge each time) -- unlike the manual one-off nudge
-  // below (rate-limited to 1/7 days, no standing preference to unsubscribe
+  // below (rate-limited to 1/day, no standing preference to unsubscribe
   // from), the recurring version needs a working one-click unsubscribe like
   // the other recurring notifications, and shares evening_nudge's own
   // preference/kind since it's the same "reminder to log calls" concept
@@ -363,7 +363,7 @@ export interface NudgeData {
 
 // No unsubscribe link for the manual (non-recurring) case -- there's no
 // standing preference to opt out of a one-off nudge a leader sent by hand;
-// public.nudge_agent's own 7-day cooldown is the rate limit here, not
+// public.nudge_agent's own 1-day cooldown is the rate limit here, not
 // notification_log.
 export function nudgeEmail(d: NudgeData): EmailContent {
   const logUrl = appUrl('/log');

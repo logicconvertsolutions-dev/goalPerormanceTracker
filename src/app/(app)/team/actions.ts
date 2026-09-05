@@ -32,9 +32,10 @@ export async function setAutoCallNudgesAction(agentId: string, enabled: boolean)
 }
 
 // Rate limiting and authorization live entirely in nudge_agent (leader/admin,
-// in-downline, one nudge per agent per 7 days -- 20260818234435_p5a). Once
-// that RPC accepts the nudge, the email send is best-effort: a delivery
-// failure shouldn't undo the rate-limit record or report the click as failed.
+// in-downline, one nudge per agent per day -- 20260818234435_p5a, tightened
+// from 7 days by 20260904023550_p13b). Once that RPC accepts the nudge, the
+// email send is best-effort: a delivery failure shouldn't undo the
+// rate-limit record or report the click as failed.
 export async function nudgeAgentAction(agentId: string) {
   const parsed = nudgeSchema.safeParse({ agentId });
   if (!parsed.success) return { ok: false, message: 'Invalid agent' };
@@ -72,9 +73,10 @@ export async function nudgeAgentAction(agentId: string) {
 }
 
 // Rate limiting and authorization live entirely in send_training_reminder
-// (leader/admin, in-downline, one reminder per agent per 7 days — same shape
-// as nudge_agent, separate table/cooldown, 20260826091500_p9b). Distinct
-// from nudgeAgentAction: this is a training reminder, not an activity nudge.
+// (leader/admin, in-downline, one reminder per agent per day — same shape
+// as nudge_agent, separate table/cooldown, 20260826091500_p9b, tightened
+// from 7 days by 20260904023550_p13b). Distinct from nudgeAgentAction: this
+// is a training reminder, not an activity nudge.
 export async function sendTrainingReminderAction(agentId: string) {
   const parsed = nudgeSchema.safeParse({ agentId });
   if (!parsed.success) return { ok: false, message: 'Invalid agent' };

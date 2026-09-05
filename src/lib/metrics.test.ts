@@ -35,6 +35,8 @@ function row(overrides: Partial<DailyMetricsRow>): DailyMetricsRow {
     src_social_media: 0,
     src_friend: 0,
     src_other: 0,
+    src_existing_client: 0,
+    src_existing_recruit: 0,
     appt_scheduled: 0,
     appt_held: 0,
     appt_no_show: 0,

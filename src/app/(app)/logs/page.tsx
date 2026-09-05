@@ -20,7 +20,16 @@ function isPeriodPreset(v: string | undefined): v is PeriodPreset {
 
 const TABS: ActivityKind[] = ['call', 'appointment', 'sale', 'recruiting'];
 
-const CALL_SOURCES = ['warm_market', 'referral', 'cold', 'social_media', 'friend', 'other'] as const;
+const CALL_SOURCES = [
+  'warm_market',
+  'referral',
+  'cold',
+  'social_media',
+  'friend',
+  'other',
+  'existing_client',
+  'existing_recruit',
+] as const;
 const CALL_SOURCE_LABELS: Record<(typeof CALL_SOURCES)[number], string> = {
   warm_market: 'Warm market',
   referral: 'Referral',
@@ -28,6 +37,8 @@ const CALL_SOURCE_LABELS: Record<(typeof CALL_SOURCES)[number], string> = {
   social_media: 'Social media',
   friend: 'Friend',
   other: 'Other',
+  existing_client: 'Existing client',
+  existing_recruit: 'Existing recruit',
 };
 
 /**

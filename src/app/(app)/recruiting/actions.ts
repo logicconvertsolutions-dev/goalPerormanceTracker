@@ -7,7 +7,16 @@ import { createClient } from '@/lib/supabase/server';
 import { findOrCreateContact } from '@/lib/contacts';
 import { todayIso } from '@/lib/dates';
 
-const CALL_SOURCES = ['warm_market', 'referral', 'cold', 'social_media', 'friend', 'other'] as const;
+const CALL_SOURCES = [
+  'warm_market',
+  'referral',
+  'cold',
+  'social_media',
+  'friend',
+  'other',
+  'existing_client',
+  'existing_recruit',
+] as const;
 const RECRUIT_STATUSES = [
   'contacted',
   'marketing_presented',
