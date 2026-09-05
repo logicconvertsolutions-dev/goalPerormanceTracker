@@ -126,22 +126,48 @@ into an unrelated change.
 §4) already has the scenario list written out. This is pure unstarted build
 work, not a design decision waiting on input.
 
-## 2026-08-27 — Activity Logs tab URL query param lags one click behind
+## 2026-08-27 — Activity Logs tab URL query param lags one click behind — RESOLVED, believed fixed by the Next 15 upgrade (2026-09-05)
 
-**What:** On `/logs`, the `?type=` query param always reflects the
+**What:** On `/logs`, the `?type=` query param always reflected the
 *previously* selected tab, not the one just clicked (e.g. clicking
-"Sales" navigates to `?type=appointment`). The UI itself is always
+"Sales" navigated to `?type=appointment`). The UI itself was always
 correct — right tab highlighted, right table/empty-state shown — only
-the URL is one step stale.
+the URL was one step stale.
 
-**Why deferred:** Low severity (ISSUE-005 from `/qa`,
+**Why deferred (originally):** Low severity (ISSUE-005 from `/qa`,
 `.gstack/qa-reports/qa-report-localhost-2026-08-27.md`) — cosmetic
 URL-state bug, not a functional break. Standard tier fixes
 critical/high/medium; low severity is deferred by default.
 
-**Impact:** Breaks bookmarking/sharing a specific tab's URL and could
-cause a mismatch on browser back/forward. No data-correctness or
-visible-UI impact.
+**2026-09-05 investigation:** Asked to fix this. `src/app/(app)/logs/page.tsx`'s
+`tabHref()`/`<Link>` tab-bar logic today is straightforward — no per-request
+or per-render state that could produce a stale `type` value. Reproducing the
+real app wasn't possible in this session's sandbox (no Docker daemon for
+`supabase start`, and a full `npm install` fails on the `xlsx` CDN fetch
+being blocked), so instead built an isolated Next.js 15.5.24 app in
+`/tmp` reproducing the exact same tab-bar pattern (`searchParams` Promise,
+`Object.entries` loop building the next `URLSearchParams`, `<Link>` per tab)
+and drove it with Playwright (`chromium.launch`):
+- Clicking through tabs and reading `page.url()` right after
+  `waitForLoadState('networkidle')` *did* reproduce the exact "one click
+  behind" symptom described.
+- The same clicks, verified instead by polling for the tab's own rendered
+  state (`waitForFunction`) or even just a fixed 50ms wait, always showed
+  the correct URL — no lag, no flakiness, across repeated runs.
+
+Conclusion: `networkidle` resolves before Next's client-side RSC transition
+actually commits, so a `networkidle`-based Playwright check is one step
+behind the real DOM/URL state — a testing-harness artifact, not a rendering
+bug. That fits the timeline: the original `/qa` report and the Next 14.2.35
+→ 15.5.24 upgrade (which also rewrote every `searchParams`-consuming page,
+this one included, from a sync prop to the async `Promise` contract) landed
+the same day (`7bad83a`); whatever produced the report likely predates that
+rewrite and no longer applies to the async version of this page.
+
+**Impact:** None currently identified — treating as resolved. If it
+resurfaces, reproduce with a real browser interaction (not a `networkidle`-
+gated automated check) before treating it as real, and note whether it's
+specific to a build (dev vs. prod) or browser.
 
 ## 2026-08-26 — Regenerate ui-mockup.html for the light theme
 
