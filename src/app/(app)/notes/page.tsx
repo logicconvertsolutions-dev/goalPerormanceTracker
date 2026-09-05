@@ -3,6 +3,7 @@ import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/shell/page-header';
+import { apptTypeLabel } from '@/lib/appointment-types';
 import { NotesContactPicker } from './notes-contact-picker';
 import { NotesTable, type TimelineEntry } from './notes-table';
 
@@ -62,10 +63,11 @@ export default async function NotesPage({
         type: 'Appointment' as const,
         summary: a.status.replace('_', ' '),
         notes: a.notes,
-        // What was actually done in the meeting (e.g. "Solutions Presented",
-        // "Login Shown") -- surfaced in the Actions column alongside the
-        // follow-up, not buried in Details of Discussions.
-        actionType: a.appt_type,
+        // What was actually done in the meeting -- surfaced in the Actions
+        // column alongside the follow-up, not buried in Details of
+        // Discussions. apptTypeLabel() maps the picklist's snake_case values
+        // to display labels and passes pre-picklist free text through as-is.
+        actionType: apptTypeLabel(a.appt_type),
         followUpOn: a.follow_up_on,
         followUpDoneAt: a.follow_up_done_at,
       })),

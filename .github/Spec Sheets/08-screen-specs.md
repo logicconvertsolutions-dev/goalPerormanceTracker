@@ -309,10 +309,13 @@ not a general notes feature.
 **Timeline table:** rows merged from calls/appointments/sales, newest first.
 Columns: (print-hidden checkbox) · Date · Type badge · Details of
 Discussions · Actions (follow-up date/done marker or "—"). **P10:** an
-appointment's `appt_type` (e.g. "Solutions Presented," "Login Shown" — what
-actually happened in the meeting) now renders in the Actions column above
-the follow-up line, instead of folded into the Details of Discussions
-summary — calls/sales rows are unaffected, they never carried a type.
+appointment's `appt_type` — what actually happened in the meeting — now
+renders in the Actions column above the follow-up line, instead of folded
+into the Details of Discussions summary — calls/sales rows are unaffected,
+they never carried a type. **P16:** `appt_type` is a picklist (Marketing
+Presentation / Solutions Presentation / Application / Follow Up / Other),
+mandatory when an appointment's status is set to Held; pre-picklist free
+text on older rows still renders as-is (`apptTypeLabel()`).
 
 **Selective print:** every row checkbox-selected by default, "Select all"
 toggle, "Print" button (disabled when nothing selected) triggers

@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatDisplayDate } from '@/lib/dates';
+import { apptTypeLabel } from '@/lib/appointment-types';
 import { deleteAppointmentAction, updateAppointmentStatusAction } from './actions';
 
 const STATUSES = [
@@ -47,7 +48,7 @@ export function AppointmentRow({
   function handleStatusChange(next: string) {
     startTransition(async () => {
       const result = await updateAppointmentStatusAction(id, next as (typeof STATUSES)[number]['value']);
-      if (!result.ok) toast.error('Could not update status — try again');
+      if (!result.ok) toast.error(result.error ?? 'Could not update status — try again');
     });
   }
 
@@ -67,7 +68,7 @@ export function AppointmentRow({
     <tr className="border-t border-line hover:bg-hover">
       <td className="px-4 py-2.5 text-fg-2">{formatDisplayDate(apptDate)}</td>
       <td className="px-4 py-2.5 text-fg font-medium">{contactName}</td>
-      <td className="px-4 py-2.5 text-fg-2">{apptType ?? '—'}</td>
+      <td className="px-4 py-2.5 text-fg-2">{apptTypeLabel(apptType) ?? '—'}</td>
       <td className="px-4 py-2.5">
         <Select value={status} onValueChange={handleStatusChange} disabled={pending}>
           <SelectTrigger className="h-8 w-36">

@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ContactPicker } from '@/components/shell/contact-picker';
 import { todayIso, browserTimeZone, addDays, nextMonday } from '@/lib/dates';
 import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
+import { APPT_TYPES } from '@/lib/appointment-types';
 import { createAppointmentAction, updateAppointmentAction } from './actions';
 
 const STATUSES = [
@@ -79,6 +80,7 @@ export function AppointmentForm({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState(defaultValues?.status ?? 'scheduled');
+  const [apptType, setApptType] = useState(defaultValues?.apptType ?? '');
   const [premiumDollars, setPremiumDollars] = useState(
     defaultValues ? String(defaultValues.expectedPremiumCents / 100) : '0'
   );
@@ -92,8 +94,13 @@ export function AppointmentForm({
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (status === 'held' && !apptType) {
+      toast.error('Select an appointment type before marking this held.');
+      return;
+    }
     const formData = new FormData(e.currentTarget);
     formData.set('status', status);
+    formData.set('apptType', apptType);
     formData.set('expectedPremiumCents', String(Math.round(Number(premiumDollars || 0) * 100)));
     if (NEEDS_FOLLOW_UP_STATUSES.has(status) && followUpOn) {
       formData.set('followUpOn', followUpOn);
@@ -148,13 +155,24 @@ export function AppointmentForm({
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="apptType">Type (optional)</Label>
-        <Input
-          id="apptType"
-          name="apptType"
-          defaultValue={defaultValues?.apptType ?? ''}
-          placeholder="Initial meeting"
-        />
+        <Label htmlFor="apptType">
+          Type{status === 'held' ? '' : ' (optional)'}
+        </Label>
+        <Select value={apptType} onValueChange={setApptType}>
+          <SelectTrigger id="apptType">
+            <SelectValue placeholder="Select a type" />
+          </SelectTrigger>
+          <SelectContent>
+            {APPT_TYPES.map((t) => (
+              <SelectItem key={t.value} value={t.value}>
+                {t.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {status === 'held' && !apptType && (
+          <p className="text-xs text-bad">Required when the appointment is held.</p>
+        )}
       </div>
 
       <div className="space-y-1.5">

@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/shell/page-header';
 import { LogActivityButton } from '@/components/shell/log-activity-button';
 import { formatDisplayDate } from '@/lib/dates';
 import { outcomeBadgeVariant } from '@/lib/call-outcomes';
+import { apptTypeLabel } from '@/lib/appointment-types';
 import { DeleteContactButton } from './delete-contact-button';
 import { EditContactDialog } from './edit-contact-dialog';
 
@@ -89,7 +90,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
             {appointments?.map((a) => (
               <div key={a.id} className="flex items-center justify-between text-sm">
                 <span className="text-fg-2">
-                  {formatDisplayDate(a.appt_date)} · {a.appt_type ?? 'Appointment'}
+                  {formatDisplayDate(a.appt_date)} · {apptTypeLabel(a.appt_type) ?? 'Appointment'}
                 </span>
                 <Badge variant="neutral">{a.status.replace('_', ' ')}</Badge>
               </div>

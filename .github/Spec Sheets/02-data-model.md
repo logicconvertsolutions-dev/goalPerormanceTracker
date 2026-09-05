@@ -204,6 +204,10 @@ create table public.appointments (
   org_id           uuid not null references public.organizations(id),
   contact_id       uuid not null references public.contacts(id) on delete cascade,
   appt_date        date not null,
+  -- P16: app-layer picklist (Marketing Presentation / Solutions
+  -- Presentation / Application / Follow Up / Other), required when status
+  -- is 'held' -- stays `text`, not a Postgres enum, so pre-picklist free
+  -- text (hand-typed or imported) keeps rendering unchanged.
   appt_type        text,
   status           public.appt_status not null default 'scheduled',
   expected_premium_cents bigint not null default 0,

@@ -59,6 +59,12 @@ export async function createAppointmentAction(formData: FormData) {
   if (parsed.data.apptDate > today) {
     return { ok: false, error: 'Appointment date cannot be in the future.' };
   }
+  // Cross-field check, not a zod .refine() -- same reasoning as the
+  // future-date check above: keeps appointmentSchema a plain ZodObject so
+  // updateSchema's .partial().extend() below keeps working.
+  if (parsed.data.status === 'held' && !parsed.data.apptType) {
+    return { ok: false, error: 'Select an appointment type before marking this held.' };
+  }
 
   const agentId = session.agent!.id;
   // Non-null: only associates/leaders reach this action (admin has no org).
@@ -125,6 +131,9 @@ export async function updateAppointmentAction(formData: FormData) {
   if (parsed.data.apptDate && parsed.data.apptDate > todayIso(session.agent!.time_zone)) {
     return { ok: false, error: 'Appointment date cannot be in the future.' };
   }
+  if (parsed.data.status === 'held' && !parsed.data.apptType) {
+    return { ok: false, error: 'Select an appointment type before marking this held.' };
+  }
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -154,6 +163,22 @@ export async function updateAppointmentAction(formData: FormData) {
 export async function updateAppointmentStatusAction(id: string, status: (typeof APPT_STATUSES)[number]) {
   const session = await requireAgent();
   const supabase = await createClient();
+
+  // The quick status-changer on the appointments table skips the full form,
+  // so the "type required when held" rule (createAppointmentAction /
+  // updateAppointmentAction) needs its own check here against whatever
+  // appt_type is already on the row.
+  if (status === 'held') {
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select('appt_type')
+      .eq('id', id)
+      .eq('agent_id', session.agent!.id)
+      .maybeSingle();
+    if (!appt?.appt_type) {
+      return { ok: false, error: 'Set an appointment type before marking this held.' };
+    }
+  }
 
   const { error } = await supabase
     .from('appointments')

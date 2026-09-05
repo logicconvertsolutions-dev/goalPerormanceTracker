@@ -12,7 +12,7 @@ export interface TimelineEntry {
   type: 'Call' | 'Appointment' | 'Sale';
   summary: string;
   notes: string | null;
-  /** Appointment's `appt_type` (e.g. "Solutions Presented", "Login Shown") --
+  /** Appointment's `appt_type` label (e.g. "Solutions Presentation") --
    * what actually happened, shown in the Actions column. Null for calls/sales. */
   actionType: string | null;
   followUpOn: string | null;
