@@ -60,6 +60,92 @@ Never modify the Supabase schema or data directly. `apply_migration` and
 enforced at the tool-call level (confirmed via a live test), not just
 requested in writing.
 
+## Known gotchas — Supabase branching & migrations (learned the hard way, 2026-09-06)
+
+Read this before touching branch creation, migration dumps, or anything that
+touches both `master` and `staging` in the same session. Every item below
+cost real time once already.
+
+**Dumped SQL is not automatically safe to re-run against a database that
+already has the objects.** `CREATE TABLE IF NOT EXISTS` guards the table, but
+a separate `ALTER TABLE ... ADD GENERATED ALWAYS AS IDENTITY`, `ADD
+CONSTRAINT`, or a bare `CREATE INDEX` right after it does NOT inherit that
+guard — each needs its own (`CREATE INDEX IF NOT EXISTS`, or a `DO $$ IF NOT
+EXISTS (SELECT 1 FROM pg_constraint/pg_attribute ...) THEN ... END IF; END
+$$;` block for constraints/identity columns). This broke production's
+migration pipeline for real once (`pgmq` schema file) — check every
+`ALTER`/`CREATE` in a freshly-dumped file for this before trusting it.
+
+**Creating a genuinely persistent Supabase branch requires the CLI, not the
+dashboard.** As of this writing, the Branches dashboard page has no "create"
+button under "Persistent Branches" — only under "Preview Branches" (which are
+short-lived). Use `supabase branches create <name> --persistent` instead, then
+link it to a git branch via the dashboard afterward if it doesn't prompt for
+one. Verify the result via the Management API/MCP `list_branches` call and
+check `"persistent": true` — don't trust a dashboard checkbox alone, it has
+been misleading before.
+
+**A dashboard "reset branch" action does not re-run migrations.** It can
+leave the branch's database genuinely empty (zero tables, zero rows in
+`supabase_migrations.schema_migrations`) while its status still reports
+`FUNCTIONS_DEPLOYED`. Don't trust that status field alone — verify with an
+actual table list or a `select version from
+supabase_migrations.schema_migrations` query. To force a real
+Clone→Pull→Migrate run once a branch is git-linked, push any commit
+(`git commit --allow-empty` is fine) to its linked branch.
+
+**"Automatic branching" (PR-preview branches) and a manually-created
+persistent branch can conflict.** A PR that touches `supabase/` files can
+trigger the branch-limit/cleanup logic in a way that deletes an existing
+persistent branch. If you're relying on one deliberate `staging` branch
+rather than per-PR previews, turn Automatic Branching off entirely.
+
+**`master` auto-deploys to production on every push (currently by design).**
+After merging ANY fix to `master`, immediately sync `staging` to match in the
+same sitting — don't treat it as a later step:
+```
+git checkout staging
+git pull origin staging
+git merge master --no-edit
+git push origin staging
+```
+Do not trust "Already up to date" from this merge without checking — if your
+local `master` was stale (you didn't `git pull origin master` first), the
+merge will report "up to date" against your *stale* local copy while
+`origin/master` and `origin/staging` are actually still out of sync. Verify
+by checking the actual file content/bytes after merging, not just the git
+output.
+
+**PowerShell's `Set-Content -Encoding utf8` adds a UTF-8 BOM**, which breaks
+`psql` with `syntax error at or near "﻿"` on the first line of the file. This
+has caused a migration to fail twice. Never trust a `.sql` file saved this
+way without checking. Verify before committing:
+```powershell
+[System.IO.File]::ReadAllBytes("path\to\file.sql")[0..2] | ForEach-Object { "{0:X2}" -f $_ }
+```
+Should print `2D 2D ..` (starts with `--`) or the first real character —
+never `EF BB BF`. To write a `.sql` file from PowerShell without a BOM:
+```powershell
+[System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))
+```
+
+**Always confirm which branch is actually checked out before committing.**
+`git commit` silently lands on whatever branch is currently checked out, not
+the one you intend — this has caused fixes to land on the wrong branch
+multiple times in a single session. Run `git branch --show-current` before
+`git add`/`commit` if there's any doubt, and check `git status`/`git log
+--oneline -3` after any merge or push that seems to do less than expected.
+
+**Vercel's `staging`-scoped env vars must be re-verified every time the
+Supabase `staging` branch is recreated.** Its project ref changes on every
+recreation (three different refs in one session). `NEXT_PUBLIC_*` values are
+baked into the JS bundle at build time, so a stale ref means the app silently
+points at a deleted project until a fresh deployment picks up the new value —
+check `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY` against the branch's actual current `Settings →
+API` values, don't assume they carried over.
+
+
 `supabase/migrations_old/` is a historical archive from a baseline reset.
 Never copy files from it back into `supabase/migrations/` — those changes are
 already captured in `00000000000000_baseline.sql`. If unsure whether

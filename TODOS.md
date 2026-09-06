@@ -2,6 +2,61 @@
 
 Design debt and deferred work surfaced by review. Newest first.
 
+## 2026-09-06 — RESOLVED (with follow-ups): rebuilt `staging` Supabase branch after repeated migration/encoding failures; production migration pipeline was briefly stuck
+
+**What:** The persistent `staging` Supabase branch failed to build correctly
+five separate times in one session — missing `private` schema, missing
+`auth.users` trigger, missing `pgmq` extension, an unguarded identity-column
+`ALTER` colliding on re-run, two unguarded `PRIMARY KEY` constraints, two
+unguarded `CREATE INDEX` statements, a latent `anon`/`authenticated`
+privilege leak across 20 functions + 5 tables (beyond the 4 pgTAP happened to
+catch), a UTF-8 BOM breaking `psql` twice, and the branch itself getting
+deleted once by "Automatic branching" PR-preview cleanup and rebuilt empty
+once by a dashboard "reset" that didn't actually re-run migrations.
+
+**Why it matters:** Two of these (the identity-column collision, the BOM)
+briefly left **production's own migration pipeline stuck** (`MIGRATIONS_FAILED`
+status, would have kept re-failing on every future push to `master` until
+fixed) — not just a staging inconvenience.
+
+**Resolution:** All root causes fixed and merged to `master`+`staging`:
+- `00000000000002_auth_user_trigger.sql` — the missing trigger
+- `00000000000003_pgmq_schema.sql` — pgmq extension + guarded identity/constraint/index statements
+- `00000000000004_explicit_role_revokes.sql` — expanded to all 24 service-role-only functions and 6 no-RLS tables, not just the original 4+1
+- `staging` recreated via `supabase branches create staging --persistent` (CLI, not dashboard — see CLAUDE.md's new "Known gotchas" section), linked to the `staging` git branch, verified via direct table/migration-history queries (not the dashboard status field, which was misleading twice)
+- Automatic Branching turned off in the Supabase-GitHub integration settings
+- New `CLAUDE.md` section added ("Known gotchas — Supabase branching & migrations") capturing every mechanism above so it doesn't get rediscovered from scratch next session
+
+**Still open — do these before resuming feature work:**
+1. **Rebuild `staging`'s test data from scratch.** The bootstrapped admin
+   account, MFA enrollment, and everything downstream were lost twice along
+   with the branch. Bootstrap flow (this app has no open signup — see
+   `handle_new_user`'s `invitations` requirement):
+   - Insert an admin invitation directly via SQL (`token_hash =
+     encode(digest(token, 'sha256'), 'hex')`, matching `provision_org`'s own
+     scheme) since there's no existing admin to invite the first one
+   - Complete signup at `/invite/<token>`, enroll real TOTP MFA (can't be
+     faked — `mfaVerified` requires actual `aal2`)
+   - Use `/admin/orgs` to provision an org + first leader (real invite flow,
+     real email)
+   - Leader invites associates through the app's own team/invites screen
+2. **Verify Vercel's `staging`-scoped env vars.** The Supabase project ref
+   for `staging` changed three times this session (most recently
+   `zfcgxmzzviskgyjcovtd`). `NEXT_PUBLIC_SUPABASE_URL`,
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` almost
+   certainly still point at an old, now-deleted branch until manually
+   updated and redeployed.
+3. **`RESEND_API_KEY`, `NOTIFICATIONS_UNSUB_SECRET`, `CRON_SECRET`
+   (staging-scoped)** were set up earlier in the session against a prior
+   `staging` branch — re-verify they still make sense against the current
+   one, especially `CRON_SECRET`'s Supabase Vault half (`Settings → Vault →
+   cron_secret` on the branch itself, separate from the Vercel env var).
+
+**Context:** This surfaced during an otherwise-unrelated attempt to run the
+original 8-point manual/security/load testing plan — none of that plan has
+actually started yet; all of today's work was environment/infrastructure
+prerequisite work.
+
 ## 2026-09-06 — RESOLVED: full audit of every save path for the "duplicate key" bug class, two real bugs found and fixed
 
 **Trigger:** after the targets_audit trigger fix below, saving a Goal
