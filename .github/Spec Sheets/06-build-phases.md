@@ -290,6 +290,127 @@ even though it could never reach them. Display-only fix
 (`NotificationToggles` now takes a `role` prop and filters); the backend
 eligibility was already correct.
 
+## P16-P18 — the calendar week replaced by a 10-day cycle — ✅ done
+Product ask: track and report on a 10-day cycle (day 1-10 / 11-20 /
+21-end-of-month, the last chunk 8-11 days depending on the month) instead
+of a Monday-Sunday week, everywhere that unit was the atomic tracking
+period — the Dashboard/Activity Logs period filter and Goals. The 8-Week
+Trend chart, calendar week display ("Week starts Monday" in `/settings`),
+and the "call back Monday" follow-up quick-pick chip are all a separate,
+still-weekly concept and were explicitly left alone.
+
+- **P16 — date-math foundation + period filter.** `src/lib/dates.ts` gained
+  `cycleBounds()`/`previousCycleBounds()`/`nextCycleStart()`/
+  `cyclesInRange()`, the SQL twins `public.cycle_start()`/`cycle_end()`
+  (mirroring `weekStart()`/`week_start()`'s "both sides must agree"
+  convention, explicitly locked to `authenticated` like `week_start`
+  already was). `PERIOD_PRESETS`' `this_week`/`last_week` became
+  `current_cycle`/`previous_cycle`; `This Month`/`Last 30 Days`/`Custom`
+  unchanged. All 14 pages/routes that read the period, plus `<FilterBar>`,
+  updated their default preset and switched to a single centralized
+  `isPeriodPreset()` (previously duplicated in every file).
+- **P17 — Goals cadence.** `targets.calls_per_week`/`appts_held_per_week`/
+  `premium_cents_per_week` renamed to `*_per_cycle` (existing rows keep
+  their historical numbers; only rows inserted after this ships are sized
+  for 10 days). `effective_target()`/`my_target()`/`team_target()`/
+  `system_effective_target()`'s misleading `p_week` param renamed
+  `p_period_start`. `team_week_summary` and its cron twin
+  (`system_team_week_summary`/`private.team_week_summary_for`) retired --
+  a hardcoded `+7` can't express a variable-length cycle -- in favor of the
+  already-period-general `team_period_summary` (P7c) and a new
+  service-role twin, `system_team_period_summary`/`private.
+  team_period_summary_for`. `/team/targets` now anchors a saved goal to the
+  next cycle instead of "next Monday." Side-fix: the 8-Week Trend chart's
+  target reference line converts the now-cycle-sized target back to a
+  weekly-equivalent number (`* 7/10`) so it doesn't silently overstate a
+  week's goal by ~40% -- the chart's own weekly bucketing is unchanged.
+- **P18 — notification cadence.** The associate summary and leader digest
+  moved from Sunday-evening/Monday-morning to cycle-end-evening
+  (day 10/20/end-of-month, 18:00+) and cycle-start-morning (day 1/11/21,
+  08:00-19:00) -- `private.enqueue_due_notifications()`'s SQL and
+  `kindsInWindow()`'s TS mirror both updated in lockstep, as always.
+  `composeSundaySummary`/`composeMondayDigest` renamed to
+  `composeCycleSummary`/`composeCycleDigest`; email subject/body copy and
+  the `/settings` toggle labels dropped "Sunday"/"Monday"/"week" framing.
+  Deliberately **not** renamed: the internal `sunday_summary`/
+  `monday_digest` identifiers (`NotificationKind`, `notification_prefs`
+  columns, `notification_log.kind`, unsubscribe-token scope) -- renaming
+  those would need a `notification_prefs` migration and care around
+  in-flight unsubscribe links, for no user-visible benefit once the copy
+  itself no longer says "Sunday"/"Monday."
+
+## P19 — deployment gap and post-P17 fallout, found via user bug reports — ✅ done
+P16-P18 (above) had been written and committed across prior sessions but,
+since that sandbox had no local Supabase/Docker instance, were only ever
+verified with `tsc --noEmit`/`vitest run` — never actually applied to the
+live Supabase project. The app was deployed against the new schema/RPC
+shapes while the live database still had the old ones, surfacing as two
+user-reported bugs (Dashboard showing calls with no target; Settings save
+failing with a schema-cache error). Diagnosed directly against the live
+project via the Supabase MCP tools, confirmed with the user, then applied
+all 6 pending P15-P18 migrations to the live database in dependency order.
+Applying them for real — for the first time — immediately surfaced three
+more bugs P16-P18's `tsc`/`vitest`-only verification couldn't have caught,
+plus two more found via a follow-up user report and a requested full audit:
+
+- **p17a fix.** Its `create or replace function private.effective_target(...)`
+  (and its three thin wrappers) renamed `RETURNS TABLE` output columns
+  without a `drop function` first — Postgres rejects that in place
+  (`42P13: cannot change return type of existing function`) even though the
+  `(uuid, date)` argument signature was unchanged. Fixed in the migration
+  file itself before it ever ran live.
+- **P19a — `team_period_summary` still selected `calls_per_week` et al.**
+  P17b updated `private.team_period_summary_for` and every other consumer
+  of `effective_target`'s renamed columns, but missed `public.
+  team_period_summary` itself — the RPC `/team`, `/team/targets`, and its
+  CSV export all call. Every call raised `42703`; `/team/page.tsx` only
+  reads `{ data }`, not `error`, so the failure silently rendered as
+  "No one in your downline yet" for every leader, regardless of actual team
+  size. Also fixed the empty-roster branch in `team/page.tsx` itself: the
+  Organization/Goals/Invites/Members nav buttons only rendered on the
+  non-empty path, stranding a leader who hit that empty state (bugged or
+  genuinely empty) with no way to navigate anywhere else from `/team`.
+- **P19b — leaders widened to all three notification kinds.** Originally
+  (P14d) a leader only ever received the team cycle digest; evening nudge
+  and cycle summary were associate-only, enforced in
+  `private.enqueue_due_notifications()`'s SQL. Product decision (confirmed
+  with the user): a leader logs their own activity and has their own
+  Goals/streak just like an associate, so widened both to
+  `role in ('associate', 'leader')` — `admin` deliberately excluded (no
+  org, no activity, no target, nothing to nudge about). `/settings` now
+  shows leaders all three toggles.
+- **P19c — the `targets_audit` trigger still referenced `calls_per_week`.**
+  `public.audit_target_change()` (the trigger from
+  `20260818132848_p1j_invite_only_signup.sql`, untouched since) built its
+  `audit_log` metadata straight off `new.calls_per_week`. Because it reads
+  the base table row directly rather than going through `effective_target`,
+  it fell outside P17b's "who else selects from `effective_target`'s
+  return shape" review scope entirely — every insert or update on
+  `public.targets` (saving any Goal) had been failing outright since P17a
+  shipped. Caught by re-checking `pg_proc.prosrc` directly in the live
+  database for the old column names, which is now the standard check after
+  any column rename — a migration-file grep alone missed this one.
+- **P19d — `set_target()` upsert, fixing a pre-existing bug the P17
+  rollout merely exposed.** Saving a Goal a second time before the next
+  cycle boundary was reached recomputed the same `effective_from` and hit
+  `targets_org_default_uq`/`targets_agent_uq` — `"duplicate key value
+  violates unique constraint."` Not a P16-P18 regression: `setTargetAction`
+  had done a plain `.insert()` since P5's original implementation, and
+  `nextMonday()` had the identical collision any time an SMD adjusted a
+  pending goal twice in one week; it just hadn't been hit until now. Added
+  `public.set_target()`, an atomic `insert ... on conflict ... where ...
+  do update` RPC (a plain `.upsert()` can't target these partial indexes),
+  since a not-yet-effective row has never scored anything and correcting
+  it in place doesn't violate rule 8. A user request to then do "a
+  thorough review on all savings" turned up one more instance of the same
+  bug class — `findOrCreateContact()`'s check-then-insert race on
+  `contacts_agent_name_uq`, shared by every activity-logging action —
+  fixed by catching the unique-violation and returning the winning row
+  instead of failing, plus the identical fix in its bulk-import sibling.
+
+See `TODOS.md`'s 2026-09-06 entries for the full diagnosis-by-diagnosis
+detail, including what was verified live vs. by test suite alone.
+
 ---
 
 ## Working with Claude Code on this repo (token discipline)

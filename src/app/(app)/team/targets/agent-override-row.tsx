@@ -10,13 +10,13 @@ export function AgentOverrideRow({
   fullName,
   current,
   hasOverride,
-  effectiveMonday,
+  effectiveDate,
 }: {
   agentId: string;
   fullName: string;
   current: TargetDefaults;
   hasOverride: boolean;
-  effectiveMonday: string;
+  effectiveDate: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -36,7 +36,7 @@ export function AgentOverrideRow({
           <TargetForm
             agentId={agentId}
             current={current}
-            effectiveMonday={effectiveMonday}
+            effectiveDate={effectiveDate}
             onSaved={() => setOpen(false)}
           />
         </div>

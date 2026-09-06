@@ -8,26 +8,26 @@ import { Label } from '@/components/ui/label';
 import { setTargetAction } from './actions';
 
 export interface TargetDefaults {
-  calls_per_week: number;
-  appts_held_per_week: number;
-  premium_cents_per_week: number;
+  calls_per_cycle: number;
+  appts_held_per_cycle: number;
+  premium_cents_per_cycle: number;
   min_calls_per_day: number;
 }
 
 /**
  * One card reproducing the workbook's gold cells (03-ui.md). `agentId` null
  * means the org default; set means a per-agent override. Insert-only: always
- * takes effect the coming Monday.
+ * takes effect the start of the next 10-day cycle.
  */
 export function TargetForm({
   agentId,
   current,
-  effectiveMonday,
+  effectiveDate,
   onSaved,
 }: {
   agentId: string | null;
   current: TargetDefaults;
-  effectiveMonday: string;
+  effectiveDate: string;
   onSaved?: () => void;
 }) {
   const [pending, startTransition] = useTransition();
@@ -40,7 +40,7 @@ export function TargetForm({
     startTransition(async () => {
       const result = await setTargetAction(formData);
       if (result.ok) {
-        toast.success('Goal saved — applies from Monday');
+        toast.success('Goal saved — applies from the next cycle');
         onSaved?.();
       } else {
         toast.error(result.error ?? 'Could not save — try again');
@@ -52,36 +52,36 @@ export function TargetForm({
     <form onSubmit={handleSubmit} className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor={`calls-${agentId ?? 'default'}`}>Calls Goal / Wk</Label>
+          <Label htmlFor={`calls-${agentId ?? 'default'}`}>Calls Goal / Cycle</Label>
           <Input
             id={`calls-${agentId ?? 'default'}`}
-            name="callsPerWeek"
+            name="callsPerCycle"
             type="number"
             min={1}
-            defaultValue={current.calls_per_week}
+            defaultValue={current.calls_per_cycle}
             required
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={`appts-${agentId ?? 'default'}`}>Appts Held Goal / Wk</Label>
+          <Label htmlFor={`appts-${agentId ?? 'default'}`}>Appts Held Goal / Cycle</Label>
           <Input
             id={`appts-${agentId ?? 'default'}`}
-            name="apptsHeldPerWeek"
+            name="apptsHeldPerCycle"
             type="number"
             min={1}
-            defaultValue={current.appts_held_per_week}
+            defaultValue={current.appts_held_per_cycle}
             required
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={`premium-${agentId ?? 'default'}`}>Premium Goal / Wk ($)</Label>
+          <Label htmlFor={`premium-${agentId ?? 'default'}`}>Premium Goal / Cycle ($)</Label>
           <Input
             id={`premium-${agentId ?? 'default'}`}
-            name="premiumDollarsPerWeek"
+            name="premiumDollarsPerCycle"
             type="number"
             min={0}
             step="0.01"
-            defaultValue={(current.premium_cents_per_week / 100).toFixed(2)}
+            defaultValue={(current.premium_cents_per_cycle / 100).toFixed(2)}
             required
           />
         </div>
@@ -98,7 +98,7 @@ export function TargetForm({
         </div>
       </div>
       <p className="text-xs text-fg-3">
-        Applies from Monday, {effectiveMonday}. Past weeks keep their original goal.
+        Applies from {effectiveDate}. Past cycles keep their original goal.
       </p>
       <Button type="submit" variant="primary" disabled={pending}>
         {pending ? 'Saving…' : 'Save'}

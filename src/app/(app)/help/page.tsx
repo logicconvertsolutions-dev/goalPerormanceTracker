@@ -35,14 +35,14 @@ const ASSOCIATE_TOPICS: Topic[] = [
   {
     title: 'My Dashboard',
     steps: [
-      'See your own performance against your weekly goal — calls, appointments held, premium, and a breakdown of outcomes and lead sources.',
-      'Filter by week to compare how this week is going against previous ones.',
+      'See your own performance against your goal for the current 10-day cycle — calls, appointments held, premium, and a breakdown of outcomes and lead sources.',
+      'Filter by period to compare how this cycle is going against previous ones.',
     ],
   },
   {
     title: 'Settings',
     steps: [
-      'Your goals (set by your SMD), notification preferences (evening nudge, Sunday summary, Monday digest), time zone, and workbook import all live under Settings.',
+      'Your goals (set by your SMD), notification preferences (evening nudge, cycle summary, team cycle digest), time zone, and workbook import all live under Settings.',
       'Importing a spreadsheet brings in existing calls, appointments, sales, and recruiting conversations from your old tracker in one pass.',
     ],
   },
@@ -54,7 +54,7 @@ const LEADER_TOPICS: Topic[] = [
     steps: [
       'See your downline\'s aggregate performance per day or week — never individual prospect details, only counts and totals.',
       'Filter to one agent to see their trend without leaving the team view.',
-      'Set org-wide or per-agent weekly targets — a new target only affects weeks from today forward, past weeks keep the target that was live then.',
+      'Set org-wide or per-agent 10-day cycle targets — a new target only affects cycles from today forward, past cycles keep the target that was live then.',
       'Invite a new agent, move someone to a different upline, or send a one-off nudge or training reminder to someone who\'s gone quiet.',
       'Your org\'s audit trail (target changes, invitations, deactivations, nudges) lives under Team → Audit.',
     ],

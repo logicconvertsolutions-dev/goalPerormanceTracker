@@ -2,7 +2,15 @@ import 'server-only';
 import * as XLSX from 'xlsx';
 import { createHash } from 'node:crypto';
 
-export type CallSource = 'warm_market' | 'referral' | 'cold' | 'social_media' | 'friend' | 'other';
+export type CallSource =
+  | 'warm_market'
+  | 'referral'
+  | 'cold'
+  | 'social_media'
+  | 'friend'
+  | 'other'
+  | 'existing_client'
+  | 'existing_recruit';
 export type CallOutcome = 'connected' | 'voicemail' | 'no_answer' | 'appointment_set' | 'not_interested';
 export type ApptStatus = 'scheduled' | 'held' | 'no_show' | 'rescheduled' | 'cancelled';
 export type RecruitStatus =
@@ -22,6 +30,8 @@ export const SOURCE_LABEL_MAP: Record<string, CallSource> = {
   'Social Media': 'social_media',
   Friend: 'friend',
   Other: 'other',
+  'Existing Client': 'existing_client',
+  'Existing Recruit': 'existing_recruit',
 };
 
 export const OUTCOME_LABEL_MAP: Record<string, CallOutcome> = {

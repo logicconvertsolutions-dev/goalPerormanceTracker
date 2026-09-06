@@ -12,14 +12,14 @@ export default async function OnboardingPage() {
   if (!user) redirect('/login');
 
   // effective_target just needs "some date on/after the target's
-  // effective_from," not an exact week-start, but it should still be the
+  // effective_from," not an exact cycle-start, but it should still be the
   // agent's own local today rather than UTC's -- a target that just took
-  // effect this Monday could otherwise resolve to last week's for anyone
-  // west of UTC late on a Sunday.
+  // effect this cycle could otherwise resolve to last cycle's for anyone
+  // west of UTC late in the day.
   const { data: agent } = await supabase.from('agents').select('time_zone').eq('id', user.id).maybeSingle();
 
   const { data: target } = await supabase.rpc('my_target', {
-    p_week: todayIso(agent?.time_zone),
+    p_period_start: todayIso(agent?.time_zone),
   });
 
   return <OnboardingSteps target={target?.[0] ?? null} />;

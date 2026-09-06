@@ -47,8 +47,8 @@ export default async function OrganizationSettingsPage() {
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-sm text-fg-2">
-            The weekly calls, appointments, and premium goals every associate starts with
-            unless you set a per-agent override.
+            The 10-day cycle calls, appointments, and premium goals every associate starts
+            with unless you set a per-agent override.
           </p>
           <Link href="/team/targets" className="text-sm text-acc hover:underline">
             Manage goals →

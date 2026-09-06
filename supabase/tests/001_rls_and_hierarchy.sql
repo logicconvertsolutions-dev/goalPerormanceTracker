@@ -10,11 +10,14 @@
 --
 -- Schema note: this suite is written against the AS-APPLIED migrations in
 -- supabase/migrations/, not the earlier draft in docs/02-data-model.md.
--- Deployed RPCs are exactly: team_week_summary, agent_daily_activity,
+-- Deployed RPCs are exactly: agent_daily_activity,
 -- agent_aggregate, team_inactive, my_followups, drain_metrics,
 -- provision_org, create_invitation, plus P5's team_target,
 -- team_day_summary, team_trend, team_breakdown, nudge_agent
 -- (supabase/migrations/20260818234435_p5a_team_dashboard_rpcs.sql).
+-- team_week_summary was retired by P17b in favor of team_period_summary
+-- (P7c) once Goals moved to a 10-day cycle -- a hardcoded +7 day window
+-- can't express a variable-length cycle.
 --
 -- P6 fix: every throws_ok() below used to pass a free-text description as
 -- the 2nd argument. pgTAP's throws_ok(sql, text) treats that 2nd argument
@@ -30,7 +33,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 create schema if not exists tests;
 
-select plan(92);
+select plan(93);
 
 -- ---------------------------------------------------------------------
 -- Seed
@@ -354,27 +357,27 @@ select ok(not (select private.is_upline_of('00000000-0000-0000-0000-0000000000a4
 select ok((select private.is_upline_of('00000000-0000-0000-0000-0000000000a2')), 'is_upline_of: self true');
 
 select tests.clear_authentication();
-select public.drain_metrics(1000); -- so team_week_summary reflects the seeded rows
+select public.drain_metrics(1000); -- so team_period_summary reflects the seeded rows
 
 -- Exact-set assertions, not just counts: a count match alone would pass even
--- if team_week_summary returned the wrong four/two agents (e.g. leaked
+-- if team_period_summary returned the wrong four/two agents (e.g. leaked
 -- assoc_3 in place of assoc_1a). Compare the actual agent_id set against the
 -- expected set with a symmetric-difference EXCEPT/UNION check on both sides.
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a1');
 select is(
-  (select array_agg(agent_id order by agent_id) from public.team_week_summary(public.week_start(current_date))),
+  (select array_agg(agent_id order by agent_id) from public.team_period_summary(public.cycle_start(current_date), public.cycle_end(current_date))),
   (select array_agg(id order by id) from public.agents
    where id in ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2',
                 '00000000-0000-0000-0000-0000000000a3','00000000-0000-0000-0000-0000000000a4')),
-  'team_week_summary as smd_x returns exactly {smd_x, assoc_1, assoc_1a, assoc_2}'
+  'team_period_summary as smd_x returns exactly {smd_x, assoc_1, assoc_1a, assoc_2}'
 );
 
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a2');
 select is(
-  (select array_agg(agent_id order by agent_id) from public.team_week_summary(public.week_start(current_date))),
+  (select array_agg(agent_id order by agent_id) from public.team_period_summary(public.cycle_start(current_date), public.cycle_end(current_date))),
   (select array_agg(id order by id) from public.agents
    where id in ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000a3')),
-  'team_week_summary as assoc_1 returns exactly {assoc_1, assoc_1a}'
+  'team_period_summary as assoc_1 returns exactly {assoc_1, assoc_1a}'
 );
 
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a1');
@@ -400,7 +403,7 @@ select throws_ok(
 -- prevent: it already silently missed team_period_summary
 -- (p7c_team_period_summary.sql) and agent_daily_breakdown
 -- (p7e_daily_breakdown.sql), both added after the list was written, plus
--- admin_daily_active_loggers/system_team_week_summary/system_effective_target
+-- admin_daily_active_loggers/system_team_period_summary/system_effective_target
 -- -- if any of those had leaked a name/note column, that version of this
 -- test would have stayed green.
 --
@@ -429,11 +432,11 @@ select is(
 
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a1'); -- smd_x
 select is(
-  (select count(*)::int from public.team_target('00000000-0000-0000-0000-0000000000b2', public.week_start(current_date))),
+  (select count(*)::int from public.team_target('00000000-0000-0000-0000-0000000000b2', public.cycle_start(current_date))),
   0, 'team_target(assoc_3,...) called by smd_x (not upline) returns 0 rows'
 );
 select ok(
-  (select count(*)::int from public.team_target('00000000-0000-0000-0000-0000000000a2', public.week_start(current_date))) = 1,
+  (select count(*)::int from public.team_target('00000000-0000-0000-0000-0000000000a2', public.cycle_start(current_date))) = 1,
   'team_target(assoc_1,...) called by smd_x (upline) returns 1 row'
 );
 
@@ -498,8 +501,8 @@ select throws_ok(
 -- audit_target_change/targets_audit trigger (p1j_invite_only_signup.sql).
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a1'); -- smd_x
 select lives_ok(
-  $$insert into public.targets (org_id, agent_id, set_by, effective_from, calls_per_week)
-    values ('00000000-0000-0000-0000-00000000ee01', '00000000-0000-0000-0000-0000000000a4', '00000000-0000-0000-0000-0000000000a1', public.week_start(current_date) + 21, 55)$$,
+  $$insert into public.targets (org_id, agent_id, set_by, effective_from, calls_per_cycle)
+    values ('00000000-0000-0000-0000-00000000ee01', '00000000-0000-0000-0000-0000000000a4', '00000000-0000-0000-0000-0000000000a1', public.cycle_start(current_date) + 20, 55)$$,
   'smd_x writes another override for assoc_2'
 );
 select is(
@@ -556,9 +559,9 @@ select throws_ok(
 update public.agents set status = 'inactive' where id = '00000000-0000-0000-0000-0000000000a4';
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a1');
 select is(
-  (select count(*)::int from public.team_week_summary(public.week_start(current_date))
+  (select count(*)::int from public.team_period_summary(public.cycle_start(current_date), public.cycle_end(current_date))
    where agent_id = '00000000-0000-0000-0000-0000000000a4'), 0,
-  'deactivated agent excluded from team_week_summary roster'
+  'deactivated agent excluded from team_period_summary roster'
 );
 select tests.clear_authentication();
 select ok(
@@ -573,20 +576,20 @@ update public.agents set status = 'active' where id = '00000000-0000-0000-0000-0
 
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a1'); -- smd_x, leader
 select lives_ok(
-  $$insert into public.targets (org_id, agent_id, set_by, effective_from, calls_per_week)
-    values ('00000000-0000-0000-0000-00000000ee01', null, '00000000-0000-0000-0000-0000000000a1', public.week_start(current_date), 60)$$,
+  $$insert into public.targets (org_id, agent_id, set_by, effective_from, calls_per_cycle)
+    values ('00000000-0000-0000-0000-00000000ee01', null, '00000000-0000-0000-0000-0000000000a1', public.cycle_start(current_date), 60)$$,
   'smd_x can write an org default target'
 );
 select lives_ok(
-  $$insert into public.targets (org_id, agent_id, set_by, effective_from, calls_per_week)
-    values ('00000000-0000-0000-0000-00000000ee01', '00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000a1', public.week_start(current_date), 75)$$,
+  $$insert into public.targets (org_id, agent_id, set_by, effective_from, calls_per_cycle)
+    values ('00000000-0000-0000-0000-00000000ee01', '00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000a1', public.cycle_start(current_date), 75)$$,
   'smd_x can write an override for assoc_1'
 );
 
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a2'); -- assoc_1
 select throws_ok(
-  $$insert into public.targets (org_id, agent_id, set_by, effective_from, calls_per_week)
-    values ('00000000-0000-0000-0000-00000000ee01', '00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000a2', public.week_start(current_date) + 7, 100)$$
+  $$insert into public.targets (org_id, agent_id, set_by, effective_from, calls_per_cycle)
+    values ('00000000-0000-0000-0000-00000000ee01', '00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000a2', public.cycle_start(current_date) + 10, 100)$$
 ); -- assoc_1 cannot write any target
 select is((select count(*)::int from public.targets where agent_id is null and org_id = '00000000-0000-0000-0000-00000000ee01'), 1,
   'assoc_1 can read the org default');
@@ -597,30 +600,40 @@ select is((select count(*)::int from public.targets where agent_id = '00000000-0
 
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000b1'); -- smd_y
 select throws_ok(
-  $$insert into public.targets (org_id, agent_id, set_by, effective_from, calls_per_week)
-    values ('00000000-0000-0000-0000-00000000ee01', null, '00000000-0000-0000-0000-0000000000b1', public.week_start(current_date) + 14, 90)$$
+  $$insert into public.targets (org_id, agent_id, set_by, effective_from, calls_per_cycle)
+    values ('00000000-0000-0000-0000-00000000ee01', null, '00000000-0000-0000-0000-0000000000b1', public.cycle_start(current_date) + 20, 90)$$
 ); -- smd_y cannot write into org_x
 
 -- Targets uniqueness: two org-default rows for the same effective_from rejected.
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a1');
 select throws_ok(
-  $$insert into public.targets (org_id, agent_id, set_by, effective_from, calls_per_week)
-    values ('00000000-0000-0000-0000-00000000ee01', null, '00000000-0000-0000-0000-0000000000a1', public.week_start(current_date), 999)$$
+  $$insert into public.targets (org_id, agent_id, set_by, effective_from, calls_per_cycle)
+    values ('00000000-0000-0000-0000-00000000ee01', null, '00000000-0000-0000-0000-0000000000a1', public.cycle_start(current_date), 999)$$
 ); -- two org-default target rows for the same effective_from are rejected
 
 -- effective_target: override beats org default beats fallback.
 select tests.clear_authentication();
 select is(
-  (select calls_per_week from private.effective_target('00000000-0000-0000-0000-0000000000a2', public.week_start(current_date))),
+  (select calls_per_cycle from private.effective_target('00000000-0000-0000-0000-0000000000a2', public.cycle_start(current_date))),
   75, 'effective_target: agent override (75) beats org default (60)'
 );
 select is(
-  (select calls_per_week from private.effective_target('00000000-0000-0000-0000-0000000000a3', public.week_start(current_date))),
+  (select calls_per_cycle from private.effective_target('00000000-0000-0000-0000-0000000000a3', public.cycle_start(current_date))),
   60, 'effective_target: org default (60) applies where no override exists'
 );
 select is(
-  (select calls_per_week from private.effective_target('00000000-0000-0000-0000-0000000000b2', public.week_start(current_date))),
+  (select calls_per_cycle from private.effective_target('00000000-0000-0000-0000-0000000000b2', public.cycle_start(current_date))),
   50, 'effective_target: fallback (50) applies where org has no target at all'
+);
+
+-- effective_target resolves per calendar day, not per week: crossing a
+-- cycle boundary (e.g. day 10 -> day 11) must land on whichever target row
+-- was live for that specific day, same as it always did for week boundaries.
+select is(
+  (select calls_per_cycle from private.effective_target(
+     '00000000-0000-0000-0000-0000000000a4',
+     public.cycle_start(current_date) + 20)),
+  55, 'effective_target: the day-10/20/21 cycle boundary resolves the correct historical row'
 );
 
 -- ============================================================

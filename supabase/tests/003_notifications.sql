@@ -169,66 +169,70 @@ select lives_ok(
 select tests.clear_authentication();
 
 -- ---------------------------------------------------------------------
--- system_team_week_summary: same shape as public.team_week_summary, minus
--- the auth.uid() scoping, for the cron job's Monday digest. Uses the
--- literal current_date, not public.week_start(current_date) -- week_start()
--- is itself granted only to `authenticated`, and evaluating it inline as
--- anon would throw its own 42501 before system_team_week_summary is ever
--- reached, testing the wrong function's grant. The exact date value doesn't
--- matter for a permission check.
+-- system_team_period_summary: same shape as public.team_period_summary,
+-- minus the auth.uid() scoping, for the cron job's cycle digest (P17b
+-- retired system_team_week_summary/team_week_summary once Goals moved to a
+-- 10-day cycle -- a hardcoded +7 day window can't express a variable-length
+-- cycle). Uses the literal current_date, not public.cycle_start(current_date)
+-- -- cycle_start() is itself granted only to `authenticated`, and
+-- evaluating it inline as anon would throw its own 42501 before
+-- system_team_period_summary is ever reached, testing the wrong function's
+-- grant. The exact date values don't matter for a permission check.
 -- ---------------------------------------------------------------------
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000d1');
 select ok(
   tests.raises_sqlstate(
-    $$select * from public.system_team_week_summary('00000000-0000-0000-0000-0000000000d1', current_date)$$,
+    $$select * from public.system_team_period_summary('00000000-0000-0000-0000-0000000000d1', current_date, current_date)$$,
     '42501'
   ),
-  'an authenticated leader cannot call system_team_week_summary directly'
+  'an authenticated leader cannot call system_team_period_summary directly'
 );
 select tests.clear_authentication();
 
 select tests.authenticate_as_anon();
 select ok(
   tests.raises_sqlstate(
-    $$select * from public.system_team_week_summary('00000000-0000-0000-0000-0000000000d1', current_date)$$,
+    $$select * from public.system_team_period_summary('00000000-0000-0000-0000-0000000000d1', current_date, current_date)$$,
     '42501'
   ),
-  'anon cannot call system_team_week_summary'
+  'anon cannot call system_team_period_summary'
 );
 select tests.clear_authentication();
 
 select tests.authenticate_as_service_role();
 select lives_ok(
-  $$select * from public.system_team_week_summary('00000000-0000-0000-0000-0000000000d1', current_date)$$,
-  'the service role can call system_team_week_summary'
+  $$select * from public.system_team_period_summary('00000000-0000-0000-0000-0000000000d1', current_date, current_date)$$,
+  'the service role can call system_team_period_summary'
 );
 select tests.clear_authentication();
 
 -- Consistency check: the service-role path and the auth.uid() path must
--- agree on the same leader/week, or the cron digest would quietly diverge
--- from what the SMD sees on /team. week_start() is computed once here,
--- still as `postgres`, and passed as a GUC -- week_start() itself is
--- granted only to `authenticated`, and service_role has no reason to need
--- it (system_team_week_summary takes the week boundary as a plain date).
-select set_config('test.week_start', public.week_start(current_date)::text, true);
+-- agree on the same leader/cycle, or the cron digest would quietly diverge
+-- from what the SMD sees on /team. cycle_start()/cycle_end() are computed
+-- once here, still as `postgres`, and passed as GUCs -- both are granted
+-- only to `authenticated`, and service_role has no reason to need them
+-- (system_team_period_summary takes the cycle boundary as plain dates).
+select set_config('test.cycle_start', public.cycle_start(current_date)::text, true);
+select set_config('test.cycle_end', public.cycle_end(current_date)::text, true);
 
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000d1');
 create temporary table tmp_via_session as
-  select agent_id, calls_made from public.team_week_summary(current_setting('test.week_start')::date)
+  select agent_id, calls_made from public.team_period_summary(
+    current_setting('test.cycle_start')::date, current_setting('test.cycle_end')::date)
   where agent_id = '00000000-0000-0000-0000-0000000000d2';
 select tests.clear_authentication();
 
 select tests.authenticate_as_service_role();
 create temporary table tmp_via_service as
-  select agent_id, calls_made from public.system_team_week_summary(
-    '00000000-0000-0000-0000-0000000000d1', current_setting('test.week_start')::date)
+  select agent_id, calls_made from public.system_team_period_summary(
+    '00000000-0000-0000-0000-0000000000d1', current_setting('test.cycle_start')::date, current_setting('test.cycle_end')::date)
   where agent_id = '00000000-0000-0000-0000-0000000000d2';
 select tests.clear_authentication();
 
 select is(
   (select calls_made from tmp_via_service where agent_id = '00000000-0000-0000-0000-0000000000d2'),
   (select calls_made from tmp_via_session where agent_id = '00000000-0000-0000-0000-0000000000d2'),
-  'system_team_week_summary agrees with team_week_summary for the same leader and week'
+  'system_team_period_summary agrees with team_period_summary for the same leader and cycle'
 );
 
 select * from finish();

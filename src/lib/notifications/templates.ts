@@ -11,7 +11,7 @@ export interface EmailContent {
   html: string;
   text: string;
   // Set only for the three recurring notification kinds below (evening
-  // nudge, Sunday summary, Monday digest) -- these are the ones Gmail/Yahoo
+  // nudge, cycle summary, cycle digest) -- these are the ones Gmail/Yahoo
   // classify as "bulk mail" and gate on a working one-click unsubscribe
   // (RFC 8058) for inbox placement. Threaded through to sendEmail() so it
   // can set the List-Unsubscribe / List-Unsubscribe-Post headers.
@@ -118,34 +118,37 @@ export function eveningNudgeEmail(d: EveningNudgeData): EmailContent {
   };
 }
 
-export interface SundaySummaryData {
+export interface CycleSummaryData {
   agentId: string;
   fullName: string;
   callsMade: number;
   callsTarget: number;
   streakDays: number;
-  followUpsDueNextWeek: number;
+  followUpsDueNextCycle: number;
   logoUrl?: string | null;
 }
 
-export function sundaySummaryEmail(d: SundaySummaryData): EmailContent {
+// Notification kind stays 'sunday_summary' (the DB/URL identifier, unchanged
+// since P18) even though it no longer fires on Sunday -- see
+// private.enqueue_due_notifications()'s doc comment for why.
+export function cycleSummaryEmail(d: CycleSummaryData): EmailContent {
   const dashboardUrl = appUrl('/dashboard');
   const bodyHtml = `
     <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
-    <p>Your week: <strong>${d.callsMade} of ${d.callsTarget}</strong> calls, a
+    <p>This cycle: <strong>${d.callsMade} of ${d.callsTarget}</strong> calls, a
     <strong>${d.streakDays}-day</strong> streak, and
-    <strong>${d.followUpsDueNextWeek}</strong> follow-up${d.followUpsDueNextWeek === 1 ? '' : 's'} due next week.</p>
+    <strong>${d.followUpsDueNextCycle}</strong> follow-up${d.followUpsDueNextCycle === 1 ? '' : 's'} due next cycle.</p>
     ${button(dashboardUrl, 'View your dashboard')}`;
-  const bodyText = `Hi ${firstName(d.fullName)},\n\nYour week: ${d.callsMade} of ${d.callsTarget} calls, a ${d.streakDays}-day streak, and ${d.followUpsDueNextWeek} follow-up(s) due next week.\n\nView your dashboard: ${dashboardUrl}`;
+  const bodyText = `Hi ${firstName(d.fullName)},\n\nThis cycle: ${d.callsMade} of ${d.callsTarget} calls, a ${d.streakDays}-day streak, and ${d.followUpsDueNextCycle} follow-up(s) due next cycle.\n\nView your dashboard: ${dashboardUrl}`;
   return {
-    subject: 'Your week in review',
+    subject: 'Your cycle in review',
     html: wrap(bodyHtml, d.agentId, 'sunday_summary', d.logoUrl),
     text: wrapText(bodyText, d.agentId, 'sunday_summary'),
     unsubscribeUrl: unsubscribeUrlFor(d.agentId, 'sunday_summary'),
   };
 }
 
-export interface MondayDigestData {
+export interface CycleDigestData {
   agentId: string;
   fullName: string;
   totalCalls: number;
@@ -156,28 +159,31 @@ export interface MondayDigestData {
   logoUrl?: string | null;
 }
 
-export function mondayDigestEmail(d: MondayDigestData): EmailContent {
+// Notification kind stays 'monday_digest' (the DB/URL identifier, unchanged
+// since P18) even though it no longer fires on Monday -- see
+// private.enqueue_due_notifications()'s doc comment for why.
+export function cycleDigestEmail(d: CycleDigestData): EmailContent {
   const teamUrl = appUrl('/team');
   const quietLine =
     d.quietAgentNames.length > 0
-      ? `Quiet this week: ${d.quietAgentNames.join(', ')}.`
-      : 'Everyone logged something this week.';
+      ? `Quiet this cycle: ${d.quietAgentNames.join(', ')}.`
+      : 'Everyone logged something this cycle.';
   const moversLine = d.moverNames.length > 0 ? `Biggest movers: ${d.moverNames.join(', ')}.` : '';
   const quietLineHtml =
     d.quietAgentNames.length > 0
-      ? `Quiet this week: ${d.quietAgentNames.map(escapeHtml).join(', ')}.`
-      : 'Everyone logged something this week.';
+      ? `Quiet this cycle: ${d.quietAgentNames.map(escapeHtml).join(', ')}.`
+      : 'Everyone logged something this cycle.';
   const moversLineHtml =
     d.moverNames.length > 0 ? `Biggest movers: ${d.moverNames.map(escapeHtml).join(', ')}.` : '';
   const bodyHtml = `
     <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
-    <p>Team so far: <strong>${d.totalCalls} of ${d.totalCallsTarget}</strong> calls,
+    <p>Team so far this cycle: <strong>${d.totalCalls} of ${d.totalCallsTarget}</strong> calls,
     ${formatMoney(d.totalPremiumCents)} in premium.</p>
     <p>${quietLineHtml}${moversLineHtml ? ` ${moversLineHtml}` : ''}</p>
     ${button(teamUrl, 'View team dashboard')}`;
-  const bodyText = `Hi ${firstName(d.fullName)},\n\nTeam so far: ${d.totalCalls} of ${d.totalCallsTarget} calls, ${formatMoney(d.totalPremiumCents)} in premium.\n\n${quietLine}${moversLine ? ` ${moversLine}` : ''}\n\nView team dashboard: ${teamUrl}`;
+  const bodyText = `Hi ${firstName(d.fullName)},\n\nTeam so far this cycle: ${d.totalCalls} of ${d.totalCallsTarget} calls, ${formatMoney(d.totalPremiumCents)} in premium.\n\n${quietLine}${moversLine ? ` ${moversLine}` : ''}\n\nView team dashboard: ${teamUrl}`;
   return {
-    subject: 'Monday team digest',
+    subject: 'Your team cycle digest',
     html: wrap(bodyHtml, d.agentId, 'monday_digest', d.logoUrl),
     text: wrapText(bodyText, d.agentId, 'monday_digest'),
     unsubscribeUrl: unsubscribeUrlFor(d.agentId, 'monday_digest'),
@@ -255,14 +261,19 @@ export interface TrainingReminderData {
 // missed daily activity; this one is a leader pointing a teammate at their
 // training. No unsubscribe link for the same reason as nudgeEmail: it's a
 // one-off a leader sent by hand, not a standing preference (send_training_reminder
-// already rate-limits to 1/7 days per agent).
+// already rate-limits to 1/day per agent).
 export function trainingReminderEmail(d: TrainingReminderData): EmailContent {
   const trainingUrl = appUrl('/today');
   const bodyHtml = `
-    <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
-    <p>${escapeHtml(d.sentByName)} sent you a reminder to complete your training.</p>
+    <p>Hello ${escapeHtml(firstName(d.fullName))},</p>
+    <p>This is the reminder to attend for today's training session.</p>
+    <p>It's a valuable opportunity for growth and improvement, and it will help everyone to take your business to the next level.</p>
+    <p>Training is the key to growth in the Business.</p>
+    <p>Kindly make sure to attend the training with your Video ON.</p>
+    <p>And please take some good notes to improve your identity and to achieve highest level in the Business.\u{1F51D}</p>
+    <p>Thanks!<br/>${escapeHtml(d.sentByName)}</p>
     ${button(trainingUrl, 'Open the app')}`;
-  const bodyText = `Hi ${firstName(d.fullName)},\n\n${d.sentByName} sent you a reminder to complete your training.\n\nOpen the app: ${trainingUrl}`;
+  const bodyText = `Hello ${firstName(d.fullName)},\n\nThis is the reminder to attend for today's training session.\n\nIt's a valuable opportunity for growth and improvement, and it will help everyone to take your business to the next level.\n\nTraining is the key to growth in the Business.\n\nKindly make sure to attend the training with your Video ON.\n\nAnd please take some good notes to improve your identity and to achieve highest level in the Business.\u{1F51D}\n\nThanks!\n${d.sentByName}\n\nOpen the app: ${trainingUrl}`;
   return {
     subject: `${d.sentByName} sent you a training reminder`,
     html: wrap(bodyHtml, d.agentId, null, d.logoUrl),
@@ -281,9 +292,14 @@ export interface RosterTrainingReminderData {
 // row, no account to manage preferences on, same reasoning as inviteEmail.
 export function rosterTrainingReminderEmail(d: RosterTrainingReminderData): EmailContent {
   const bodyHtml = `
-    <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
-    <p>${escapeHtml(d.sentByName)} sent you a reminder to complete your training.</p>`;
-  const bodyText = `Hi ${firstName(d.fullName)},\n\n${d.sentByName} sent you a reminder to complete your training.`;
+    <p>Hello ${escapeHtml(firstName(d.fullName))},</p>
+    <p>This is the reminder to attend for today's training session.</p>
+    <p>It's a valuable opportunity for growth and improvement, and it will help everyone to take your business to the next level.</p>
+    <p>Training is the key to growth in the Business.</p>
+    <p>Kindly make sure to attend the training with your Video ON.</p>
+    <p>And please take some good notes to improve your identity and to achieve highest level in the Business.\u{1F51D}</p>
+    <p>Thanks!<br/>${escapeHtml(d.sentByName)}</p>`;
+  const bodyText = `Hello ${firstName(d.fullName)},\n\nThis is the reminder to attend for today's training session.\n\nIt's a valuable opportunity for growth and improvement, and it will help everyone to take your business to the next level.\n\nTraining is the key to growth in the Business.\n\nKindly make sure to attend the training with your Video ON.\n\nAnd please take some good notes to improve your identity and to achieve highest level in the Business.\u{1F51D}\n\nThanks!\n${d.sentByName}`;
   return {
     subject: `${d.sentByName} sent you a training reminder`,
     html: `<div style="font-family:'Plus Jakarta Sans',-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;">
@@ -343,7 +359,7 @@ export interface NudgeData {
   logoUrl?: string | null;
   // Set for the automatic daily send (p12a: an SMD flips a persistent toggle
   // instead of clicking Nudge each time) -- unlike the manual one-off nudge
-  // below (rate-limited to 1/7 days, no standing preference to unsubscribe
+  // below (rate-limited to 1/day, no standing preference to unsubscribe
   // from), the recurring version needs a working one-click unsubscribe like
   // the other recurring notifications, and shares evening_nudge's own
   // preference/kind since it's the same "reminder to log calls" concept
@@ -353,7 +369,7 @@ export interface NudgeData {
 
 // No unsubscribe link for the manual (non-recurring) case -- there's no
 // standing preference to opt out of a one-off nudge a leader sent by hand;
-// public.nudge_agent's own 7-day cooldown is the rate limit here, not
+// public.nudge_agent's own 1-day cooldown is the rate limit here, not
 // notification_log.
 export function nudgeEmail(d: NudgeData): EmailContent {
   const logUrl = appUrl('/log');

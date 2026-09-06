@@ -146,6 +146,44 @@ export async function importDeviceContactsAction(
   return { ok: true, imported, failed };
 }
 
+const updateContactSchema = z.object({
+  id: z.string().uuid(),
+  fullName: z.string().min(1, 'Enter a name.').max(200),
+  notes: z
+    .string()
+    .max(2000)
+    .optional()
+    .transform((v) => (v?.trim() ? v.trim() : null)),
+});
+
+/** Edits a contact's own fields (name, notes) -- not the activity logged
+ * against them, which is edited from each log's own edit page. */
+export async function updateContactAction(formData: FormData) {
+  const parsed = updateContactSchema.safeParse({
+    id: formData.get('id'),
+    fullName: formData.get('fullName'),
+    notes: formData.get('notes') ?? '',
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input.' };
+  }
+
+  const session = await requireAgent();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('contacts')
+    .update({ full_name: parsed.data.fullName, notes: parsed.data.notes })
+    .eq('id', parsed.data.id)
+    .eq('agent_id', session.agent!.id);
+
+  if (error) return { ok: false, error: 'Could not save — try again.' };
+
+  revalidatePath('/contacts');
+  revalidatePath(`/contacts/${parsed.data.id}`);
+  return { ok: true };
+}
+
 /**
  * Deletes a contact the agent owns. `contacts_own` RLS (for all, agent_id =
  * auth.uid()) is what actually enforces ownership -- the .eq('agent_id', …)

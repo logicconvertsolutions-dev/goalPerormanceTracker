@@ -41,7 +41,11 @@ direction shipped through P0–P2). No second theme, no theme toggle in v1.
 
 ## Conventions
 - Filter state lives in URL search params, never client state. One `<FilterBar>`.
-- Week starts **Monday**. All week math in `lib/dates.ts`. Never inline.
+- Week starts **Monday** (still the unit for the 8-week trend chart). Goals
+  and the Dashboard/Activity Logs period filter use a **10-day cycle**
+  instead (day 1-10 / 11-20 / 21-end-of-month, the last chunk 8-11 days
+  depending on the month) — P16/P17. All week/cycle math in `lib/dates.ts`.
+  Never inline.
 - Money: integer cents in DB, formatted at the edge.
 - DB types are generated: `npm run types` → `types/database.ts`. Never hand-edit.
 - Enums live in Postgres; TS unions derive from generated types.

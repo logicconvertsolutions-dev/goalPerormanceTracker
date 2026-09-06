@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { composeEveningNudge, composeSundaySummary, composeMondayDigest, type NotifiableAgent } from '@/lib/notifications/compose';
+import { composeEveningNudge, composeCycleSummary, composeCycleDigest, type NotifiableAgent } from '@/lib/notifications/compose';
 import { sendEmailBatch } from '@/lib/notifications/send';
 import type { EmailContent } from '@/lib/notifications/templates';
 
@@ -87,8 +87,8 @@ export async function POST(request: Request) {
     const notifiable: NotifiableAgent = { id: agent.id, email: agent.email, full_name: agent.full_name, time_zone: agent.time_zone };
     const composeFn =
       m.message.kind === 'evening_nudge' ? composeEveningNudge
-      : m.message.kind === 'sunday_summary' ? composeSundaySummary
-      : composeMondayDigest;
+      : m.message.kind === 'sunday_summary' ? composeCycleSummary
+      : composeCycleDigest;
     try {
       const result = await composeFn(admin, notifiable, m.message.local_date);
       if (result) {
