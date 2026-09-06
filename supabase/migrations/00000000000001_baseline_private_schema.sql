@@ -432,10 +432,6 @@ CREATE TABLE IF NOT EXISTS "private"."rate_limits" (
 ALTER TABLE "private"."rate_limits" OWNER TO "postgres";
 
 
-ALTER TABLE ONLY "private"."metrics_dirty"
-    ADD CONSTRAINT "metrics_dirty_pkey" PRIMARY KEY ("agent_id", "activity_date");
-
-
 
 ALTER TABLE ONLY "private"."rate_limits"
     ADD CONSTRAINT "rate_limits_pkey" PRIMARY KEY ("rl_key", "window_start");
