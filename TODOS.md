@@ -2,56 +2,59 @@
 
 Design debt and deferred work surfaced by review. Newest first.
 
-## 2026-09-06 — P16-P18 (10-day cycle) not verified against a live Supabase instance
+## 2026-09-06 — RESOLVED: P15-P18 migrations applied to the live Supabase project (were never deployed, causing the Dashboard-target and Settings-save bugs)
 
-**What:** Replaced the calendar week with a 10-day cycle (day 1-10/11-20/
-21-end-of-month) as the Dashboard/Activity Logs period filter and Goals'
-versioning unit, and moved the two weekly email notifications to match
-(cycle-end summary, cycle-start digest). See `.github/Spec Sheets/
-06-build-phases.md`'s new P16-P18 entry for the full description. Four new
-migrations: `20260906090000_p16a_cycle_date_helpers.sql`,
-`20260906091000_p17a_targets_per_cycle.sql`,
-`20260906092000_p17b_retire_week_hardcoded_roster_rpcs.sql`,
-`20260906094000_p18a_notification_cycle_cadence.sql`.
+**What happened:** The P15-P18 migrations (call-source additions, the
+10-day-cycle date helpers, the Goals-per-cycle rename, and the
+notification-cadence change) had been written and committed across prior
+sessions but — because this sandbox has no local Supabase/Docker instance —
+were only ever verified with `tsc --noEmit` and `vitest run`, never applied
+to an actual Postgres database. They sat unapplied on the live project
+while the application code was already written against the new
+schema/RPC shapes. Two user-reported bugs were the direct symptom:
+Settings → org defaults failed to save with `Could not find the
+'appts_held_per_cycle' column of 'targets' in the schema cache`, and the
+Dashboard showed calls made with no target because `my_target` was called
+with the new `p_period_start` argument name against the live DB's still-old
+`my_target(p_week date)`. Diagnosed directly via `mcp__Supabase__
+list_migrations`/`list_tables` against the live project (id
+`arswptuybizvceabecyn`), confirmed with the user, then fixed by applying
+all 6 pending migrations directly to the live database in dependency order:
+`p15a_call_source_existing_client_recruit`,
+`p15b_call_source_existing_client_recruit_functions`,
+`p16a_cycle_date_helpers`, `p17a_targets_per_cycle`,
+`p17b_retire_week_hardcoded_roster_rpcs`,
+`p18a_notification_cycle_cadence`.
 
-**Why deferred:** No local Supabase instance in this sandbox (`supabase
-start` needs a Docker daemon this sandbox doesn't have), so:
-- `types/database.ts` was hand-synced to match the new/changed migrations
-  (targets column renames, `effective_target`/`my_target`/`team_target`/
-  `system_effective_target`'s `p_week`→`p_period_start` rename,
-  `team_week_summary`/`system_team_week_summary` removed,
-  `system_team_period_summary` added) rather than regenerated via
-  `npm run types` -- same "no live DB" situation as `7a4e694`'s P14a sync
-  and P15's call-source sync, both of which turned out correct once
-  re-verified against the real schema.
-- `supabase/tests/001_rls_and_hierarchy.sql` and `003_notifications.sql`
-  were updated (renamed columns/RPCs, new cycle-boundary assertions) but
-  never actually run against a live database.
-- The four migrations themselves were reviewed carefully (parameter/column
-  renames verified as not requiring `drop function` in Postgres, security
-  grants mirrored from the functions they replace/extend) but never
-  applied to a real Postgres instance.
+**Bug found and fixed during rollout:** `p17a_targets_per_cycle.sql`'s
+in-repo claim that renaming `RETURNS TABLE` output columns doesn't require
+`drop function` was wrong — Postgres raised `42P13: cannot change return
+type of existing function` for `private.effective_target`, `public.
+my_target`, `public.team_target`, and `public.system_effective_target`
+(their OUT-column names changed even though the `(uuid, date)` argument
+signature didn't). Fixed by adding `drop function if exists ...` before
+each `create or replace` in the migration file itself (commit `7b2551b`),
+matching the pattern P15b already used correctly for `agent_aggregate`/
+`team_breakdown`. All other migrations in the batch applied clean on the
+first try.
 
-**What *was* verified in this sandbox:** `tsc --noEmit` clean (zero errors
-in any changed file, via the established stub-xlsx-install workaround for
-this sandbox's blocked CDN dependency) and the full `vitest run` suite
-green (65 passed, including 15 new `cycleBounds`/`previousCycleBounds`/
-`nextCycleStart`/`cyclesInRange` unit tests covering both cycle-boundary
-rollovers and the variable-length month-end chunk, plus `window.test.ts`
-rewritten for the day-of-month cycle-start/cycle-end predicates) -- only
-failures were the pre-existing `xlsx`-stub artifacts in
-`parse-workbook.test.ts`, unrelated to this change.
+**Verified after applying:** `list_tables` confirms `public.targets` now
+has `calls_per_cycle`/`appts_held_per_cycle`/`premium_cents_per_cycle`;
+`mcp__Supabase__generate_typescript_types` against the live schema diffs
+against the hand-synced `types/database.ts` with only a key-ordering
+difference (`cycle_start`/`cycle_end` function entries) — no actual type
+mismatches, so the hand-sync from prior sessions was correct.
+`get_advisors` (security) shows only pre-existing/by-design findings
+(`authenticated`-callable `SECURITY DEFINER` RPCs, which is this app's
+whole RPC access model) — nothing new introduced by this batch.
 
-**Impact:** Run `npm run types` and `supabase test db` against a real
-(local or staging) Supabase instance with these four migrations applied
-before the next deploy that touches Goals, the period filter, or the
-Sunday-summary/Monday-digest emails -- the SQL itself (column renames,
-parameter renames, the new `cycle_start`/`cycle_end`/
-`system_team_period_summary`/`team_period_summary_for` functions) has not
-been executed against a real Postgres.
-
-**Depends on / blocked by:** nothing technical -- needs a working local (or
-CI) Supabase instance.
+**Still open:** `supabase/tests/001_rls_and_hierarchy.sql` and
+`003_notifications.sql` were updated for the cycle-boundary assertions in
+a prior session but have still never been run (pgTAP needs a local/CI
+Supabase instance this sandbox doesn't have) — run `supabase test db`
+against this now-migrated project (or a branch of it) before trusting that
+coverage. Live data present in this project (9 agents, 5,476 contacts, 61
+call logs, etc.) was not touched — only DDL/function changes were applied.
 
 ## 2026-09-05 — types/database.ts hand-synced for P15 (new call sources); no pgTAP coverage yet
 
