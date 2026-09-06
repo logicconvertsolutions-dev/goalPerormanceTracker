@@ -2,6 +2,38 @@
 
 Design debt and deferred work surfaced by review. Newest first.
 
+## 2026-09-06 — RESOLVED: targets_audit trigger still referenced calls_per_week, breaking every Goals save
+
+**What:** Right after the three bugs below were fixed, saving a Goal (org
+default or per-agent override) started failing with `record "new" has no
+field "calls_per_week"`. Root cause: `public.audit_target_change()` — the
+`targets_audit` trigger from `20260818132848_p1j_invite_only_signup.sql` —
+built its `audit_log` metadata with `new.calls_per_week` directly off the
+`NEW` row. P17a renamed that column to `calls_per_cycle`; since a trigger
+reads the base table row rather than going through `effective_target`'s
+return shape, it wasn't caught by P19a's sweep of `team_period_summary` and
+its siblings. Every insert or update on `public.targets` had been failing
+outright since P17a shipped.
+
+**Fix:** `20260906130000_p19c_fix_audit_target_change_cycle_column.sql`
+updates the column reference, applied to the live project. Verified with a
+rolled-back test insert (`insert into public.targets (...)`) — succeeds,
+and `audit_log` records the correct `calls` value. Also queried
+`pg_proc.prosrc` directly across `public`/`private` for any other function
+still containing `calls_per_week`/`appts_held_per_week`/
+`premium_cents_per_week` — `audit_target_change` was the only one left.
+
+**Lesson for next rename-shaped migration:** P17b's review scope was "who
+else selects from `effective_target`'s return shape" — correct for every
+RPC that resolves a target through that function, but `audit_target_change`
+reads `public.targets`' own columns directly off the trigger's `NEW` row,
+never going through `effective_target` at all, so it fell outside that
+scope entirely. The reliable check after any column rename is a direct
+`pg_proc.prosrc` search across the live database for the old column name
+(as done here) — that catches every consumer regardless of which table or
+function it touches, not just the ones downstream of the specific function
+being changed.
+
 ## 2026-09-06 — RESOLVED: three more P17-era bugs found and fixed (My Team empty, missing Organization/Members nav, leader notification toggles)
 
 Follow-up to the same-day P15-P18 rollout below — three more user reports,
