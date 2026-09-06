@@ -1,5 +1,9 @@
 {
   "permissions": {
+    "deny": [
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__execute_sql"
+    ],
     "allow": [
       "Bash(git mv *)",
       "Bash(mv src/lib/import/__tests__/golden-file.test.ts src/lib/import/__tests__/golden-file.test.tsx)",
