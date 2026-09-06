@@ -167,6 +167,14 @@ create table public.contacts (
 );
 create unique index contacts_agent_name_uq on public.contacts (agent_id, lower(full_name));
 create index on public.contacts (agent_id);
+-- findOrCreateContact() (src/lib/contacts.ts) does a SELECT-then-INSERT
+-- against this index with no locking between them -- two requests for the
+-- same brand-new name (a double-click, a retry) can both pass the lookup
+-- and then race the insert; the loser used to just fail the whole save.
+-- P19 (this session) fixed it to catch the resulting 23505 and re-run the
+-- lookup, returning the winner's row instead of erroring -- same fix
+-- applied to the bulk-import sibling, resolveContactsBulk() in
+-- src/lib/import/commit-import.ts.
 
 create table public.call_logs (
   id           uuid primary key default gen_random_uuid(),
@@ -298,6 +306,23 @@ create unique index targets_agent_uq on public.targets (org_id, agent_id, effect
   where agent_id is not null;
 -- Resolution unchanged: private.effective_target(agent_id, p_period_start) --
 -- p_period_start is a cycle-start date since P17 (was a week-start date).
+
+-- Writes go through public.set_target() (P19d), not a plain client insert.
+-- A saved goal always targets "the start of the next cycle," so saving
+-- again before that cycle starts (correcting a still-pending value) hits
+-- the same effective_from twice -- a plain insert raised a raw "duplicate
+-- key value violates unique constraint" (this bug predates P16-P18
+-- entirely; nextMonday() had the identical collision). set_target() does
+-- an atomic `insert ... on conflict (...) where ... do update`, one
+-- statement per partial index above, since a partial index's ON CONFLICT
+-- arbiter needs a WHERE clause that supabase-js's on_conflict=columns has
+-- no way to express. It replicates targets_insert's own authorization
+-- checks inline (security definer, not invoker) since an ON CONFLICT DO
+-- UPDATE needs both the insert and update RLS policies satisfied and
+-- targets_update's own USING clause doesn't carry the is_upline_of check
+-- by itself. Rule 8 ("never mutate a past target row") still holds: only a
+-- row whose effective_from hasn't been reached yet -- which has never
+-- scored anything -- can be upserted this way.
 
 create table public.daily_metrics (
   agent_id      uuid not null references public.agents(id) on delete cascade,
@@ -621,9 +646,19 @@ the cycle-digest email) moved to the period-general RPCs below.
   since P17b) — scales each agent's per-cycle target proportionally by the
   cycles spanned so any period ("This Month", "Last 30 Days", "Current
   Cycle") compares against a fair target instead of one cycle's number.
-  `system_team_period_summary(p_leader_id uuid, p_from date, p_to date)` /
-  `private.team_period_summary_for()` (P17b) is its service-role-gated,
-  explicit-leader-id twin for the cron digest.
+  **This scaling is what P17b intended but didn't actually ship**: P17b's
+  own migration updated `private.team_period_summary_for()` (below) and
+  every other consumer of `effective_target`'s renamed columns, but missed
+  this function itself, leaving it selecting the now-nonexistent
+  `calls_per_week` et al. Every call raised `42703`, which `/team`'s page
+  silently treated as "no one in your downline" regardless of actual team
+  size — found and fixed in **P19a** (`20260906120000_p19a_fix_team_period_
+  summary_cycle_columns.sql`), which is what actually gave this function
+  the `*_per_cycle` columns and the `/10.0` cycle-scaling divisor described
+  above. `system_team_period_summary(p_leader_id uuid, p_from date, p_to
+  date)` / `private.team_period_summary_for()` (P17b) is its service-role-
+  gated, explicit-leader-id twin for the cron digest — that one *was*
+  correctly migrated in P17b.
 - `team_breakdown(p_from date, p_to date, p_agent_ids uuid[])` (P5a, agent
   filter added P5d) — team-wide donut/bar breakdown, same shape as
   `agent_aggregate`'s breakdown columns.
