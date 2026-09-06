@@ -416,3 +416,18 @@ enabled = true
 # declarative_schema_path = "./schemas"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+
+[remotes.staging]
+project_id = "uazzydaasmwaciqxnxjl"
+
+[remotes.staging.auth]
+site_url = "https://staging.kautis.ca"
+additional_redirect_urls = ["https://staging.kautis.ca/auth/callback"]
+
+[remotes.staging.auth.email]
+enable_confirmations = true
+
+[remotes.staging.auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
