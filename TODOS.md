@@ -2,6 +2,70 @@
 
 Design debt and deferred work surfaced by review. Newest first.
 
+## 2026-09-06 — RESOLVED: three more P17-era bugs found and fixed (My Team empty, missing Organization/Members nav, leader notification toggles)
+
+Follow-up to the same-day P15-P18 rollout below — three more user reports,
+all downstream of P17's targets-per-cycle rename or a UI gap it exposed.
+
+**1. My Team dashboard showed empty for leaders with real downlines.**
+`public.team_period_summary` (the RPC `/team`, `/team/targets`, and the CSV
+export all call) still selected `calls_per_week`/`appts_held_per_week`/
+`premium_cents_per_week` from `private.effective_target`'s return row.
+P17a renamed those columns to `*_per_cycle`, and P17b updated every other
+consumer (`private.team_period_summary_for`, `agent_daily_activity`,
+`team_trend`) but missed this one — its own P17b migration header even says
+the intent was to move onto "the already-generalized
+`team_period_summary(p_from, p_to)`," apparently mistaking it for already
+fixed. Every call raised `42703` (column does not exist); `/team/page.tsx`
+only reads `{ data }` from the RPC result, not `error`, so the failure
+silently rendered as "No one in your downline yet" regardless of actual
+team size. Fixed in
+`20260906120000_p19a_fix_team_period_summary_cycle_columns.sql` (renamed
+the columns, switched the weekly scaling factor to the 10-day cycle divisor
+already used by `team_period_summary_for`), applied to the live project and
+verified against real seed data (`Sample SMD`'s 2-associate downline
+resolved correctly with no error).
+
+**2. When My Team was empty, the SMD couldn't reach Organization/Goals/
+Invites/Members at all.** Those four buttons lived only in `/team/page.tsx`'s
+non-empty return branch; the empty-roster branch returned early with just a
+bare "invite someone" link, no way to navigate anywhere else from `/team`.
+This made bug #1 worse (a leader hitting the bugged empty state was fully
+stranded) but is also a real gap on its own for a leader with a genuinely
+empty downline, who still needs Organization/Members to manage the org.
+Fixed by hoisting the nav button row into a shared block rendered on both
+the empty and non-empty paths.
+
+**3. Settings was missing "Evening nudge"/"Cycle summary" for leaders —
+by design, then changed by product decision.** `private.
+enqueue_due_notifications()` only ever queued those two kinds for
+`role = 'associate'`; `notification-toggles.tsx`'s `ROWS_BY_ROLE` correctly
+hid the toggles from leaders since showing a control with no effect would
+have been misleading. This was working as originally designed (P14d), not
+a bug — confirmed with the user, who decided leaders should now receive all
+three notification kinds, since a leader logs their own activity and has
+their own Goals/streak just like an associate. Widened in
+`20260906121000_p19b_leader_personal_notifications.sql` (`n.role in
+('associate', 'leader')` for `evening_nudge`/`sunday_summary`; `admin`
+deliberately excluded — no org, no activity, no target, nothing to nudge
+about). `notification-toggles.tsx` now shows leaders all three toggles;
+`compose.ts`/`window.ts`/`window.test.ts` doc comments and `Spec Sheets/
+09-account-and-auth.md` updated to match (the latter also corrected a
+stale reference to a `roleAllows()` helper that was never actually in the
+codebase — the real mechanism is the SQL `n.role in (...)` predicates
+inline in `enqueue_due_notifications()`).
+
+**Verified:** `tsc --noEmit` clean (same pre-existing xlsx-stub-only
+failures as every prior session, unrelated to this change), `vitest run`
+green (60 tests, including all `window.test.ts` cases), and #1's SQL fix
+re-run directly against the live database with a real leader's downline to
+confirm the column-name fix actually resolves. Not covered: no pgTAP run
+(same "no local/CI Supabase instance in this sandbox" gap as every other
+entry below) — worth adding a `team_period_summary` regression case run
+directly against a leader with `daily_metrics` rows so this class of "RPC
+consumer missed by a rename" bug gets caught by `supabase test db` next
+time, not by a user report.
+
 ## 2026-09-06 — RESOLVED: P15-P18 migrations applied to the live Supabase project (were never deployed, causing the Dashboard-target and Settings-save bugs)
 
 **What happened:** The P15-P18 migrations (call-source additions, the
