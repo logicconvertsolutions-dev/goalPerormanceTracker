@@ -317,16 +317,53 @@ async function resolveContactsBulk(
 
   for (let i = 0; i < toInsert.length; i += INSERT_CHUNK_SIZE) {
     const chunk = toInsert.slice(i, i + INSERT_CHUNK_SIZE);
+    const chunkEntries = pendingEntries.slice(i, i + INSERT_CHUNK_SIZE);
     const { data, error } = await supabase.from('contacts').insert(chunk).select('id, full_name');
-    if (error || !data) {
-      console.error('resolveContactsBulk: bulk contact insert failed', error);
-      continue; // rows referencing these pending contacts stay unresolved -> reported as errors by the caller
+    if (!error && data) {
+      const insertedByName = new Map(data.map((c) => [c.full_name.toLowerCase(), c.id]));
+      for (const [nameKey, p] of chunkEntries) {
+        const id = insertedByName.get(nameKey);
+        if (id) for (const rowIndex of p.rowIndices) resolved.set(rowIndex, id);
+      }
+      continue;
     }
-    const insertedByName = new Map(data.map((c) => [c.full_name.toLowerCase(), c.id]));
-    for (const [nameKey, p] of pendingEntries.slice(i, i + INSERT_CHUNK_SIZE)) {
-      const id = insertedByName.get(nameKey);
-      if (id) for (const rowIndex of p.rowIndices) resolved.set(rowIndex, id);
+
+    if (error?.code === UNIQUE_VIOLATION) {
+      // A concurrent save (another import, or a manual "Add contact") created
+      // one of these names between the existingRows lookup above and this
+      // insert -- fall back to one-by-one, same pattern as
+      // commitActivityRows, so a single collision doesn't strand every other
+      // new name in the chunk unresolved. A per-row conflict means the
+      // contact now exists via the other request -- look it up rather than
+      // leaving these rows unresolved (findOrCreateContact's own fix for the
+      // identical race, applied here for the bulk path).
+      for (const [, p] of chunkEntries) {
+        const { data: single, error: rowError } = await supabase
+          .from('contacts')
+          .insert({ agent_id: agentId, org_id: orgId, full_name: p.fullName })
+          .select('id')
+          .single();
+        if (single) {
+          for (const rowIndex of p.rowIndices) resolved.set(rowIndex, single.id);
+          continue;
+        }
+        if (rowError?.code === UNIQUE_VIOLATION) {
+          const { data: winner } = await supabase
+            .from('contacts')
+            .select('id')
+            .eq('agent_id', agentId)
+            .filter('full_name', 'ilike', p.fullName.replace(/[%_]/g, '\\$&'))
+            .maybeSingle();
+          if (winner) for (const rowIndex of p.rowIndices) resolved.set(rowIndex, winner.id);
+        } else {
+          console.error('resolveContactsBulk: per-row contact insert failed', rowError);
+        }
+      }
+      continue;
     }
+
+    console.error('resolveContactsBulk: bulk contact insert failed', error);
+    // rows referencing these pending contacts stay unresolved -> reported as errors by the caller
   }
 
   return resolved;
