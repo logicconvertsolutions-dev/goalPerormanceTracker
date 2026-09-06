@@ -1,4 +1,4 @@
-# Goal Performance Tracker
+# Kautis
 
 Multi-tenant callback queue and activity tracker for WFG teams. An associate
 opens it to see **who to call today**; the metrics are a by-product. They log
