@@ -1399,6 +1399,17 @@ export type Database = {
         Args: { p_agent_id: string; p_enabled: boolean }
         Returns: undefined
       }
+      set_target: {
+        Args: {
+          p_agent_id: string | null
+          p_appts_held_per_cycle: number
+          p_calls_per_cycle: number
+          p_effective_from: string
+          p_min_calls_per_day: number
+          p_premium_cents_per_cycle: number
+        }
+        Returns: undefined
+      }
       system_effective_target: {
         Args: { p_agent_id: string; p_period_start: string }
         Returns: {
