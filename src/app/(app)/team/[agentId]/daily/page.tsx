@@ -4,12 +4,8 @@ import { requireLeader } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { FilterBar } from '@/components/shell/filter-bar';
 import { BackLink } from '@/components/shell/back-link';
-import { resolvePeriod, todayIso, addDays, type PeriodPreset, PERIOD_PRESETS } from '@/lib/dates';
+import { resolvePeriod, todayIso, addDays, isPeriodPreset, type PeriodPreset } from '@/lib/dates';
 import { DailyGrid, type DailyGridColumn } from '../../daily-grid';
-
-function isPeriodPreset(v: string | undefined): v is PeriodPreset {
-  return !!v && (PERIOD_PRESETS as readonly string[]).includes(v);
-}
 
 // Day-by-day grid for one agent (08-screen-specs.md: "/team/[agentId]/daily
 // — day-by-day grid for one agent over a date range").
@@ -34,7 +30,7 @@ export default async function TeamAgentDailyPage({
   const params = await searchParams;
   // The viewing leader's own local today, same as team/[agentId]/page.tsx.
   const today = todayIso(session.agent!.time_zone);
-  const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'this_week';
+  const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'current_cycle';
   const { from, to } = resolvePeriod(preset, today, params.from, params.to);
 
   const { data: activity } = await supabase.rpc('agent_daily_activity', {

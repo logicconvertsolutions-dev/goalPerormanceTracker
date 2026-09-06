@@ -9,16 +9,12 @@ import { AgentMultiSelect } from '@/components/shell/agent-multi-select';
 import { DonutChart } from '@/components/charts/donut-chart';
 import { HorizontalBarChart } from '@/components/charts/horizontal-bar-chart';
 import { TrendChart, type TrendWeek } from '@/components/charts/trend-chart';
-import { resolvePeriod, todayIso, addDays, weeksInRange, type PeriodPreset, PERIOD_PRESETS } from '@/lib/dates';
+import { resolvePeriod, todayIso, addDays, cyclesInRange, isPeriodPreset, type PeriodPreset } from '@/lib/dates';
 import { DailyBreakdownTable } from '@/components/shell/daily-breakdown-table';
 import { RosterRow, type RosterRowData } from './roster-row';
 import { DailyGrid, type DailyGridColumn } from './daily-grid';
 import { NudgeButton } from './nudge-button';
 import { AutoNudgeToggle } from './auto-nudge-toggle';
-
-function isPeriodPreset(v: string | undefined): v is PeriodPreset {
-  return !!v && (PERIOD_PRESETS as readonly string[]).includes(v);
-}
 
 type View = 'summary' | 'daily' | 'activity';
 
@@ -32,7 +28,7 @@ export default async function TeamPage({
   const supabase = await createClient();
 
   const today = todayIso(session.agent!.time_zone);
-  const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'this_week';
+  const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'current_cycle';
   const { from, to } = resolvePeriod(preset, today, params.from, params.to);
   const view: View =
     params.view === 'daily' ? 'daily' : params.view === 'activity' ? 'activity' : 'summary';
@@ -56,10 +52,31 @@ export default async function TeamPage({
     ]);
 
   const allAgents = (roster ?? []) as RosterRowData[];
+
+  const teamNav = (
+    <div className="flex flex-wrap items-center justify-between gap-y-2">
+      <h1 className="text-[28px] font-bold leading-[34px] tracking-heading-tight text-fg">My Team</h1>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="secondary" size="sm" asChild>
+          <Link href="/team/organization">Organization</Link>
+        </Button>
+        <Button variant="secondary" size="sm" asChild>
+          <Link href="/team/targets">Goals</Link>
+        </Button>
+        <Button variant="secondary" size="sm" asChild>
+          <Link href="/team/invites">Invites</Link>
+        </Button>
+        <Button variant="secondary" size="sm" asChild>
+          <Link href="/team/members">Members</Link>
+        </Button>
+      </div>
+    </div>
+  );
+
   if (allAgents.length === 0) {
     return (
       <div className="space-y-4">
-        <h1 className="text-[28px] font-bold leading-[34px] tracking-heading-tight text-fg">My Team</h1>
+        {teamNav}
         <Card>
           <CardContent className="pt-4">
             <p className="text-sm text-fg-2">
@@ -85,10 +102,10 @@ export default async function TeamPage({
   const totalPremium = visibleAgents.reduce((acc, a) => acc + a.premium_cents, 0);
   const totalPremiumTarget = visibleAgents.reduce((acc, a) => acc + Number(a.premium_cents_target), 0);
   const onTarget = visibleAgents.filter((a) => (a.pct_calls ?? 0) >= 100).length;
-  // Targets are only ever set per week (CLAUDE.md rule 8) -- team_period_summary
-  // already scales each agent's target by the weeks in [from, to], so the "~"
-  // here just marks that scaling for any period longer than one week.
-  const targetPrefix = weeksInRange(from, to) !== 1 ? '~' : '';
+  // Targets are only ever set per cycle (CLAUDE.md rule 8) -- team_period_summary
+  // already scales each agent's target by the cycles in [from, to], so the "~"
+  // here just marks that scaling for any period longer than one cycle.
+  const targetPrefix = cyclesInRange(from, to) !== 1 ? '~' : '';
   const visibleIdSet = new Set(visibleAgents.map((a) => a.agent_id));
   const quietRows = (quiet ?? []).filter((q) => visibleIdSet.has(q.agent_id));
   const quietIds = quietRows.map((q) => q.agent_id);
@@ -123,23 +140,7 @@ export default async function TeamPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-y-2">
-        <h1 className="text-[28px] font-bold leading-[34px] tracking-heading-tight text-fg">My Team</h1>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" size="sm" asChild>
-            <Link href="/team/organization">Organization</Link>
-          </Button>
-          <Button variant="secondary" size="sm" asChild>
-            <Link href="/team/targets">Goals</Link>
-          </Button>
-          <Button variant="secondary" size="sm" asChild>
-            <Link href="/team/invites">Invites</Link>
-          </Button>
-          <Button variant="secondary" size="sm" asChild>
-            <Link href="/team/members">Members</Link>
-          </Button>
-        </div>
-      </div>
+      {teamNav}
 
       <FilterBar preset={preset} customFrom={params.from} customTo={params.to} chips={chips}>
         <AgentMultiSelect agents={allAgents.map((a) => ({ id: a.agent_id, full_name: a.full_name }))} />
@@ -323,6 +324,8 @@ export default async function TeamPage({
                     { label: 'Social Media', value: breakdown?.[0]?.src_social_media ?? 0 },
                     { label: 'Friend', value: breakdown?.[0]?.src_friend ?? 0 },
                     { label: 'Other', value: breakdown?.[0]?.src_other ?? 0 },
+                    { label: 'Existing Client', value: breakdown?.[0]?.src_existing_client ?? 0 },
+                    { label: 'Existing Recruit', value: breakdown?.[0]?.src_existing_recruit ?? 0 },
                   ]}
                   categorical
                 />

@@ -102,7 +102,7 @@ re-check whenever a new admin or cross-agent RPC is added.
   PostgREST doesn't expose non-public schemas for RPC) are granted to
   `service_role` only, revoked from everyone else, same lockdown shape as
   every other service-role-only RPC in this schema
-  (`system_effective_target`, `system_team_week_summary`). `private.
+  (`system_effective_target`, `system_team_period_summary`). `private.
   ping_app_route()` and its two callers (`ping_notification_drain`,
   `ping_legacy_notifications`) are likewise `private`-schema and
   revoked from every client role — pg_cron calls them directly, no RPC

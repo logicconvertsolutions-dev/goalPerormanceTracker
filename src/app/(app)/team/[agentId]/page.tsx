@@ -5,13 +5,18 @@ import { createClient } from '@/lib/supabase/server';
 import { FilterBar } from '@/components/shell/filter-bar';
 import { BackLink } from '@/components/shell/back-link';
 import type { DailyMetricsRow } from '@/lib/metrics';
-import { addDays, resolvePeriod, todayIso, weekStart, type PeriodPreset, PERIOD_PRESETS } from '@/lib/dates';
+import {
+  addDays,
+  cycleBounds,
+  cyclesInRange,
+  isPeriodPreset,
+  resolvePeriod,
+  todayIso,
+  weekStart,
+  type PeriodPreset,
+} from '@/lib/dates';
 import { buildDashboardViewModel } from '../../dashboard/dashboard-view-model';
 import { DashboardView } from '../../dashboard/dashboard-view';
-
-function isPeriodPreset(v: string | undefined): v is PeriodPreset {
-  return !!v && (PERIOD_PRESETS as readonly string[]).includes(v);
-}
 
 // Reuses the associate's own dashboard rendering stack verbatim — 08-screen-specs.md:
 // "The layout is deliberately identical to the agent's own /dashboard so
@@ -41,14 +46,14 @@ export default async function TeamAgentPage({
   // The viewing leader's own local today, not the viewed agent's -- same
   // "viewer's frame of reference" the rest of the app uses for date display.
   const today = todayIso(session.agent!.time_zone);
-  const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'this_week';
+  const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'current_cycle';
   const { from, to } = resolvePeriod(preset, today, params.from, params.to);
-  const targetWeek = weekStart(new Date(from + 'T00:00:00Z'));
+  const targetCycleStart = cycleBounds(new Date(from + 'T00:00:00Z')).from;
 
   const [{ data: agg }, { data: target }, { data: trendRows }, { data: openAppts }, { data: recentMetrics }] =
     await Promise.all([
       supabase.rpc('agent_aggregate', { p_agent_id: agentId, p_from: from, p_to: to }),
-      supabase.rpc('team_target', { p_agent_id: agentId, p_week: targetWeek }),
+      supabase.rpc('team_target', { p_agent_id: agentId, p_period_start: targetCycleStart }),
       supabase
         .from('daily_metrics')
         .select('*')
@@ -79,6 +84,7 @@ export default async function TeamAgentPage({
     openAppointments: openAppts ?? [],
     streakRows,
     today,
+    periodCycles: cyclesInRange(from, to),
   });
 
   return (

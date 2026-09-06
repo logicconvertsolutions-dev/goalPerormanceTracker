@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface Target {
-  calls_per_week: number;
-  appts_held_per_week: number;
-  premium_cents_per_week: number;
+  calls_per_cycle: number;
+  appts_held_per_cycle: number;
+  premium_cents_per_cycle: number;
   min_calls_per_day: number;
 }
 
@@ -51,19 +51,19 @@ export function OnboardingSteps({ target }: { target: Target | null }) {
             {target ? (
               <dl className="grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <dt className="text-fg-3">Calls / week</dt>
-                  <dd className="font-mono tabular-nums text-fg">{target.calls_per_week}</dd>
+                  <dt className="text-fg-3">Calls / cycle</dt>
+                  <dd className="font-mono tabular-nums text-fg">{target.calls_per_cycle}</dd>
                 </div>
                 <div>
-                  <dt className="text-fg-3">Appts held / week</dt>
+                  <dt className="text-fg-3">Appts held / cycle</dt>
                   <dd className="font-mono tabular-nums text-fg">
-                    {target.appts_held_per_week}
+                    {target.appts_held_per_cycle}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-fg-3">Premium / week</dt>
+                  <dt className="text-fg-3">Premium / cycle</dt>
                   <dd className="font-mono tabular-nums text-fg">
-                    ${(target.premium_cents_per_week / 100).toFixed(0)}
+                    ${(target.premium_cents_per_cycle / 100).toFixed(0)}
                   </dd>
                 </div>
                 <div>
@@ -91,7 +91,7 @@ export function OnboardingSteps({ target }: { target: Target | null }) {
               never see who you called or what you talked about.
             </p>
             <div className="rounded-sm border border-line-2 bg-panel-2 p-3 text-sm space-y-1">
-              <p className="text-fg">✓ Calls made this week: 37</p>
+              <p className="text-fg">✓ Calls made this cycle: 37</p>
               <p className="text-fg">✓ Appointments held: 4</p>
               <p className="text-fg-4 line-through">✗ Contact names</p>
               <p className="text-fg-4 line-through">✗ Call notes</p>

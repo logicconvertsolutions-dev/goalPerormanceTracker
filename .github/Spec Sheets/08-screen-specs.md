@@ -16,10 +16,13 @@ and layout).
 One `<FilterBar>` component, reused verbatim across `/dashboard`,
 `/appointments`, `/sales`, `/recruiting`, `/logs`, `/team`,
 `/team/[agentId]`, and `/team/[agentId]/daily`. Filter state lives in URL
-search params. Period presets: **This Week · Last Week · This Month · Last
-30 Days · Custom**, Monday-start weeks, default This Week, default sort date
-descending. Active filters render as removable chips plus **Clear all**.
-Mobile collapses to a **Filters** button + count badge. All still true.
+search params. **P16:** period presets are **Current Cycle · Previous
+Cycle · This Month · Last 30 Days · Custom** (Current/Previous Cycle
+replaced This Week/Last Week — a 10-day cycle is day 1-10 / 11-20 /
+21-end-of-month, the last chunk 8-11 days depending on the month), default
+Current Cycle, default sort date descending. This Month/Last 30 Days/Custom
+are unchanged. Active filters render as removable chips plus **Clear all**.
+Mobile collapses to a **Filters** button + count badge.
 
 ## Shared: the KPI card, the pie-chart rule — unchanged
 
@@ -309,10 +312,13 @@ not a general notes feature.
 **Timeline table:** rows merged from calls/appointments/sales, newest first.
 Columns: (print-hidden checkbox) · Date · Type badge · Details of
 Discussions · Actions (follow-up date/done marker or "—"). **P10:** an
-appointment's `appt_type` (e.g. "Solutions Presented," "Login Shown" — what
-actually happened in the meeting) now renders in the Actions column above
-the follow-up line, instead of folded into the Details of Discussions
-summary — calls/sales rows are unaffected, they never carried a type.
+appointment's `appt_type` — what actually happened in the meeting — now
+renders in the Actions column above the follow-up line, instead of folded
+into the Details of Discussions summary — calls/sales rows are unaffected,
+they never carried a type. **P16:** `appt_type` is a picklist (Marketing
+Presentation / Solutions Presentation / Application / Follow Up / Other),
+mandatory when an appointment's status is set to Held; pre-picklist free
+text on older rows still renders as-is (`apptTypeLabel()`).
 
 **Selective print:** every row checkbox-selected by default, "Select all"
 toggle, "Print" button (disabled when nothing selected) triggers
@@ -415,8 +421,10 @@ via `/team/[agentId]/daily/export`.
 
 Renamed **"Goals"** in nav copy (targets remain `targets` in the schema and
 route). Matches spec: org-default card, per-agent override rows (collapsed,
-expand to edit), all four target dimensions, insert-only/effective-Monday
-semantics with explicit copy stating past weeks keep their original goal.
+expand to edit), all four target dimensions. **P17:** insert-only/effective-
+next-cycle semantics (was effective-Monday) with explicit copy stating past
+cycles keep their original goal; field labels are "... / Cycle" (was
+"... / Wk").
 
 ---
 

@@ -5,8 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const LABELS: Record<string, string> = {
   evening_nudge: 'Evening nudge',
-  sunday_summary: 'Sunday summary',
-  monday_digest: 'Monday team digest',
+  sunday_summary: 'Cycle summary',
+  monday_digest: 'Team cycle digest',
 };
 
 // Public, no-login page -- the whole point of a one-click unsubscribe

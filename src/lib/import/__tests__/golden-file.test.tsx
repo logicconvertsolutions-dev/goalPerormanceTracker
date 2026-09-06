@@ -225,7 +225,7 @@ describe.skipIf(!canRun)('golden-file: weekly_calls_tracker Template.xlsx', () =
     });
     expect(aggError).toBeNull();
 
-    const { data: target, error: targetError } = await asAgent.rpc('my_target', { p_week: to });
+    const { data: target, error: targetError } = await asAgent.rpc('my_target', { p_period_start: to });
     expect(targetError).toBeNull();
     await asAgent.auth.signOut();
 

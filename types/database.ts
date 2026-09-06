@@ -560,6 +560,8 @@ export type Database = {
           referrals_given: number
           sales_count: number
           src_cold: number
+          src_existing_client: number
+          src_existing_recruit: number
           src_friend: number
           src_other: number
           src_referral: number
@@ -590,6 +592,8 @@ export type Database = {
           referrals_given?: number
           sales_count?: number
           src_cold?: number
+          src_existing_client?: number
+          src_existing_recruit?: number
           src_friend?: number
           src_other?: number
           src_referral?: number
@@ -620,6 +624,8 @@ export type Database = {
           referrals_given?: number
           sales_count?: number
           src_cold?: number
+          src_existing_client?: number
+          src_existing_recruit?: number
           src_friend?: number
           src_other?: number
           src_referral?: number
@@ -1046,41 +1052,41 @@ export type Database = {
       targets: {
         Row: {
           agent_id: string | null
-          appts_held_per_week: number
-          calls_per_week: number
+          appts_held_per_cycle: number
+          calls_per_cycle: number
           created_at: string
           effective_from: string
           id: string
           md_deadline: string | null
           min_calls_per_day: number
           org_id: string
-          premium_cents_per_week: number
+          premium_cents_per_cycle: number
           set_by: string | null
         }
         Insert: {
           agent_id?: string | null
-          appts_held_per_week?: number
-          calls_per_week?: number
+          appts_held_per_cycle?: number
+          calls_per_cycle?: number
           created_at?: string
           effective_from: string
           id?: string
           md_deadline?: string | null
           min_calls_per_day?: number
           org_id: string
-          premium_cents_per_week?: number
+          premium_cents_per_cycle?: number
           set_by?: string | null
         }
         Update: {
           agent_id?: string | null
-          appts_held_per_week?: number
-          calls_per_week?: number
+          appts_held_per_cycle?: number
+          calls_per_cycle?: number
           created_at?: string
           effective_from?: string
           id?: string
           md_deadline?: string | null
           min_calls_per_day?: number
           org_id?: string
-          premium_cents_per_week?: number
+          premium_cents_per_cycle?: number
           set_by?: string | null
         }
         Relationships: [
@@ -1288,6 +1294,8 @@ export type Database = {
           referrals_given: number
           sales_count: number
           src_cold: number
+          src_existing_client: number
+          src_existing_recruit: number
           src_friend: number
           src_other: number
           src_referral: number
@@ -1344,13 +1352,13 @@ export type Database = {
         }[]
       }
       my_target: {
-        Args: { p_week: string }
+        Args: { p_period_start: string }
         Returns: {
-          appts_held_per_week: number
-          calls_per_week: number
+          appts_held_per_cycle: number
+          calls_per_cycle: number
           md_deadline: string
           min_calls_per_day: number
-          premium_cents_per_week: number
+          premium_cents_per_cycle: number
         }[]
       }
       nudge_agent: { Args: { p_agent_id: string }; Returns: undefined }
@@ -1391,18 +1399,29 @@ export type Database = {
         Args: { p_agent_id: string; p_enabled: boolean }
         Returns: undefined
       }
+      set_target: {
+        Args: {
+          p_agent_id: string | null
+          p_appts_held_per_cycle: number
+          p_calls_per_cycle: number
+          p_effective_from: string
+          p_min_calls_per_day: number
+          p_premium_cents_per_cycle: number
+        }
+        Returns: undefined
+      }
       system_effective_target: {
-        Args: { p_agent_id: string; p_week: string }
+        Args: { p_agent_id: string; p_period_start: string }
         Returns: {
-          appts_held_per_week: number
-          calls_per_week: number
+          appts_held_per_cycle: number
+          calls_per_cycle: number
           md_deadline: string
           min_calls_per_day: number
-          premium_cents_per_week: number
+          premium_cents_per_cycle: number
         }[]
       }
-      system_team_week_summary: {
-        Args: { p_leader_id: string; p_week_start: string }
+      system_team_period_summary: {
+        Args: { p_from: string; p_leader_id: string; p_to: string }
         Returns: {
           agent_id: string
           appts_held: number
@@ -1441,6 +1460,8 @@ export type Database = {
           referrals_given: number
           sales_count: number
           src_cold: number
+          src_existing_client: number
+          src_existing_recruit: number
           src_friend: number
           src_other: number
           src_referral: number
@@ -1489,13 +1510,13 @@ export type Database = {
         }[]
       }
       team_target: {
-        Args: { p_agent_id: string; p_week: string }
+        Args: { p_agent_id: string; p_period_start: string }
         Returns: {
-          appts_held_per_week: number
-          calls_per_week: number
+          appts_held_per_cycle: number
+          calls_per_cycle: number
           md_deadline: string
           min_calls_per_day: number
-          premium_cents_per_week: number
+          premium_cents_per_cycle: number
         }[]
       }
       team_trend: {
@@ -1507,25 +1528,8 @@ export type Database = {
           week_start: string
         }[]
       }
-      team_week_summary: {
-        Args: { p_week_start: string }
-        Returns: {
-          agent_id: string
-          appts_held: number
-          appts_held_target: number
-          appts_set: number
-          calls_made: number
-          calls_target: number
-          depth: number
-          full_name: string
-          has_override: boolean
-          last_logged_at: string
-          pct_calls: number
-          premium_cents: number
-          premium_cents_target: number
-          streak_days: number
-        }[]
-      }
+      cycle_start: { Args: { d: string }; Returns: string }
+      cycle_end: { Args: { d: string }; Returns: string }
       week_start: { Args: { d: string }; Returns: string }
     }
     Enums: {
@@ -1550,6 +1554,8 @@ export type Database = {
         | "social_media"
         | "friend"
         | "other"
+        | "existing_client"
+        | "existing_recruit"
       feedback_category: "bug" | "feature_request" | "feedback" | "other"
       feedback_status: "new" | "reviewed" | "resolved"
       notification_send_status: "queued" | "sent" | "failed"
@@ -1704,6 +1710,8 @@ export const Constants = {
         "social_media",
         "friend",
         "other",
+        "existing_client",
+        "existing_recruit",
       ],
       feedback_category: ["bug", "feature_request", "feedback", "other"],
       feedback_status: ["new", "reviewed", "resolved"],

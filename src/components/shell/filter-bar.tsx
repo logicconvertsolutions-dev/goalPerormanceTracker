@@ -7,8 +7,8 @@ import { Input } from '@/components/ui/input';
 import type { PeriodPreset } from '@/lib/dates';
 
 const PERIOD_LABELS: Record<PeriodPreset, string> = {
-  this_week: 'This Week',
-  last_week: 'Last Week',
+  current_cycle: 'Current Cycle',
+  previous_cycle: 'Previous Cycle',
   this_month: 'This Month',
   last_30_days: 'Last 30 Days',
   custom: 'Custom',
@@ -55,7 +55,7 @@ export function FilterBar({ preset, customFrom, customTo, chips = [], children }
     router.push(pathname);
   }
 
-  const hasActiveFilters = chips.length > 0 || preset !== 'this_week';
+  const hasActiveFilters = chips.length > 0 || preset !== 'current_cycle';
 
   return (
     <div className="space-y-2">

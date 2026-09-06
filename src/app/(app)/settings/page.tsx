@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
-import { weekStart } from '@/lib/dates';
+import { cycleBounds, todayIso } from '@/lib/dates';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/shell/page-header';
 import { NotificationToggles } from './notification-toggles';
@@ -20,7 +20,11 @@ export default async function SettingsPage() {
   const [{ data: target }, { data: prefs }] = isAdmin
     ? [{ data: null }, { data: null }]
     : await Promise.all([
-        supabase.rpc('my_target', { p_week: weekStart(new Date()) }),
+        supabase.rpc('my_target', {
+          // The agent's own local today -- not the server's UTC "now",
+          // which could be a day ahead/behind near their midnight.
+          p_period_start: cycleBounds(new Date(todayIso(session.agent!.time_zone) + 'T00:00:00Z')).from,
+        }),
         supabase
           .from('notification_prefs')
           .select('*')
@@ -44,19 +48,19 @@ export default async function SettingsPage() {
             {t ? (
               <dl className="grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <dt className="text-fg-3">Calls / week</dt>
-                  <dd className="font-mono tabular-nums text-fg">{t.calls_per_week}</dd>
+                  <dt className="text-fg-3">Calls / cycle</dt>
+                  <dd className="font-mono tabular-nums text-fg">{t.calls_per_cycle}</dd>
                 </div>
                 <div>
-                  <dt className="text-fg-3">Appts held / week</dt>
+                  <dt className="text-fg-3">Appts held / cycle</dt>
                   <dd className="font-mono tabular-nums text-fg">
-                    {t.appts_held_per_week}
+                    {t.appts_held_per_cycle}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-fg-3">Premium / week</dt>
+                  <dt className="text-fg-3">Premium / cycle</dt>
                   <dd className="font-mono tabular-nums text-fg">
-                    ${(t.premium_cents_per_week / 100).toFixed(0)}
+                    ${(t.premium_cents_per_cycle / 100).toFixed(0)}
                   </dd>
                 </div>
                 <div>
