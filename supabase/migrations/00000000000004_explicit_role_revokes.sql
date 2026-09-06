@@ -1,4 +1,4 @@
-﻿-- REVOKE ALL ... FROM PUBLIC does not undo a direct grant made via
+-- REVOKE ALL ... FROM PUBLIC does not undo a direct grant made via
 -- ALTER DEFAULT PRIVILEGES ... TO anon/authenticated (that's a named-role
 -- grant, not inherited via PUBLIC membership). Naming the roles explicitly
 -- here is correct regardless of default-privilege timing or ordering.
