@@ -76,7 +76,7 @@ async function fetchTarget(admin: AdminClient, agentId: string, localDateIso: st
   return data?.[0] ?? null;
 }
 
-/** Evening nudge -- 7pm local, associate hasn't logged anything today yet. */
+/** Evening nudge -- 7pm local, agent (associate or leader) hasn't logged anything today yet. */
 export async function composeEveningNudge(
   admin: AdminClient,
   agent: NotifiableAgent,
@@ -98,7 +98,7 @@ export async function composeEveningNudge(
   };
 }
 
-/** Cycle summary -- 6pm local on the cycle's last day, cycle-in-review for the associate. */
+/** Cycle summary -- 6pm local on the cycle's last day, cycle-in-review for the agent (associate or leader). */
 export async function composeCycleSummary(
   admin: AdminClient,
   agent: NotifiableAgent,

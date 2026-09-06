@@ -84,19 +84,19 @@ describe('kindsInWindow', () => {
 
   it('hands a cycle-start evening to evening_nudge, not monday_digest, once both would otherwise be open', () => {
     // Without the 19:00 cap on monday_digest, this would return both kinds
-    // on a cycle-start day's evening. This pairing can never actually
-    // happen for one person (evening_nudge is associate-only, monday_digest
-    // is leader/admin-only), so the cap is defensive consistency with the
-    // SQL mirror, not a behavior anyone relies on.
+    // on a cycle-start day's evening. A leader can receive both kinds on the
+    // same cycle-start day (P19b), just never from the same instant -- the
+    // cap keeps that true here too, matching the SQL mirror.
     expect(kindsInWindow({ isoDow: 2, dayOfMonth: 1, hour: 19, minute: 0, dateIso: '2026-09-01' })).toEqual(['evening_nudge']);
     expect(kindsInWindow({ isoDow: 2, dayOfMonth: 1, hour: 23, minute: 0, dateIso: '2026-09-01' })).toEqual(['evening_nudge']);
   });
 
   it('deliberately returns both evening_nudge and sunday_summary on a cycle-end evening', () => {
-    // Both are associate-facing, so this is the one real case where the
-    // same person gets two kinds from a single call -- a product decision,
-    // not a bug (see this file's own doc comment). Each kind has its own
-    // notification_log dedup key, so both sends are independently rate-limited.
+    // Both fire for associates and leaders alike (P19b), so this is the one
+    // real case where the same person gets two kinds from a single call --
+    // a product decision, not a bug (see this file's own doc comment). Each
+    // kind has its own notification_log dedup key, so both sends are
+    // independently rate-limited.
     const kinds = kindsInWindow({ isoDow: 4, dayOfMonth: 10, hour: 19, minute: 0, dateIso: '2026-09-10' });
     expect(kinds.sort()).toEqual(['evening_nudge', 'sunday_summary']);
   });

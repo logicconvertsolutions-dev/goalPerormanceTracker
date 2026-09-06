@@ -79,16 +79,18 @@ function isLastDayOfMonth(dateIso: string): boolean {
 
 /**
  * Which notification kinds are in their send window for this agent right
- * now. evening_nudge runs every day (by product decision -- associates who
- * log activity on weekends still get reminded), which means the last
- * evening of a cycle can yield *both* evening_nudge and sunday_summary at
- * once for the same associate -- a deliberate exception, not a bug, since
- * the two serve different purposes (a daily reminder vs. a cycle recap) and
- * each has its own notification_log dedup key. monday_digest still caps out
- * before 19:00 purely for internal consistency (an agent is never both
- * associate and leader/admin, so evening_nudge and monday_digest can never
- * actually collide for one person -- unlike the cycle-end case, where the
- * same associate really can get both).
+ * now. evening_nudge runs every day (by product decision -- agents who log
+ * activity on weekends still get reminded), which means the last evening of
+ * a cycle can yield *both* evening_nudge and sunday_summary at once for the
+ * same agent -- a deliberate exception, not a bug, since the two serve
+ * different purposes (a daily reminder vs. a cycle recap) and each has its
+ * own notification_log dedup key. monday_digest still caps out before 19:00
+ * so it never overlaps evening_nudge's own >=19:00 window on the same
+ * calendar day -- relevant since P19b made leaders eligible for both
+ * (evening_nudge/sunday_summary now fire for associates and leaders alike,
+ * not associates only; monday_digest stays leader/admin only), so a leader
+ * really can receive an evening nudge and a team cycle digest on the same
+ * cycle-start day, just never at the same moment.
  *
  * sunday_summary/monday_digest keep their original names (P18) even though
  * they no longer fire on Sunday/Monday specifically -- see

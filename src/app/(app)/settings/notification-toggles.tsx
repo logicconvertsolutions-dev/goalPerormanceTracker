@@ -30,16 +30,20 @@ const ROWS: { key: keyof Prefs; label: string; description: string }[] = [
   },
 ];
 
-// evening_nudge and sunday_summary only ever fire for associates;
-// monday_digest only ever fires for leaders/admins (private.
-// enqueue_due_notifications() enforces this in SQL regardless of what a
-// toggle here is set to) -- showing all three to everyone made it look like
-// an associate could opt into "Team cycle digest" when it could never
-// actually reach them. Filtering by role here is purely a display fix; the
-// backend was already correct.
+// evening_nudge and sunday_summary fire for anyone who logs their own
+// activity -- associates and leaders alike (P19b: a leader has their own
+// Dashboard/Goals/streak same as an associate, so there was no reason to
+// withhold their personal nudge/summary). monday_digest still only ever
+// fires for leaders/admins. admin gets none of the three -- an admin has no
+// org (P11c), never logs activity, and has no target, so none of these
+// would have anything to report. private.enqueue_due_notifications()
+// enforces all of this in SQL regardless of what a toggle here is set to;
+// showing a toggle no role could ever receive made it look like an opt-in
+// that could never actually reach anyone. Filtering by role here is a
+// display fix; the backend is the source of truth.
 const ROWS_BY_ROLE: Record<'associate' | 'leader' | 'admin', (keyof Prefs)[]> = {
   associate: ['eveningNudge', 'sundaySummary'],
-  leader: ['mondayDigest'],
+  leader: ['eveningNudge', 'sundaySummary', 'mondayDigest'],
   admin: [],
 };
 
