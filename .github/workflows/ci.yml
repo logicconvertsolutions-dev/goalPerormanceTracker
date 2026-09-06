@@ -73,7 +73,6 @@ jobs:
 
       - name: Run tests
         run: npm test -- --run
-        continue-on-error: true
 
       # 05-testing.md CI gate order: "typecheck -> lint -> vitest -> supabase
       # db lint -> pgTAP -> build -> playwright. Any red blocks merge." Runs
