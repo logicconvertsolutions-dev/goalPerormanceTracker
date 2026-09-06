@@ -33,7 +33,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 create schema if not exists tests;
 
-select plan(92);
+select plan(93);
 
 -- ---------------------------------------------------------------------
 -- Seed
