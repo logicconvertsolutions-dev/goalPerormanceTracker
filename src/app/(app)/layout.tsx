@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { Target } from 'lucide-react';
 import { requireAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { RailNav } from '@/components/shell/rail-nav';
@@ -54,21 +53,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               href={role === 'admin' ? '/admin/agents' : '/today'}
               className="flex min-w-0 items-center gap-2.5 text-fg-2 transition-smooth hover:text-fg"
             >
-              {/* Small Kautis mark -- represents the platform without
-                  competing with the org's own identity, which stays primary
-                  (logo/name below, unchanged from before). Hidden once the
-                  org has its own uploaded logo so we don't show two marks. */}
-              {!logoUrl && <KautisMark size={22} className="shrink-0" />}
-              {!logoUrl && role !== 'admin' && (
-                <span className="h-6 w-px shrink-0 bg-line" aria-hidden="true" />
-              )}
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={logoUrl} alt="" className="h-14 w-14 shrink-0 rounded-sm object-contain" />
               ) : role !== 'admin' ? (
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-sm bg-acc text-gold">
-                  <Target className="h-5 w-5" aria-hidden="true" />
-                </span>
+                // No org logo uploaded yet -- show the Kautis mark in the
+                // same slot/size the org's own logo would occupy.
+                <KautisMark size={56} className="h-14 w-14 shrink-0" />
               ) : null}
               <span className="truncate text-lg font-semibold tracking-tight text-gold-dark">
                 {org?.name ?? 'Kautis'}
