@@ -2,6 +2,75 @@
 
 Design debt and deferred work surfaced by review. Newest first.
 
+## 2026-09-06 — RESOLVED: full audit of every save path for the "duplicate key" bug class, two real bugs found and fixed
+
+**Trigger:** after the targets_audit trigger fix below, saving a Goal
+started failing with `duplicate key value violates unique constraint
+"targets_org_default_uq"`. Root cause: `setTargetAction` has always done a
+plain `.insert()` into `public.targets` (unchanged since P5's original
+implementation), and `effective_from` is always "the start of the next
+period" — saving a goal twice before that boundary is reached recomputes
+the *same* `effective_from` and collides with `targets_org_default_uq`/
+`targets_agent_uq`. **Not a regression from the cycle-cadence work** —
+`nextMonday()` had the identical collision any time an SMD adjusted a
+pending goal twice in one week; it just hadn't been hit until now.
+
+**Fix:** added `public.set_target()` (`20260906140000_p19d_set_target_upsert.sql`),
+an atomic `INSERT ... ON CONFLICT ... WHERE ... DO UPDATE` RPC — a plain
+`.upsert()` can't target these indexes since they're partial (`where
+agent_id is [not] null`), which `on_conflict=columns` has no way to
+express. A row whose `effective_from` hasn't been reached yet has never
+scored anything (CLAUDE.md rule 8 protects past rows, not future ones), so
+correcting a still-pending goal in place is correct, not a rule violation.
+`setTargetAction` now calls this RPC instead of inserting directly.
+Verified live: two saves in a row now update the same pending row (1 row,
+latest value wins) for both the org default and a per-agent override, and
+a non-leader/out-of-downline caller is still rejected.
+
+**Given the user then asked for "a thorough review on all savings,"** I
+audited every Server Action `.insert()`/`.upsert()` call in the app
+against every unique constraint in the schema, looking specifically for
+this same class of bug: a legitimate double-submit hitting an unhandled
+unique-violation. Found one more:
+
+`findOrCreateContact()` (`src/lib/contacts.ts`) does a plain
+SELECT-then-INSERT with no locking between them. Two requests for the same
+brand-new contact name (a double-click, a retry) can both pass the "no
+existing row" lookup, then both insert — the loser hits
+`contacts_agent_name_uq (agent_id, lower(full_name))` and the whole save
+was lost, even though the contact now legitimately exists via the other
+request. Shared by every activity-logging action (log/sales/appointments/
+recruiting) and the manual "Add contact" action. Fixed by catching `23505`
+and re-running the same by-name lookup to return the winning row, instead
+of failing — the same spirit as this codebase's existing
+`client_request_id`/`import_row_hash` unique-violation handling. Its bulk
+sibling, `resolveContactsBulk()` in `src/lib/import/commit-import.ts`, had
+the identical gap (no `23505` handling at all, unlike `commitActivityRows`
+a few lines above it in the same file, which already falls back to
+per-row inserts on conflict) — fixed with the same per-row
+fallback-and-relookup pattern.
+
+**Everything else audited came back clean:** `call_logs`/`appointments`/
+`sales`/`recruiting_logs` inserts already correctly absorb a
+`client_request_id`/`import_row_hash` unique-violation as "already saved."
+`notification_prefs` and `announcement_dismissals` already use `.upsert()`
+correctly (primary-key/explicit-`onConflict` arbiters, not partial
+indexes). Every table without a unique constraint (`feedback`,
+`team_roster`, `agent_email_changes`, `mfa_recovery_codes`, `audit_log`) has
+nothing to collide with. `invitations`/`admin/orgs`/`admin/announcements`/
+`admin/feedback` do all their writes through RPCs, not raw
+`.insert()`/`.upsert()`, so any unique-constraint handling there
+(`invitations.token_hash`) lives inside that SQL — not audited in this
+pass since it wasn't the reported symptom, worth a follow-up if a similar
+report ever comes in from that surface.
+
+**Verified:** `tsc --noEmit` clean, full `vitest run` green (60 tests, no
+regressions in existing `commit-import.test.ts` coverage — the fixes only
+add new error branches), both DB-level fixes exercised directly against
+the live Supabase project (repeated `set_target` calls confirmed to update
+in place; the `contacts_agent_name_uq` collision confirmed to raise
+exactly the error code the new catch branch checks for).
+
 ## 2026-09-06 — RESOLVED: targets_audit trigger still referenced calls_per_week, breaking every Goals save
 
 **What:** Right after the three bugs below were fixed, saving a Goal (org
