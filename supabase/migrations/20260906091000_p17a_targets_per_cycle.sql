@@ -15,9 +15,12 @@ alter table public.targets rename column premium_cents_per_week to premium_cents
 -- date," agent override first, then org default, then hardcoded fallback.
 -- Only the column names it selects change, and the misleading `p_week` name
 -- (it was already just "a date," never anything week-specific) becomes
--- `p_period_start` now that callers pass a cycle-start date. Parameter
--- renames don't change the function's (uuid, date) signature, so this is a
--- plain create-or-replace, no drop needed.
+-- `p_period_start` now that callers pass a cycle-start date. The (uuid,
+-- date) argument signature is unchanged, but renaming the RETURNS TABLE
+-- output columns still changes the function's row type, so Postgres
+-- requires a drop before recreate here (and for its three thin wrappers
+-- below) -- create-or-replace alone raises 42P13.
+drop function if exists private.effective_target(uuid, date);
 create or replace function private.effective_target(p_agent_id uuid, p_period_start date)
 returns table (
   calls_per_cycle int, appts_held_per_cycle int,
@@ -42,6 +45,7 @@ returns table (
     coalesce((select a.md_deadline from a),            (select o.md_deadline from o),            null);
 $$;
 
+drop function if exists public.my_target(date);
 create or replace function public.my_target(p_period_start date)
 returns table (
   calls_per_cycle int, appts_held_per_cycle int,
@@ -52,6 +56,7 @@ $$;
 revoke all on function public.my_target(date) from public, anon;
 grant execute on function public.my_target(date) to authenticated;
 
+drop function if exists public.team_target(uuid, date);
 create or replace function public.team_target(p_agent_id uuid, p_period_start date)
 returns table (
   calls_per_cycle int, appts_held_per_cycle int,
@@ -63,6 +68,7 @@ $$;
 revoke all on function public.team_target(uuid, date) from public, anon;
 grant execute on function public.team_target(uuid, date) to authenticated;
 
+drop function if exists public.system_effective_target(uuid, date);
 create or replace function public.system_effective_target(p_agent_id uuid, p_period_start date)
 returns table (
   calls_per_cycle int, appts_held_per_cycle int,
