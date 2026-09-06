@@ -52,10 +52,31 @@ export default async function TeamPage({
     ]);
 
   const allAgents = (roster ?? []) as RosterRowData[];
+
+  const teamNav = (
+    <div className="flex flex-wrap items-center justify-between gap-y-2">
+      <h1 className="text-[28px] font-bold leading-[34px] tracking-heading-tight text-fg">My Team</h1>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="secondary" size="sm" asChild>
+          <Link href="/team/organization">Organization</Link>
+        </Button>
+        <Button variant="secondary" size="sm" asChild>
+          <Link href="/team/targets">Goals</Link>
+        </Button>
+        <Button variant="secondary" size="sm" asChild>
+          <Link href="/team/invites">Invites</Link>
+        </Button>
+        <Button variant="secondary" size="sm" asChild>
+          <Link href="/team/members">Members</Link>
+        </Button>
+      </div>
+    </div>
+  );
+
   if (allAgents.length === 0) {
     return (
       <div className="space-y-4">
-        <h1 className="text-[28px] font-bold leading-[34px] tracking-heading-tight text-fg">My Team</h1>
+        {teamNav}
         <Card>
           <CardContent className="pt-4">
             <p className="text-sm text-fg-2">
@@ -119,23 +140,7 @@ export default async function TeamPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-y-2">
-        <h1 className="text-[28px] font-bold leading-[34px] tracking-heading-tight text-fg">My Team</h1>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" size="sm" asChild>
-            <Link href="/team/organization">Organization</Link>
-          </Button>
-          <Button variant="secondary" size="sm" asChild>
-            <Link href="/team/targets">Goals</Link>
-          </Button>
-          <Button variant="secondary" size="sm" asChild>
-            <Link href="/team/invites">Invites</Link>
-          </Button>
-          <Button variant="secondary" size="sm" asChild>
-            <Link href="/team/members">Members</Link>
-          </Button>
-        </div>
-      </div>
+      {teamNav}
 
       <FilterBar preset={preset} customFrom={params.from} customTo={params.to} chips={chips}>
         <AgentMultiSelect agents={allAgents.map((a) => ({ id: a.agent_id, full_name: a.full_name }))} />
