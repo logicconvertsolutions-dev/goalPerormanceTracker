@@ -9,16 +9,12 @@ import { AgentMultiSelect } from '@/components/shell/agent-multi-select';
 import { DonutChart } from '@/components/charts/donut-chart';
 import { HorizontalBarChart } from '@/components/charts/horizontal-bar-chart';
 import { TrendChart, type TrendWeek } from '@/components/charts/trend-chart';
-import { resolvePeriod, todayIso, addDays, weeksInRange, type PeriodPreset, PERIOD_PRESETS } from '@/lib/dates';
+import { resolvePeriod, todayIso, addDays, cyclesInRange, isPeriodPreset, type PeriodPreset } from '@/lib/dates';
 import { DailyBreakdownTable } from '@/components/shell/daily-breakdown-table';
 import { RosterRow, type RosterRowData } from './roster-row';
 import { DailyGrid, type DailyGridColumn } from './daily-grid';
 import { NudgeButton } from './nudge-button';
 import { AutoNudgeToggle } from './auto-nudge-toggle';
-
-function isPeriodPreset(v: string | undefined): v is PeriodPreset {
-  return !!v && (PERIOD_PRESETS as readonly string[]).includes(v);
-}
 
 type View = 'summary' | 'daily' | 'activity';
 
@@ -32,7 +28,7 @@ export default async function TeamPage({
   const supabase = await createClient();
 
   const today = todayIso(session.agent!.time_zone);
-  const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'this_week';
+  const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'current_cycle';
   const { from, to } = resolvePeriod(preset, today, params.from, params.to);
   const view: View =
     params.view === 'daily' ? 'daily' : params.view === 'activity' ? 'activity' : 'summary';
@@ -85,10 +81,10 @@ export default async function TeamPage({
   const totalPremium = visibleAgents.reduce((acc, a) => acc + a.premium_cents, 0);
   const totalPremiumTarget = visibleAgents.reduce((acc, a) => acc + Number(a.premium_cents_target), 0);
   const onTarget = visibleAgents.filter((a) => (a.pct_calls ?? 0) >= 100).length;
-  // Targets are only ever set per week (CLAUDE.md rule 8) -- team_period_summary
-  // already scales each agent's target by the weeks in [from, to], so the "~"
-  // here just marks that scaling for any period longer than one week.
-  const targetPrefix = weeksInRange(from, to) !== 1 ? '~' : '';
+  // Targets are only ever set per cycle (CLAUDE.md rule 8) -- team_period_summary
+  // already scales each agent's target by the cycles in [from, to], so the "~"
+  // here just marks that scaling for any period longer than one cycle.
+  const targetPrefix = cyclesInRange(from, to) !== 1 ? '~' : '';
   const visibleIdSet = new Set(visibleAgents.map((a) => a.agent_id));
   const quietRows = (quiet ?? []).filter((q) => visibleIdSet.has(q.agent_id));
   const quietIds = quietRows.map((q) => q.agent_id);

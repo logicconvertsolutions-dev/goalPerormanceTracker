@@ -3,26 +3,26 @@
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { nextMonday, todayIso } from '@/lib/dates';
+import { nextCycleStart, todayIso } from '@/lib/dates';
 
 const schema = z.object({
   agentId: z.string().uuid().nullable(),
-  callsPerWeek: z.coerce.number().int().positive(),
-  apptsHeldPerWeek: z.coerce.number().int().positive(),
-  premiumDollarsPerWeek: z.coerce.number().nonnegative(),
+  callsPerCycle: z.coerce.number().int().positive(),
+  apptsHeldPerCycle: z.coerce.number().int().positive(),
+  premiumDollarsPerCycle: z.coerce.number().nonnegative(),
   minCallsPerDay: z.coerce.number().int().positive(),
 });
 
 // Insert-only — never mutate a past target row (CLAUDE.md rule 8). Always
-// takes effect the coming Monday; targets_insert RLS (leader/admin,
-// is_upline_of, own org) does the authorization, and the targets_audit_insert
-// trigger (p5a migration) logs it.
+// takes effect the start of the next 10-day cycle; targets_insert RLS
+// (leader/admin, is_upline_of, own org) does the authorization, and the
+// targets_audit_insert trigger (p5a migration) logs it.
 export async function setTargetAction(formData: FormData) {
   const raw = {
     agentId: formData.get('agentId') || null,
-    callsPerWeek: formData.get('callsPerWeek'),
-    apptsHeldPerWeek: formData.get('apptsHeldPerWeek'),
-    premiumDollarsPerWeek: formData.get('premiumDollarsPerWeek'),
+    callsPerCycle: formData.get('callsPerCycle'),
+    apptsHeldPerCycle: formData.get('apptsHeldPerCycle'),
+    premiumDollarsPerCycle: formData.get('premiumDollarsPerCycle'),
     minCallsPerDay: formData.get('minCallsPerDay'),
   };
   const parsed = schema.safeParse(raw);
@@ -38,12 +38,13 @@ export async function setTargetAction(formData: FormData) {
     org_id: agent.org_id!,
     agent_id: parsed.data.agentId,
     set_by: me.user!.id,
-    // "Next Monday" from the leader's own local today -- not the server's
-    // UTC one, which could be a day ahead/behind near their midnight.
-    effective_from: nextMonday(todayIso(agent.time_zone)),
-    calls_per_week: parsed.data.callsPerWeek,
-    appts_held_per_week: parsed.data.apptsHeldPerWeek,
-    premium_cents_per_week: Math.round(parsed.data.premiumDollarsPerWeek * 100),
+    // Start of the next 10-day cycle from the leader's own local today --
+    // not the server's UTC one, which could be a day ahead/behind near
+    // their midnight.
+    effective_from: nextCycleStart(todayIso(agent.time_zone)),
+    calls_per_cycle: parsed.data.callsPerCycle,
+    appts_held_per_cycle: parsed.data.apptsHeldPerCycle,
+    premium_cents_per_cycle: Math.round(parsed.data.premiumDollarsPerCycle * 100),
     min_calls_per_day: parsed.data.minCallsPerDay,
   });
 

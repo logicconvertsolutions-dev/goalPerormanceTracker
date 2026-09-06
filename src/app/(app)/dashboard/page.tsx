@@ -9,19 +9,16 @@ import { DailyBreakdownTable } from '@/components/shell/daily-breakdown-table';
 import type { DailyMetricsRow } from '@/lib/metrics';
 import {
   addDays,
+  cycleBounds,
+  cyclesInRange,
+  isPeriodPreset,
   resolvePeriod,
   todayIso,
   weekStart,
-  weeksInRange,
   type PeriodPreset,
-  PERIOD_PRESETS,
 } from '@/lib/dates';
 import { buildDashboardViewModel } from './dashboard-view-model';
 import { DashboardView } from './dashboard-view';
-
-function isPeriodPreset(v: string | undefined): v is PeriodPreset {
-  return !!v && (PERIOD_PRESETS as readonly string[]).includes(v);
-}
 
 export default async function DashboardPage({
   searchParams,
@@ -34,9 +31,9 @@ export default async function DashboardPage({
   const supabase = await createClient();
 
   const today = todayIso(session.agent!.time_zone);
-  const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'this_week';
+  const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'current_cycle';
   const { from, to } = resolvePeriod(preset, today, params.from, params.to);
-  const targetWeek = weekStart(new Date(from + 'T00:00:00Z'));
+  const targetCycleStart = cycleBounds(new Date(from + 'T00:00:00Z')).from;
   const view: 'overview' | 'activity' = params.view === 'activity' ? 'activity' : 'overview';
 
   const [
@@ -48,7 +45,7 @@ export default async function DashboardPage({
     { data: dailyBreakdown },
   ] = await Promise.all([
     supabase.rpc('agent_aggregate', { p_agent_id: agentId, p_from: from, p_to: to }),
-    supabase.rpc('my_target', { p_week: targetWeek }),
+    supabase.rpc('my_target', { p_period_start: targetCycleStart }),
     supabase
       .from('daily_metrics')
       .select('*')
@@ -83,7 +80,7 @@ export default async function DashboardPage({
     openAppointments: openAppts ?? [],
     streakRows,
     today,
-    periodWeeks: weeksInRange(from, to),
+    periodCycles: cyclesInRange(from, to),
   });
 
   return (

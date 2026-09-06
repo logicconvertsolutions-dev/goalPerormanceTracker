@@ -7,16 +7,12 @@ import { PageHeader } from '@/components/shell/page-header';
 import { LogActivityButton } from '@/components/shell/log-activity-button';
 import { FilterBar, type FilterChip } from '@/components/shell/filter-bar';
 import { ACTIVITY_META, type ActivityKind } from '@/components/shell/activity-icons';
-import { resolvePeriod, todayIso, type PeriodPreset, PERIOD_PRESETS } from '@/lib/dates';
+import { isPeriodPreset, resolvePeriod, todayIso, type PeriodPreset } from '@/lib/dates';
 import { CallRow } from '../log/call-row';
 import { AppointmentRow } from '../appointments/appointment-row';
 import { SaleRow } from '../sales/sale-row';
 import { RecruitingRow } from '../recruiting/recruiting-row';
 import { CallsSourceFilter } from './calls-source-filter';
-
-function isPeriodPreset(v: string | undefined): v is PeriodPreset {
-  return !!v && (PERIOD_PRESETS as readonly string[]).includes(v);
-}
 
 const TABS: ActivityKind[] = ['call', 'appointment', 'sale', 'recruiting'];
 
@@ -59,7 +55,7 @@ export default async function LogsPage({
   const supabase = await createClient();
 
   const today = todayIso(session.agent!.time_zone);
-  const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'this_week';
+  const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'current_cycle';
   const { from, to } = resolvePeriod(preset, today, params.from, params.to);
   const type: ActivityKind = (['call', 'appointment', 'sale', 'recruiting'] as const).includes(
     params.type as ActivityKind

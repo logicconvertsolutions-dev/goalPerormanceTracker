@@ -70,8 +70,9 @@ For each of `call_logs`, `appointments`, `sales`, `recruiting_logs`:
 Hierarchy and RPC tests:
 - `is_upline_of`: smd_x→assoc_1 true; smd_x→assoc_3 **false**; assoc_1→assoc_2
   false; self true
-- `team_week_summary` as smd_x returns exactly {smd_x, assoc_1, assoc_1a, assoc_2}
-- `team_week_summary` as assoc_1 returns {assoc_1, assoc_1a}
+- `team_period_summary` as smd_x returns exactly {smd_x, assoc_1, assoc_1a, assoc_2}
+  (P17b retired `team_week_summary` in favor of this period-general RPC)
+- `team_period_summary` as assoc_1 returns {assoc_1, assoc_1a}
 - `agent_daily_activity(assoc_3, ...)` called by smd_x returns **0 rows**
 - `team_day_summary` never returns an agent from another org
 - Cross-org write: setting `assoc_3.upline_id = smd_x` is **rejected** by the
@@ -87,9 +88,10 @@ Hierarchy and RPC tests:
 - Targets: smd_x can write an org default and an override for assoc_1;
   assoc_1 **cannot** write any target; assoc_1 can read the default and their
   own override but not assoc_2's; smd_y cannot write into org_x; changing a
-  target does not change a prior week's scored percentage
+  target does not change a prior cycle's scored percentage (P17: cycles,
+  not weeks)
 - `private.effective_target`: override beats org default beats fallback; the
-  correct historical row is chosen for a past week
+  correct historical row is chosen across a 10-day cycle boundary
 - `audit_log`: an authenticated user cannot insert, update, or delete
 - **Privilege escalation**: assoc_1 attempting `update agents set role='admin'
   where id = self` is **rejected**; same for `upline_id`, `org_id`, `status`.

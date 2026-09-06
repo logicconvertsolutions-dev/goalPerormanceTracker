@@ -36,6 +36,8 @@ export function resolveTimeZone(timeZone: string | null | undefined): string {
 export interface LocalParts {
   /** ISO day of week: 1 = Monday .. 7 = Sunday, matching week_start()'s convention. */
   isoDow: number;
+  /** Day of the month (1-31), matching cycle_start()/cycle_end()'s convention. */
+  dayOfMonth: number;
   hour: number;
   minute: number;
   /** YYYY-MM-DD in the target zone -- the notification_log rate-limit key. */
@@ -60,34 +62,50 @@ export function localParts(timeZone: string, at: Date): LocalParts {
   const hour = Number(get('hour')) % 24;
   return {
     isoDow: ISO_DOW[get('weekday')] ?? 1,
+    dayOfMonth: Number(get('day')),
     hour,
     minute: Number(get('minute')),
     dateIso: `${get('year')}-${get('month')}-${get('day')}`,
   };
 }
 
+/** True when `dateIso` (YYYY-MM-DD) is the last calendar day of its month --
+ * the variable-length end of a 10-day cycle's third chunk (8-11 days). */
+function isLastDayOfMonth(dateIso: string): boolean {
+  const [y, m] = dateIso.split('-').map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return Number(dateIso.slice(-2)) === lastDay;
+}
+
 /**
  * Which notification kinds are in their send window for this agent right
- * now. evening_nudge runs every day of the week (by product decision --
- * associates who log activity on weekends still get reminded), which means
- * Sunday from 19:00 can yield *both* evening_nudge and sunday_summary at
+ * now. evening_nudge runs every day (by product decision -- associates who
+ * log activity on weekends still get reminded), which means the last
+ * evening of a cycle can yield *both* evening_nudge and sunday_summary at
  * once for the same associate -- a deliberate exception, not a bug, since
- * the two serve different purposes (a daily reminder vs. a weekly recap)
- * and each has its own notification_log dedup key. Monday still caps
- * monday_digest to end before 19:00 purely for internal consistency (an
- * agent is never both associate and leader/admin, so evening_nudge and
- * monday_digest can never actually collide for one person -- unlike the
- * Sunday case, where the same associate really can get both).
+ * the two serve different purposes (a daily reminder vs. a cycle recap) and
+ * each has its own notification_log dedup key. monday_digest still caps out
+ * before 19:00 purely for internal consistency (an agent is never both
+ * associate and leader/admin, so evening_nudge and monday_digest can never
+ * actually collide for one person -- unlike the cycle-end case, where the
+ * same associate really can get both).
+ *
+ * sunday_summary/monday_digest keep their original names (P18) even though
+ * they no longer fire on Sunday/Monday specifically -- see
+ * private.enqueue_due_notifications()'s own doc comment for why the
+ * internal identifiers weren't renamed along with the cadence.
  */
 export function kindsInWindow(parts: LocalParts): NotificationKind[] {
   const kinds: NotificationKind[] = [];
   if (parts.hour >= 19) {
     kinds.push('evening_nudge');
   }
-  if (parts.isoDow === 7 && parts.hour >= 18) {
+  const isCycleEndDay = parts.dayOfMonth === 10 || parts.dayOfMonth === 20 || isLastDayOfMonth(parts.dateIso);
+  if (isCycleEndDay && parts.hour >= 18) {
     kinds.push('sunday_summary');
   }
-  if (parts.isoDow === 1 && parts.hour >= 8 && parts.hour < 19) {
+  const isCycleStartDay = parts.dayOfMonth === 1 || parts.dayOfMonth === 11 || parts.dayOfMonth === 21;
+  if (isCycleStartDay && parts.hour >= 8 && parts.hour < 19) {
     kinds.push('monday_digest');
   }
   return kinds;

@@ -281,9 +281,13 @@ create table public.targets (
   -- row created during provision_org(), which precedes any agent existing.
   set_by            uuid references public.agents(id),
   effective_from    date not null,
-  calls_per_week    int not null default 50,
-  appts_held_per_week int not null default 3,
-  premium_cents_per_week bigint not null default 18800,  -- workbook's $188/wk
+  -- P17: renamed from *_per_week -- Goals moved from a calendar week to a
+  -- 10-day cycle (day 1-10/11-20/21-end-of-month). Column values are
+  -- unchanged for existing rows (never mutate a past target row); only
+  -- targets inserted after P17 are actually sized for 10 days.
+  calls_per_cycle    int not null default 50,
+  appts_held_per_cycle int not null default 3,
+  premium_cents_per_cycle bigint not null default 18800,  -- workbook's $188/wk, pre-P17
   min_calls_per_day int not null default 15,
   md_deadline       date,
   created_at        timestamptz not null default now()
@@ -292,7 +296,8 @@ create unique index targets_org_default_uq on public.targets (org_id, effective_
   where agent_id is null;
 create unique index targets_agent_uq on public.targets (org_id, agent_id, effective_from)
   where agent_id is not null;
--- Resolution unchanged: private.effective_target(agent_id, week_start).
+-- Resolution unchanged: private.effective_target(agent_id, p_period_start) --
+-- p_period_start is a cycle-start date since P17 (was a week-start date).
 
 create table public.daily_metrics (
   agent_id      uuid not null references public.agents(id) on delete cascade,
@@ -469,9 +474,10 @@ $$;
 Plus, added since P1: `private.effective_target()` (target resolution, as
 originally specced), `private.mark_dirty()` / `private.recompute_day()` (the
 metrics pipeline internals), `private.purge_old_call_logs()` (P6 retention),
-and `private.team_week_summary_for()` (P5.5, the cron-callable variant of
-`team_week_summary` parameterized by an explicit leader id since the cron job
-has no `auth.uid()` session).
+and `private.team_period_summary_for()` (P5.5, cron-callable, parameterized
+by an explicit leader id since the cron job has no `auth.uid()` session;
+P17b renamed/generalized it from `private.team_week_summary_for()` alongside
+`team_week_summary` → `team_period_summary`'s own retirement/replacement).
 
 `private` schema must **not** be listed in Supabase API "Exposed schemas".
 
@@ -593,26 +599,43 @@ All are `security definer`, `stable`, `set search_path = ''`, granted only to
 the roles that call them, and every one begins by filtering to
 `private.my_downline()` and/or `is_upline_of()`.
 
-**Unchanged from the original four:** `team_week_summary`,
-`agent_daily_activity`, `team_day_summary`, `agent_aggregate`, `team_trend`,
-`team_inactive` — signatures match the original design, with `team_trend`
-gaining an optional `p_agent_ids uuid[]` filter (P5e) so the "filtered to one
-agent" view and multi-select both reuse the same RPC.
+**Unchanged from the original four:** `agent_daily_activity`,
+`team_day_summary`, `agent_aggregate`, `team_trend`, `team_inactive` —
+signatures match the original design, with `team_trend` gaining an optional
+`p_agent_ids uuid[]` filter (P5e) so the "filtered to one agent" view and
+multi-select both reuse the same RPC. `team_trend` stays an 8-*week* chart
+by product decision even after P17 moved Goals to a 10-day cycle — its
+`calls_target` column converts the per-cycle target back to a
+weekly-equivalent number for that one display (see `agent_daily_activity`
+below for the one thing about it P17 did change).
+
+**Retired (P17b):** `team_week_summary(p_week_start date)` and its
+cron-facing twin `system_team_week_summary`/`private.team_week_summary_for`
+— a hardcoded `[p_week_start, p_week_start+7)` window can't express a
+10-day cycle's variable-length third chunk. Both callers (`/team/targets`,
+the cycle-digest email) moved to the period-general RPCs below.
 
 **Added since P1:**
-- `team_period_summary(p_from date, p_to date)` (P7c) — generalizes
-  `team_week_summary` to an arbitrary range, scaling per-agent weekly targets
-  proportionally so non-week filters ("This Month", "Last 30 Days") compare
-  against a fair target instead of one week's number.
+- `team_period_summary(p_from date, p_to date)` (P7c, originally generalized
+  `team_week_summary` to arbitrary ranges; now the *only* roster-summary RPC
+  since P17b) — scales each agent's per-cycle target proportionally by the
+  cycles spanned so any period ("This Month", "Last 30 Days", "Current
+  Cycle") compares against a fair target instead of one cycle's number.
+  `system_team_period_summary(p_leader_id uuid, p_from date, p_to date)` /
+  `private.team_period_summary_for()` (P17b) is its service-role-gated,
+  explicit-leader-id twin for the cron digest.
 - `team_breakdown(p_from date, p_to date, p_agent_ids uuid[])` (P5a, agent
   filter added P5d) — team-wide donut/bar breakdown, same shape as
   `agent_aggregate`'s breakdown columns.
 - `agent_daily_breakdown(p_from date, p_to date, p_agent_ids uuid[])` (P7e)
   — powers the "Daily" activity table, zero-filled per day via
   `generate_series`.
-- `team_target(p_agent_id uuid, p_week date)` / `my_target(p_week date)`
-  (P5a / P2a) — `effective_target` wrappers for the SMD drill-down and an
-  agent's own settings card, respectively.
+- `team_target(p_agent_id uuid, p_period_start date)` /
+  `my_target(p_period_start date)` (P5a / P2a; `p_week` renamed
+  `p_period_start` by P17a) — `effective_target` wrappers for the SMD
+  drill-down and an agent's own settings card, respectively. `agent_daily_
+  activity`'s own per-day target lookup switched from `public.week_start(d)`
+  to `public.cycle_start(d)` in the same P17b pass.
 - `my_followups(p_as_of date)` (P1i, bug fixed P2c, `company` column dropped
   P7f) — the agent's own `/today` queue.
 - `admin_daily_active_loggers(p_days int)` (P7a) — the pilot instrument

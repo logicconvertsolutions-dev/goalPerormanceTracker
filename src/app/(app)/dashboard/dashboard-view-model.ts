@@ -40,9 +40,9 @@ export interface AgentAggregateTotals {
 }
 
 export interface EffectiveTarget {
-  calls_per_week: number;
-  appts_held_per_week: number;
-  premium_cents_per_week: number;
+  calls_per_cycle: number;
+  appts_held_per_cycle: number;
+  premium_cents_per_cycle: number;
   min_calls_per_day: number;
 }
 
@@ -74,23 +74,23 @@ export function buildDashboardViewModel(input: {
   openAppointments: { status: string; expected_premium_cents: number }[];
   streakRows: Map<string, DailyMetricsRow>;
   today: string;
-  /** Weeks spanned by the selected period (lib/dates.ts weeksInRange). The
-   * weekly target is scaled by this so "This Month" compares the month's
-   * totals against a monthly-equivalent target instead of one week's. */
-  periodWeeks?: number;
+  /** Cycles spanned by the selected period (lib/dates.ts cyclesInRange). The
+   * per-cycle target is scaled by this so "This Month" compares the month's
+   * totals against a monthly-equivalent target instead of one cycle's. */
+  periodCycles?: number;
 }): DashboardViewModel {
-  const { totals: t2, target, trendRows, openAppointments, streakRows, today, periodWeeks = 1 } = input;
-  // Targets are only ever set per week -- scale here for any longer period,
+  const { totals: t2, target, trendRows, openAppointments, streakRows, today, periodCycles = 1 } = input;
+  // Targets are only ever set per cycle -- scale here for any longer period,
   // and mark the scaled value with "~" so it reads as derived, not SMD-set.
-  const scaled = target && periodWeeks !== 1
+  const scaled = target && periodCycles !== 1
     ? {
         ...target,
-        calls_per_week: Math.round(target.calls_per_week * periodWeeks),
-        appts_held_per_week: Math.round(target.appts_held_per_week * periodWeeks),
-        premium_cents_per_week: Math.round(Number(target.premium_cents_per_week) * periodWeeks),
+        calls_per_cycle: Math.round(target.calls_per_cycle * periodCycles),
+        appts_held_per_cycle: Math.round(target.appts_held_per_cycle * periodCycles),
+        premium_cents_per_cycle: Math.round(Number(target.premium_cents_per_cycle) * periodCycles),
       }
     : target;
-  const targetPrefix = periodWeeks !== 1 ? '~' : '';
+  const targetPrefix = periodCycles !== 1 ? '~' : '';
 
   const funnel = conversionFunnel(
     t2
@@ -116,15 +116,22 @@ export function buildDashboardViewModel(input: {
   const pipelineValueCents = pipelineValueOpenAppts(openAppointments);
   const streak = currentStreak(streakRows, target?.min_calls_per_day ?? 15, today);
 
-  const callsTargetPct = scaled?.calls_per_week ? Math.round((100 * (t2?.calls_made ?? 0)) / scaled.calls_per_week) : 0;
-  const apptsTargetPct = scaled?.appts_held_per_week
-    ? Math.round((100 * (t2?.appt_held ?? 0)) / scaled.appts_held_per_week)
+  const callsTargetPct = scaled?.calls_per_cycle ? Math.round((100 * (t2?.calls_made ?? 0)) / scaled.calls_per_cycle) : 0;
+  const apptsTargetPct = scaled?.appts_held_per_cycle
+    ? Math.round((100 * (t2?.appt_held ?? 0)) / scaled.appts_held_per_cycle)
     : 0;
-  const premiumTargetPct = scaled?.premium_cents_per_week
-    ? Math.round((100 * Number(t2?.premium_cents ?? 0)) / Number(scaled.premium_cents_per_week))
+  const premiumTargetPct = scaled?.premium_cents_per_cycle
+    ? Math.round((100 * Number(t2?.premium_cents ?? 0)) / Number(scaled.premium_cents_per_cycle))
     : 0;
 
   const trendWeeks: TrendWeek[] = [];
+  // Stays weekly-bucketed by design (8-Week Trend is a separate, longer-range
+  // historical chart, out of scope for the 10-day cycle change) -- but the
+  // target is now cycle-sized, not week-sized, so its reference line here
+  // needs converting back to a weekly-equivalent number or it would overstate
+  // a week's goal by the cycle/week length ratio (10 days worth of calls
+  // plotted as if it were one week's target).
+  const weeklyEquivalentCallsTarget = Math.round(((target?.calls_per_cycle ?? 0) * 7) / 10);
   for (let i = 7; i >= 0; i--) {
     const ws = addDays(weekStart(new Date(today + 'T00:00:00Z')), -7 * i);
     const weekRows = trendRows.filter((r) => r.activity_date >= ws && r.activity_date <= addDays(ws, 6));
@@ -134,7 +141,7 @@ export function buildDashboardViewModel(input: {
       weekStart: ws,
       label: new Date(ws + 'T00:00:00Z').toLocaleDateString('en-CA', { month: 'short', day: 'numeric', timeZone: 'UTC' }),
       calls,
-      callsTarget: target?.calls_per_week ?? 0,
+      callsTarget: weeklyEquivalentCallsTarget,
       premiumCents: premium,
     });
   }
@@ -148,14 +155,14 @@ export function buildDashboardViewModel(input: {
     premiumCents: t2?.premium_cents ?? 0,
     streak,
     callsTarget: scaled
-      ? { value: `${targetPrefix}${scaled.calls_per_week}`, pct: callsTargetPct }
+      ? { value: `${targetPrefix}${scaled.calls_per_cycle}`, pct: callsTargetPct }
       : undefined,
     apptsTarget: scaled
-      ? { value: `${targetPrefix}${scaled.appts_held_per_week}`, pct: apptsTargetPct }
+      ? { value: `${targetPrefix}${scaled.appts_held_per_cycle}`, pct: apptsTargetPct }
       : undefined,
     premiumTarget: scaled
       ? {
-          value: `${targetPrefix}$${(Number(scaled.premium_cents_per_week) / 100).toLocaleString('en-CA')}`,
+          value: `${targetPrefix}$${(Number(scaled.premium_cents_per_cycle) / 100).toLocaleString('en-CA')}`,
           pct: premiumTargetPct,
         }
       : undefined,

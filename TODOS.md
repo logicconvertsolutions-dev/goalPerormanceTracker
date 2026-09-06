@@ -2,6 +2,57 @@
 
 Design debt and deferred work surfaced by review. Newest first.
 
+## 2026-09-06 — P16-P18 (10-day cycle) not verified against a live Supabase instance
+
+**What:** Replaced the calendar week with a 10-day cycle (day 1-10/11-20/
+21-end-of-month) as the Dashboard/Activity Logs period filter and Goals'
+versioning unit, and moved the two weekly email notifications to match
+(cycle-end summary, cycle-start digest). See `.github/Spec Sheets/
+06-build-phases.md`'s new P16-P18 entry for the full description. Four new
+migrations: `20260906090000_p16a_cycle_date_helpers.sql`,
+`20260906091000_p17a_targets_per_cycle.sql`,
+`20260906092000_p17b_retire_week_hardcoded_roster_rpcs.sql`,
+`20260906094000_p18a_notification_cycle_cadence.sql`.
+
+**Why deferred:** No local Supabase instance in this sandbox (`supabase
+start` needs a Docker daemon this sandbox doesn't have), so:
+- `types/database.ts` was hand-synced to match the new/changed migrations
+  (targets column renames, `effective_target`/`my_target`/`team_target`/
+  `system_effective_target`'s `p_week`→`p_period_start` rename,
+  `team_week_summary`/`system_team_week_summary` removed,
+  `system_team_period_summary` added) rather than regenerated via
+  `npm run types` -- same "no live DB" situation as `7a4e694`'s P14a sync
+  and P15's call-source sync, both of which turned out correct once
+  re-verified against the real schema.
+- `supabase/tests/001_rls_and_hierarchy.sql` and `003_notifications.sql`
+  were updated (renamed columns/RPCs, new cycle-boundary assertions) but
+  never actually run against a live database.
+- The four migrations themselves were reviewed carefully (parameter/column
+  renames verified as not requiring `drop function` in Postgres, security
+  grants mirrored from the functions they replace/extend) but never
+  applied to a real Postgres instance.
+
+**What *was* verified in this sandbox:** `tsc --noEmit` clean (zero errors
+in any changed file, via the established stub-xlsx-install workaround for
+this sandbox's blocked CDN dependency) and the full `vitest run` suite
+green (65 passed, including 15 new `cycleBounds`/`previousCycleBounds`/
+`nextCycleStart`/`cyclesInRange` unit tests covering both cycle-boundary
+rollovers and the variable-length month-end chunk, plus `window.test.ts`
+rewritten for the day-of-month cycle-start/cycle-end predicates) -- only
+failures were the pre-existing `xlsx`-stub artifacts in
+`parse-workbook.test.ts`, unrelated to this change.
+
+**Impact:** Run `npm run types` and `supabase test db` against a real
+(local or staging) Supabase instance with these four migrations applied
+before the next deploy that touches Goals, the period filter, or the
+Sunday-summary/Monday-digest emails -- the SQL itself (column renames,
+parameter renames, the new `cycle_start`/`cycle_end`/
+`system_team_period_summary`/`team_period_summary_for` functions) has not
+been executed against a real Postgres.
+
+**Depends on / blocked by:** nothing technical -- needs a working local (or
+CI) Supabase instance.
+
 ## 2026-09-05 — types/database.ts hand-synced for P15 (new call sources); no pgTAP coverage yet
 
 **What:** P15a/P15b add two new `call_source` enum values

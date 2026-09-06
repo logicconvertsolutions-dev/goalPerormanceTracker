@@ -230,9 +230,12 @@ Matches spec closely.
 Matches spec closely, in the same card order.
 - **Goals** — read-only, "set by your SMD," from `my_target`.
 - **Notifications** — three independent toggles, shown per role rather than
-  all three to everyone (P14d): associates see evening nudge and Sunday
-  summary; leaders see Monday team digest. Each toggle only ever fires for
-  the role it's shown to (`private.enqueue_due_notifications()` enforces
+  all three to everyone (P14d): associates see evening nudge and cycle
+  summary (was "Sunday summary"); leaders see team cycle digest (was
+  "Monday team digest") — P18 moved both from a weekly to a 10-day-cycle
+  cadence, keeping the same internal `sunday_summary`/`monday_digest`
+  identifiers but changing the display labels and copy. Each toggle only
+  ever fires for the role it's shown to (`private.enqueue_due_notifications()` enforces
   this regardless of a stored preference value), so this is a display fix,
   not a new access rule — before P14d all three showed to every non-admin
   agent, including toggles that could never actually reach them.
@@ -369,18 +372,25 @@ screens:
 
 The three notifications, cadence, and content originally matched the
 design exactly: evening nudge (weekdays 7 PM local, only if nothing logged
-that day — **widened to all 7 days in P14c**, product decision), Sunday
-summary (6 PM local, unconditional), Monday SMD digest (8 AM local,
-leaders/admins only, unconditional). Role eligibility is enforced
-structurally (`roleAllows()` — an associate is never eligible for the digest
-and vice versa), which is also what guarantees "never more than one per
-person per day" without needing separate logic for it.
+that day — **widened to all 7 days in P14c**, product decision), cycle
+summary (6 PM local on the cycle's last day, unconditional — was "Sunday
+summary," 6 PM local Sunday), team cycle digest (8 AM local on the cycle's
+first day, leaders/admins only, unconditional — was "Monday SMD digest," 8
+AM local Monday). **P18** moved the latter two from a weekly to a 10-day-
+cycle cadence (day 10/20/end-of-month evening; day 1/11/21 morning) —
+`compose{Sunday→Cycle}Summary()`/`compose{Monday→Cycle}Digest()` were
+renamed accordingly, though the notification *kind* strings
+(`sunday_summary`/`monday_digest`) were deliberately left as-is. Role
+eligibility is enforced structurally (`roleAllows()` — an associate is
+never eligible for the digest and vice versa), which is also what
+guarantees "never more than one per person per day" without needing
+separate logic for it.
 
 **Known loose end, not fixed in P11:** `roleAllows()` still counts admin as
-eligible for the Monday digest, unchanged. Now that admin has no downline
-(`agent_closure` only has their own self-row), `composeMondayDigest()` /
-`system_team_week_summary()` resolve to an all-zero team for them — so a
-default-enabled admin still gets a Monday email, it's just a meaningless
+eligible for the team cycle digest, unchanged. Now that admin has no
+downline (`agent_closure` only has their own self-row), `composeCycleDigest()` /
+`system_team_period_summary()` resolve to an all-zero team for them — so a
+default-enabled admin still gets a digest email, it's just a meaningless
 one. Harmless (no crash, no data leak), but worth fixing by excluding admin
 from `roleAllows('monday_digest', ...)` in a follow-up rather than folding
 it into this pass.

@@ -11,7 +11,7 @@ export interface EmailContent {
   html: string;
   text: string;
   // Set only for the three recurring notification kinds below (evening
-  // nudge, Sunday summary, Monday digest) -- these are the ones Gmail/Yahoo
+  // nudge, cycle summary, cycle digest) -- these are the ones Gmail/Yahoo
   // classify as "bulk mail" and gate on a working one-click unsubscribe
   // (RFC 8058) for inbox placement. Threaded through to sendEmail() so it
   // can set the List-Unsubscribe / List-Unsubscribe-Post headers.
@@ -118,34 +118,37 @@ export function eveningNudgeEmail(d: EveningNudgeData): EmailContent {
   };
 }
 
-export interface SundaySummaryData {
+export interface CycleSummaryData {
   agentId: string;
   fullName: string;
   callsMade: number;
   callsTarget: number;
   streakDays: number;
-  followUpsDueNextWeek: number;
+  followUpsDueNextCycle: number;
   logoUrl?: string | null;
 }
 
-export function sundaySummaryEmail(d: SundaySummaryData): EmailContent {
+// Notification kind stays 'sunday_summary' (the DB/URL identifier, unchanged
+// since P18) even though it no longer fires on Sunday -- see
+// private.enqueue_due_notifications()'s doc comment for why.
+export function cycleSummaryEmail(d: CycleSummaryData): EmailContent {
   const dashboardUrl = appUrl('/dashboard');
   const bodyHtml = `
     <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
-    <p>Your week: <strong>${d.callsMade} of ${d.callsTarget}</strong> calls, a
+    <p>This cycle: <strong>${d.callsMade} of ${d.callsTarget}</strong> calls, a
     <strong>${d.streakDays}-day</strong> streak, and
-    <strong>${d.followUpsDueNextWeek}</strong> follow-up${d.followUpsDueNextWeek === 1 ? '' : 's'} due next week.</p>
+    <strong>${d.followUpsDueNextCycle}</strong> follow-up${d.followUpsDueNextCycle === 1 ? '' : 's'} due next cycle.</p>
     ${button(dashboardUrl, 'View your dashboard')}`;
-  const bodyText = `Hi ${firstName(d.fullName)},\n\nYour week: ${d.callsMade} of ${d.callsTarget} calls, a ${d.streakDays}-day streak, and ${d.followUpsDueNextWeek} follow-up(s) due next week.\n\nView your dashboard: ${dashboardUrl}`;
+  const bodyText = `Hi ${firstName(d.fullName)},\n\nThis cycle: ${d.callsMade} of ${d.callsTarget} calls, a ${d.streakDays}-day streak, and ${d.followUpsDueNextCycle} follow-up(s) due next cycle.\n\nView your dashboard: ${dashboardUrl}`;
   return {
-    subject: 'Your week in review',
+    subject: 'Your cycle in review',
     html: wrap(bodyHtml, d.agentId, 'sunday_summary', d.logoUrl),
     text: wrapText(bodyText, d.agentId, 'sunday_summary'),
     unsubscribeUrl: unsubscribeUrlFor(d.agentId, 'sunday_summary'),
   };
 }
 
-export interface MondayDigestData {
+export interface CycleDigestData {
   agentId: string;
   fullName: string;
   totalCalls: number;
@@ -156,28 +159,31 @@ export interface MondayDigestData {
   logoUrl?: string | null;
 }
 
-export function mondayDigestEmail(d: MondayDigestData): EmailContent {
+// Notification kind stays 'monday_digest' (the DB/URL identifier, unchanged
+// since P18) even though it no longer fires on Monday -- see
+// private.enqueue_due_notifications()'s doc comment for why.
+export function cycleDigestEmail(d: CycleDigestData): EmailContent {
   const teamUrl = appUrl('/team');
   const quietLine =
     d.quietAgentNames.length > 0
-      ? `Quiet this week: ${d.quietAgentNames.join(', ')}.`
-      : 'Everyone logged something this week.';
+      ? `Quiet this cycle: ${d.quietAgentNames.join(', ')}.`
+      : 'Everyone logged something this cycle.';
   const moversLine = d.moverNames.length > 0 ? `Biggest movers: ${d.moverNames.join(', ')}.` : '';
   const quietLineHtml =
     d.quietAgentNames.length > 0
-      ? `Quiet this week: ${d.quietAgentNames.map(escapeHtml).join(', ')}.`
-      : 'Everyone logged something this week.';
+      ? `Quiet this cycle: ${d.quietAgentNames.map(escapeHtml).join(', ')}.`
+      : 'Everyone logged something this cycle.';
   const moversLineHtml =
     d.moverNames.length > 0 ? `Biggest movers: ${d.moverNames.map(escapeHtml).join(', ')}.` : '';
   const bodyHtml = `
     <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
-    <p>Team so far: <strong>${d.totalCalls} of ${d.totalCallsTarget}</strong> calls,
+    <p>Team so far this cycle: <strong>${d.totalCalls} of ${d.totalCallsTarget}</strong> calls,
     ${formatMoney(d.totalPremiumCents)} in premium.</p>
     <p>${quietLineHtml}${moversLineHtml ? ` ${moversLineHtml}` : ''}</p>
     ${button(teamUrl, 'View team dashboard')}`;
-  const bodyText = `Hi ${firstName(d.fullName)},\n\nTeam so far: ${d.totalCalls} of ${d.totalCallsTarget} calls, ${formatMoney(d.totalPremiumCents)} in premium.\n\n${quietLine}${moversLine ? ` ${moversLine}` : ''}\n\nView team dashboard: ${teamUrl}`;
+  const bodyText = `Hi ${firstName(d.fullName)},\n\nTeam so far this cycle: ${d.totalCalls} of ${d.totalCallsTarget} calls, ${formatMoney(d.totalPremiumCents)} in premium.\n\n${quietLine}${moversLine ? ` ${moversLine}` : ''}\n\nView team dashboard: ${teamUrl}`;
   return {
-    subject: 'Monday team digest',
+    subject: 'Your team cycle digest',
     html: wrap(bodyHtml, d.agentId, 'monday_digest', d.logoUrl),
     text: wrapText(bodyText, d.agentId, 'monday_digest'),
     unsubscribeUrl: unsubscribeUrlFor(d.agentId, 'monday_digest'),

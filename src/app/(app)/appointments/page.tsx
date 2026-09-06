@@ -7,14 +7,10 @@ import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/shell/page-header';
 import { KpiCard } from '@/components/shell/kpi-card';
 import { FilterBar, type FilterChip } from '@/components/shell/filter-bar';
-import { resolvePeriod, todayIso, type PeriodPreset, PERIOD_PRESETS } from '@/lib/dates';
+import { isPeriodPreset, resolvePeriod, todayIso, type PeriodPreset } from '@/lib/dates';
 import { AppointmentRow } from './appointment-row';
 
 const STATUSES = ['scheduled', 'held', 'no_show', 'rescheduled', 'cancelled'] as const;
-
-function isPeriodPreset(v: string | undefined): v is PeriodPreset {
-  return !!v && (PERIOD_PRESETS as readonly string[]).includes(v);
-}
 
 // P4: filters + summary strip (08-screen-specs.md).
 export default async function AppointmentsPage({
@@ -27,7 +23,7 @@ export default async function AppointmentsPage({
   const supabase = await createClient();
 
   const today = todayIso(session.agent!.time_zone);
-  const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'this_week';
+  const preset: PeriodPreset = isPeriodPreset(params.period) ? params.period : 'current_cycle';
   const { from, to } = resolvePeriod(preset, today, params.from, params.to);
   const search = params.search?.trim() || '';
   const statusFilter: (typeof STATUSES)[number] | '' =

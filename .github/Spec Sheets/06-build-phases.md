@@ -290,6 +290,55 @@ even though it could never reach them. Display-only fix
 (`NotificationToggles` now takes a `role` prop and filters); the backend
 eligibility was already correct.
 
+## P16-P18 — the calendar week replaced by a 10-day cycle — ✅ done
+Product ask: track and report on a 10-day cycle (day 1-10 / 11-20 /
+21-end-of-month, the last chunk 8-11 days depending on the month) instead
+of a Monday-Sunday week, everywhere that unit was the atomic tracking
+period — the Dashboard/Activity Logs period filter and Goals. The 8-Week
+Trend chart, calendar week display ("Week starts Monday" in `/settings`),
+and the "call back Monday" follow-up quick-pick chip are all a separate,
+still-weekly concept and were explicitly left alone.
+
+- **P16 — date-math foundation + period filter.** `src/lib/dates.ts` gained
+  `cycleBounds()`/`previousCycleBounds()`/`nextCycleStart()`/
+  `cyclesInRange()`, the SQL twins `public.cycle_start()`/`cycle_end()`
+  (mirroring `weekStart()`/`week_start()`'s "both sides must agree"
+  convention, explicitly locked to `authenticated` like `week_start`
+  already was). `PERIOD_PRESETS`' `this_week`/`last_week` became
+  `current_cycle`/`previous_cycle`; `This Month`/`Last 30 Days`/`Custom`
+  unchanged. All 14 pages/routes that read the period, plus `<FilterBar>`,
+  updated their default preset and switched to a single centralized
+  `isPeriodPreset()` (previously duplicated in every file).
+- **P17 — Goals cadence.** `targets.calls_per_week`/`appts_held_per_week`/
+  `premium_cents_per_week` renamed to `*_per_cycle` (existing rows keep
+  their historical numbers; only rows inserted after this ships are sized
+  for 10 days). `effective_target()`/`my_target()`/`team_target()`/
+  `system_effective_target()`'s misleading `p_week` param renamed
+  `p_period_start`. `team_week_summary` and its cron twin
+  (`system_team_week_summary`/`private.team_week_summary_for`) retired --
+  a hardcoded `+7` can't express a variable-length cycle -- in favor of the
+  already-period-general `team_period_summary` (P7c) and a new
+  service-role twin, `system_team_period_summary`/`private.
+  team_period_summary_for`. `/team/targets` now anchors a saved goal to the
+  next cycle instead of "next Monday." Side-fix: the 8-Week Trend chart's
+  target reference line converts the now-cycle-sized target back to a
+  weekly-equivalent number (`* 7/10`) so it doesn't silently overstate a
+  week's goal by ~40% -- the chart's own weekly bucketing is unchanged.
+- **P18 — notification cadence.** The associate summary and leader digest
+  moved from Sunday-evening/Monday-morning to cycle-end-evening
+  (day 10/20/end-of-month, 18:00+) and cycle-start-morning (day 1/11/21,
+  08:00-19:00) -- `private.enqueue_due_notifications()`'s SQL and
+  `kindsInWindow()`'s TS mirror both updated in lockstep, as always.
+  `composeSundaySummary`/`composeMondayDigest` renamed to
+  `composeCycleSummary`/`composeCycleDigest`; email subject/body copy and
+  the `/settings` toggle labels dropped "Sunday"/"Monday"/"week" framing.
+  Deliberately **not** renamed: the internal `sunday_summary`/
+  `monday_digest` identifiers (`NotificationKind`, `notification_prefs`
+  columns, `notification_log.kind`, unsubscribe-token scope) -- renaming
+  those would need a `notification_prefs` migration and care around
+  in-flight unsubscribe links, for no user-visible benefit once the copy
+  itself no longer says "Sunday"/"Monday."
+
 ---
 
 ## Working with Claude Code on this repo (token discipline)

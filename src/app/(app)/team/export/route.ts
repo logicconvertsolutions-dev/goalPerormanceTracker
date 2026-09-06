@@ -1,11 +1,7 @@
 import { NextRequest } from 'next/server';
 import { requireLeader } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
-import { resolvePeriod, todayIso, type PeriodPreset, PERIOD_PRESETS } from '@/lib/dates';
-
-function isPeriodPreset(v: string | null): v is PeriodPreset {
-  return !!v && (PERIOD_PRESETS as readonly string[]).includes(v);
-}
+import { isPeriodPreset, resolvePeriod, todayIso, type PeriodPreset } from '@/lib/dates';
 
 function csvField(v: string | number): string {
   const s = String(v);
@@ -23,7 +19,7 @@ export async function GET(request: NextRequest) {
   const today = todayIso(session.agent!.time_zone);
   const preset: PeriodPreset = isPeriodPreset(url.searchParams.get('period'))
     ? (url.searchParams.get('period') as PeriodPreset)
-    : 'this_week';
+    : 'current_cycle';
   const { from, to } = resolvePeriod(
     preset,
     today,

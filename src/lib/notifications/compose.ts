@@ -1,13 +1,13 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../../types/database';
-import { addDays, weekStart, nextMonday } from '@/lib/dates';
+import { addDays, cycleBounds, previousCycleBounds, nextCycleStart } from '@/lib/dates';
 import { currentStreak } from '@/lib/metrics';
 import { localParts, resolveTimeZone } from './window';
 import {
   eveningNudgeEmail,
-  sundaySummaryEmail,
-  mondayDigestEmail,
+  cycleSummaryEmail,
+  cycleDigestEmail,
   nudgeEmail,
   trainingReminderEmail,
   type EmailContent,
@@ -16,11 +16,11 @@ import {
 type AdminClient = SupabaseClient<Database>;
 type DailyMetricsRow = Database['public']['Tables']['daily_metrics']['Row'];
 
-// Mirrors public.system_team_week_summary / private.team_week_summary_for's
-// `returns table (...)` (20260819090000_p55a_notifications.sql) -- spelled
-// out explicitly rather than inferred through the RPC generic, so the
-// reduce/map/sort below stay typed even before `npm run types` has run.
-interface TeamWeekSummaryRow {
+// Mirrors public.system_team_period_summary / private.team_period_summary_for's
+// `returns table (...)` (20260906092000_p17b) -- spelled out explicitly
+// rather than inferred through the RPC generic, so the reduce/map/sort below
+// stay typed even before `npm run types` has run.
+interface TeamPeriodSummaryRow {
   agent_id: string;
   full_name: string;
   depth: number;
@@ -67,7 +67,7 @@ async function fetchStreakDays(
 async function fetchTarget(admin: AdminClient, agentId: string, localDateIso: string) {
   const { data, error } = await admin.rpc('system_effective_target', {
     p_agent_id: agentId,
-    p_week: weekStart(new Date(`${localDateIso}T00:00:00Z`)),
+    p_period_start: cycleBounds(new Date(`${localDateIso}T00:00:00Z`)).from,
   });
   // effective_target always resolves to exactly one row (fallback defaults
   // coalesce to a value) -- a missing row here means the RPC call itself
@@ -98,8 +98,8 @@ export async function composeEveningNudge(
   };
 }
 
-/** Sunday summary -- 6pm local, week-in-review for the associate. */
-export async function composeSundaySummary(
+/** Cycle summary -- 6pm local on the cycle's last day, cycle-in-review for the associate. */
+export async function composeCycleSummary(
   admin: AdminClient,
   agent: NotifiableAgent,
   localDateIso: string
@@ -107,54 +107,54 @@ export async function composeSundaySummary(
   const target = await fetchTarget(admin, agent.id, localDateIso);
   if (!target) return null;
 
-  const ws = weekStart(new Date(`${localDateIso}T00:00:00Z`));
-  const { data: weekRows } = await admin
+  const cycleStart = cycleBounds(new Date(`${localDateIso}T00:00:00Z`)).from;
+  const { data: cycleRows } = await admin
     .from('daily_metrics')
     .select('calls_made')
     .eq('agent_id', agent.id)
-    .gte('activity_date', ws)
+    .gte('activity_date', cycleStart)
     .lte('activity_date', localDateIso);
-  const callsMade = (weekRows ?? []).reduce((sum, r) => sum + r.calls_made, 0);
+  const callsMade = (cycleRows ?? []).reduce((sum, r) => sum + r.calls_made, 0);
 
   const streakDays = await fetchStreakDays(admin, agent.id, target.min_calls_per_day, localDateIso);
 
-  const nextWeekStart = nextMonday(localDateIso);
-  const nextWeekEnd = addDays(nextWeekStart, 6);
+  const nextCycleStartDate = nextCycleStart(localDateIso);
+  const nextCycleEndDate = cycleBounds(new Date(`${nextCycleStartDate}T00:00:00Z`)).to;
   const { count } = await admin
     .from('call_logs')
     .select('id', { count: 'exact', head: true })
     .eq('agent_id', agent.id)
     .is('follow_up_done_at', null)
-    .gte('follow_up_on', nextWeekStart)
-    .lte('follow_up_on', nextWeekEnd);
+    .gte('follow_up_on', nextCycleStartDate)
+    .lte('follow_up_on', nextCycleEndDate);
 
   return {
     to: agent.email,
-    content: sundaySummaryEmail({
+    content: cycleSummaryEmail({
       agentId: agent.id,
       fullName: agent.full_name,
       callsMade,
-      callsTarget: target.calls_per_week,
+      callsTarget: target.calls_per_cycle,
       streakDays,
-      followUpsDueNextWeek: count ?? 0,
+      followUpsDueNextCycle: count ?? 0,
     }),
   };
 }
 
-/** Monday digest -- 8am local, team roster summary for the SMD. */
-export async function composeMondayDigest(
+/** Cycle digest -- 8am local on the cycle's first day, team roster summary for the SMD. */
+export async function composeCycleDigest(
   admin: AdminClient,
   leader: NotifiableAgent,
   localDateIso: string
 ): Promise<{ to: string; content: EmailContent } | null> {
-  const ws = weekStart(new Date(`${localDateIso}T00:00:00Z`));
-  const lastWeekStart = addDays(ws, -7);
+  const cycle = cycleBounds(new Date(`${localDateIso}T00:00:00Z`));
+  const lastCycle = previousCycleBounds(new Date(`${localDateIso}T00:00:00Z`));
 
-  const [{ data: thisWeek }, { data: lastWeek }] = await Promise.all([
-    admin.rpc('system_team_week_summary', { p_leader_id: leader.id, p_week_start: ws }),
-    admin.rpc('system_team_week_summary', { p_leader_id: leader.id, p_week_start: lastWeekStart }),
+  const [{ data: thisCycle }, { data: lastCycleData }] = await Promise.all([
+    admin.rpc('system_team_period_summary', { p_leader_id: leader.id, p_from: cycle.from, p_to: cycle.to }),
+    admin.rpc('system_team_period_summary', { p_leader_id: leader.id, p_from: lastCycle.from, p_to: lastCycle.to }),
   ]);
-  const roster: TeamWeekSummaryRow[] = thisWeek ?? [];
+  const roster: TeamPeriodSummaryRow[] = thisCycle ?? [];
   if (roster.length === 0) return null;
 
   const totalCalls = roster.reduce((sum: number, r) => sum + r.calls_made, 0);
@@ -163,10 +163,10 @@ export async function composeMondayDigest(
 
   const quietAgentNames = roster.filter((r) => r.calls_made === 0).map((r) => r.full_name);
 
-  const lastWeekRoster: TeamWeekSummaryRow[] = lastWeek ?? [];
-  const lastWeekByAgent = new Map(lastWeekRoster.map((r) => [r.agent_id, r.calls_made]));
+  const lastCycleRoster: TeamPeriodSummaryRow[] = lastCycleData ?? [];
+  const lastCycleByAgent = new Map(lastCycleRoster.map((r) => [r.agent_id, r.calls_made]));
   const moverNames = roster
-    .map((r) => ({ name: r.full_name, delta: r.calls_made - (lastWeekByAgent.get(r.agent_id) ?? 0) }))
+    .map((r) => ({ name: r.full_name, delta: r.calls_made - (lastCycleByAgent.get(r.agent_id) ?? 0) }))
     .filter((m) => m.delta > 0)
     .sort((a, b) => b.delta - a.delta)
     .slice(0, 3)
@@ -174,7 +174,7 @@ export async function composeMondayDigest(
 
   return {
     to: leader.email,
-    content: mondayDigestEmail({
+    content: cycleDigestEmail({
       agentId: leader.id,
       fullName: leader.full_name,
       totalCalls,
@@ -188,7 +188,7 @@ export async function composeMondayDigest(
 
 /**
  * The SMD's per-agent nudge -- either the manual one-off (public.nudge_agent
- * rate-limits to 1/7 days) or, when `recurring` is set, the automatic daily
+ * rate-limits to 1/day) or, when `recurring` is set, the automatic daily
  * version (p12a: agents.auto_call_nudges_enabled). See nudgeEmail's own doc
  * comment for why only the recurring one carries an unsubscribe link.
  */
@@ -216,7 +216,7 @@ export async function composeNudge(
 }
 
 /** The SMD's ad-hoc per-agent training reminder — distinct from composeNudge
- * above (public.send_training_reminder rate-limits to 1/7 days, separately
+ * above (public.send_training_reminder rate-limits to 1/day, separately
  * from nudge_agent's own cooldown). No target/streak lookup needed since
  * this isn't about daily activity. */
 export async function composeTrainingReminder(

@@ -118,24 +118,63 @@ export function nextMonday(iso: string): string {
   return addDays(iso, daysUntilMonday);
 }
 
+function daysInMonth(year: number, monthIndex0: number): number {
+  return new Date(Date.UTC(year, monthIndex0 + 1, 0)).getUTCDate();
+}
+
 /**
- * Number of 7-day weeks spanned by an inclusive `[from, to]` range (e.g. a
- * 28-day month = 4, a 31-day month ≈ 4.43). Targets are only ever set
- * per-week (CLAUDE.md rule 8) — there is no monthly target concept in the
- * database — so any KPI target shown for a period longer than one week is
- * this multiplier applied to the weekly number, never a value the SMD set
- * directly.
+ * `{from, to}` for the 10-day cycle containing `date`: day 1-10, day 11-20,
+ * or day 21-through-end-of-month (variable length -- 8 or 9 days in
+ * February, 10 or 11 elsewhere depending on the month). Mirrors the
+ * Postgres functions `public.cycle_start(d)`/`public.cycle_end(d)` exactly
+ * -- same "both must agree" rule as {@link weekStart}.
  */
-export function weeksInRange(from: string, to: string): number {
+export function cycleBounds(date: Date): { from: string; to: string } {
+  const y = date.getUTCFullYear();
+  const m = date.getUTCMonth();
+  const day = date.getUTCDate();
+  const ymd = (d: number) => new Date(Date.UTC(y, m, d)).toISOString().slice(0, 10);
+  if (day <= 10) return { from: ymd(1), to: ymd(10) };
+  if (day <= 20) return { from: ymd(11), to: ymd(20) };
+  return { from: ymd(21), to: ymd(daysInMonth(y, m)) };
+}
+
+/**
+ * The 10-day cycle immediately before the one containing `date` -- steps one
+ * day before the current cycle's start and re-resolves, so a cycle at the
+ * start of a month correctly lands on the previous month's third (variable-
+ * length) chunk with no special-casing.
+ */
+export function previousCycleBounds(date: Date): { from: string; to: string } {
+  const current = cycleBounds(date);
+  return cycleBounds(new Date(addDays(current.from, -1) + 'T00:00:00Z'));
+}
+
+/** The start date of the next 10-day cycle strictly after the one containing `iso`. */
+export function nextCycleStart(iso: string): string {
+  const current = cycleBounds(new Date(iso + 'T00:00:00Z'));
+  return cycleBounds(new Date(addDays(current.to, 1) + 'T00:00:00Z')).from;
+}
+
+/**
+ * Number of 10-day cycles spanned by an inclusive `[from, to]` range (e.g. a
+ * 30-day month = 3, a 31-day month ≈ 3.1). Targets are only ever set
+ * per-cycle (CLAUDE.md rule 8) — there is no monthly target concept in the
+ * database — so any KPI target shown for a period longer than one cycle is
+ * this multiplier applied to the per-cycle number, never a value the SMD
+ * set directly. A cycle is 8-11 days depending on where it falls in the
+ * month, so this divides by the nominal 10, same style of approximation.
+ */
+export function cyclesInRange(from: string, to: string): number {
   const start = new Date(from + 'T00:00:00Z');
   const end = new Date(to + 'T00:00:00Z');
   const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
-  return days / 7;
+  return days / 10;
 }
 
 export const PERIOD_PRESETS = [
-  'this_week',
-  'last_week',
+  'current_cycle',
+  'previous_cycle',
   'this_month',
   'last_30_days',
   'custom',
@@ -143,9 +182,19 @@ export const PERIOD_PRESETS = [
 export type PeriodPreset = (typeof PERIOD_PRESETS)[number];
 
 /**
+ * Type guard for a raw URL search-param string. Centralized here since
+ * every period-filter page needs the identical check before trusting
+ * `params.period` as a {@link PeriodPreset}.
+ */
+export function isPeriodPreset(v: string | null | undefined): v is PeriodPreset {
+  return !!v && (PERIOD_PRESETS as readonly string[]).includes(v);
+}
+
+/**
  * Resolves a period preset (plus optional custom bounds) to an inclusive
  * `{from, to}` ISO date range. Shared by `<FilterBar>` and every page that
- * reads it, so "This Week" means exactly the same thing everywhere (08-screen-specs.md).
+ * reads it, so "Current Cycle" means exactly the same thing everywhere
+ * (08-screen-specs.md).
  */
 export function resolvePeriod(
   preset: PeriodPreset,
@@ -154,15 +203,10 @@ export function resolvePeriod(
   customTo?: string
 ): { from: string; to: string } {
   switch (preset) {
-    case 'this_week': {
-      const from = weekStart(new Date(asOf + 'T00:00:00Z'));
-      return { from, to: addDays(from, 6) };
-    }
-    case 'last_week': {
-      const thisWeek = weekStart(new Date(asOf + 'T00:00:00Z'));
-      const from = addDays(thisWeek, -7);
-      return { from, to: addDays(from, 6) };
-    }
+    case 'current_cycle':
+      return cycleBounds(new Date(asOf + 'T00:00:00Z'));
+    case 'previous_cycle':
+      return previousCycleBounds(new Date(asOf + 'T00:00:00Z'));
     case 'this_month': {
       const d = new Date(asOf + 'T00:00:00Z');
       const from = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString().slice(0, 10);

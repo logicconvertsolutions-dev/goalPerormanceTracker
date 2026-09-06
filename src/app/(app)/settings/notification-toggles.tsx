@@ -20,12 +20,12 @@ const ROWS: { key: keyof Prefs; label: string; description: string }[] = [
   },
   {
     key: 'sundaySummary',
-    label: 'Sunday summary',
-    description: 'Calls vs goal, streak, follow-ups due next week',
+    label: 'Cycle summary',
+    description: 'Calls vs goal, streak, follow-ups due next cycle',
   },
   {
     key: 'mondayDigest',
-    label: 'Monday team digest',
+    label: 'Team cycle digest',
     description: 'Totals vs goal, who is quiet',
   },
 ];
@@ -34,7 +34,7 @@ const ROWS: { key: keyof Prefs; label: string; description: string }[] = [
 // monday_digest only ever fires for leaders/admins (private.
 // enqueue_due_notifications() enforces this in SQL regardless of what a
 // toggle here is set to) -- showing all three to everyone made it look like
-// an associate could opt into "Monday team digest" when it could never
+// an associate could opt into "Team cycle digest" when it could never
 // actually reach them. Filtering by role here is purely a display fix; the
 // backend was already correct.
 const ROWS_BY_ROLE: Record<'associate' | 'leader' | 'admin', (keyof Prefs)[]> = {
