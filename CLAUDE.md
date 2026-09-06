@@ -21,6 +21,24 @@ theme toggle in v1.
 - `master` → production (Vercel production deployment + Supabase production project). Protected: requires a PR and passing `ci (18.x)`/`ci (20.x)` checks — no direct pushes, no bypass, including for admins.
 - `staging` → sandbox (isolated Supabase branch + `staging.kautis.ca`). Prove changes here before merging to `master`.
 
+## Git workflow
+Feature branches always branch off `dev`, never off `staging` or `master`
+directly. Promotion always flows one direction, in order: `dev` → `staging`
+→ `master`. Never skip a stage (e.g., never merge a feature branch straight
+into `staging` or `master`).
+
+When asked to "push changes," "deploy," or similar without further
+specification, this means: merge the feature branch into `dev`, push,
+verify, then promote `dev` → `staging` (push, verify against the actual
+database — not just the status field), then `staging` → `master` (via PR,
+since `master` is protected — never attempt a direct push to `master`).
+
+After every merge into `master` or `staging`, immediately sync the other
+two branches to match, in the same sitting — don't leave `dev`/`staging`/
+`master` diverged even briefly. Verify a sync actually happened by checking
+real file content/bytes, not by trusting "Already up to date" (it can lie
+if your local branch was stale — always `git pull` before merging).
+
 ## Non-negotiable rules
 1. **RLS is the security boundary.** Never rely on client filtering. Every
    `public` table has RLS enabled + explicit policies. RLS is *row*-level —
