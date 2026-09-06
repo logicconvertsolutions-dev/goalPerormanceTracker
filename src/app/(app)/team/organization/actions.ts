@@ -63,3 +63,31 @@ export async function uploadOrgLogoAction(formData: FormData) {
   revalidatePath('/', 'layout');
   return { ok: !error, error: error?.message };
 }
+
+export async function removeOrgLogoAction() {
+  const session = await getSessionAgent();
+  if (!session?.agent) return { ok: false, error: 'Not signed in.' };
+
+  const supabase = await createClient();
+
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('logo_path')
+    .eq('id', session.agent.org_id!)
+    .maybeSingle();
+  if (!org?.logo_path) return { ok: false, error: 'No logo to remove.' };
+
+  const { error: removeError } = await supabase.storage
+    .from('org-logos')
+    .remove([org.logo_path]);
+  if (removeError) return { ok: false, error: removeError.message };
+
+  const { error } = await supabase
+    .from('organizations')
+    .update({ logo_path: null })
+    .eq('id', session.agent.org_id!);
+
+  revalidatePath('/team/organization');
+  revalidatePath('/', 'layout');
+  return { ok: !error, error: error?.message };
+}
