@@ -56,11 +56,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={logoUrl} alt="" className="h-14 w-14 shrink-0 rounded-sm object-contain" />
-              ) : role !== 'admin' ? (
-                // No org logo uploaded yet -- show the Kautis mark in the
-                // same slot/size the org's own logo would occupy.
+              ) : (
+                // No org logo uploaded yet (or an admin, who has no org at
+                // all) -- show the Kautis mark in the same slot/size the
+                // org's own logo would occupy.
                 <KautisMark size={56} className="h-14 w-14 shrink-0" />
-              ) : null}
+              )}
               <span className="truncate text-lg font-semibold tracking-tight text-gold-dark">
                 {org?.name ?? 'Kautis'}
               </span>
