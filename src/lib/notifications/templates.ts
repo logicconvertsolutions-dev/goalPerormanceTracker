@@ -46,11 +46,16 @@ function button(href: string, label: string): string {
 function header(logoUrl: string | null | undefined): string {
   // An org that's uploaded its own logo gets that instead -- deliberate,
   // this is what makes the multi-tenant branding work. Everyone else gets
-  // the Kautis mark (public/kautis-logo.png) next to the wordmark, not the
-  // wordmark alone.
+  // the Kautis mark next to the wordmark, not the wordmark alone. Uses the
+  // pre-sized 112x112 email derivative (public/kautis-logo-email.png), not
+  // the 1024x1024/~112KB master (public/kautis-logo.png) -- some email image
+  // proxies (Gmail's especially) apply stricter size/thumbnailing limits to
+  // inline images than a normal page load, and serving an oversized source
+  // image at a 28px display size showed up as a broken icon in Gmail's own
+  // hero-image card even though the URL fetched fine directly.
   const mark = logoUrl
     ? `<img src="${logoUrl}" alt="${BRAND.name}" height="28" style="height:28px;max-width:160px;display:block;" />`
-    : `<img src="${appUrl('/kautis-logo.png')}" alt="${BRAND.name}" width="28" height="28" style="width:28px;height:28px;border-radius:50%;vertical-align:middle;display:inline-block;border:0;" /><span style="color:#fff;font-size:18px;font-weight:700;vertical-align:middle;margin-left:10px;">${BRAND.name}</span>`;
+    : `<img src="${appUrl('/kautis-logo-email.png')}" alt="${BRAND.name}" width="28" height="28" style="width:28px;height:28px;border-radius:50%;vertical-align:middle;display:inline-block;border:0;" /><span style="color:#fff;font-size:18px;font-weight:700;vertical-align:middle;margin-left:10px;">${BRAND.name}</span>`;
   return `<div style="background:${BRAND.navy};padding:20px 32px;border-radius:14px 14px 0 0;">${mark}</div>`;
 }
 
