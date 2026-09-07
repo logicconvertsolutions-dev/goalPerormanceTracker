@@ -19,6 +19,10 @@ const saleSchema = z.object({
   notes: z.string().max(2000).optional(),
   followUpOn: z.string().optional(),
   clientRequestId: z.string().optional(),
+  // Set when this sale is created via the appointment form's "Log as a
+  // Sale" toggle -- lets a later edit of that same appointment find this
+  // row again (sales_appointment_uq) instead of inserting a duplicate.
+  appointmentId: z.string().uuid().optional(),
 });
 
 // Postgres unique-violation error code.
@@ -39,6 +43,7 @@ export async function createSaleAction(formData: FormData) {
     notes: formData.get('notes') || undefined,
     followUpOn: formData.get('followUpOn') || undefined,
     clientRequestId: formData.get('clientRequestId') || undefined,
+    appointmentId: formData.get('appointmentId') || undefined,
   });
 
   if (!parsed.success) {
@@ -66,6 +71,7 @@ export async function createSaleAction(formData: FormData) {
     agent_id: agentId,
     org_id: orgId,
     contact_id: contact.id,
+    appointment_id: parsed.data.appointmentId || null,
     sale_date: parsed.data.saleDate,
     product_type: parsed.data.productType || null,
     premium_cents: parsed.data.premiumCents,
@@ -126,6 +132,55 @@ export async function updateSaleAction(formData: FormData) {
   if (error) {
     console.error('updateSaleAction: update failed', error);
     return { ok: false, error: 'Could not update the sale.' };
+  }
+
+  revalidatePath('/sales');
+  revalidatePath('/logs');
+  return { ok: true };
+}
+
+const syncFromAppointmentSchema = z.object({
+  id: z.string().uuid(),
+  saleDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
+  productType: z.string().max(200).optional(),
+  premiumCents: z.coerce.number().int().min(0).default(0),
+});
+
+/**
+ * Narrow update used only by the appointment form's "Log as a Sale" toggle,
+ * to keep an already-linked sale (sales.appointment_id) in sync with the
+ * appointment's own date/premium/product type. Unlike updateSaleAction,
+ * this never touches notes/follow_up_on -- those belong solely to the Sales
+ * tab's own edit form, and would otherwise get silently wiped to null on
+ * every appointment save since the appointment form has no fields for them.
+ */
+export async function syncSaleFromAppointmentAction(formData: FormData) {
+  const session = await requireAgent();
+  const parsed = syncFromAppointmentSchema.safeParse({
+    id: formData.get('id'),
+    saleDate: formData.get('saleDate'),
+    productType: formData.get('productType') || undefined,
+    premiumCents: formData.get('premiumCents') || 0,
+  });
+
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input.' };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('sales')
+    .update({
+      sale_date: parsed.data.saleDate,
+      product_type: parsed.data.productType || null,
+      premium_cents: parsed.data.premiumCents,
+    })
+    .eq('id', parsed.data.id)
+    .eq('agent_id', session.agent!.id);
+
+  if (error) {
+    console.error('syncSaleFromAppointmentAction: update failed', error);
+    return { ok: false, error: 'Could not update the linked sale.' };
   }
 
   revalidatePath('/sales');

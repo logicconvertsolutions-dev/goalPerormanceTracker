@@ -19,11 +19,11 @@ export interface ActionResult {
  * responsible for generating one per logical submission, since it is also
  * the server-side dedupe key (see the client_request_id migration).
  */
-export async function submitWithOfflineFallback(
+export async function submitWithOfflineFallback<T extends ActionResult>(
   kind: QueuedActionKind,
   formData: FormData,
-  action: (formData: FormData) => Promise<ActionResult>
-): Promise<{ ok: true; queued: boolean } | { ok: false; error: string }> {
+  action: (formData: FormData) => Promise<T>
+): Promise<(T & { queued: false }) | { ok: true; queued: true } | { ok: false; error: string }> {
   const clientRequestId = formData.get('clientRequestId');
   if (typeof clientRequestId !== 'string' || !clientRequestId) {
     throw new Error('submitWithOfflineFallback: formData is missing clientRequestId');
@@ -31,7 +31,11 @@ export async function submitWithOfflineFallback(
 
   try {
     const result = await action(formData);
-    if (result.ok) return { ok: true, queued: false };
+    // Spread rather than a fixed { ok: true, queued: false } literal so a
+    // caller whose action returns extra fields (e.g. the created row's id)
+    // gets them back too -- queued:false only ever applies once the action
+    // has actually run, so those fields are always real at that point.
+    if (result.ok) return { ...result, queued: false };
     return { ok: false, error: result.error ?? 'Could not save.' };
   } catch {
     // The action threw instead of returning — the request never got a
