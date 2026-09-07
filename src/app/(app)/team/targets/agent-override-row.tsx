@@ -9,12 +9,14 @@ export function AgentOverrideRow({
   agentId,
   fullName,
   current,
+  currentGoal,
   hasOverride,
   effectiveDate,
 }: {
   agentId: string;
   fullName: string;
   current: TargetDefaults;
+  currentGoal: TargetDefaults;
   hasOverride: boolean;
   effectiveDate: string;
 }) {
@@ -36,6 +38,7 @@ export function AgentOverrideRow({
           <TargetForm
             agentId={agentId}
             current={current}
+            currentGoal={currentGoal}
             effectiveDate={effectiveDate}
             onSaved={() => setOpen(false)}
           />

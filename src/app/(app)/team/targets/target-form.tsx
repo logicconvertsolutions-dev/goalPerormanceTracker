@@ -22,11 +22,13 @@ export interface TargetDefaults {
 export function TargetForm({
   agentId,
   current,
+  currentGoal,
   effectiveDate,
   onSaved,
 }: {
   agentId: string | null;
   current: TargetDefaults;
+  currentGoal: TargetDefaults;
   effectiveDate: string;
   onSaved?: () => void;
 }) {
@@ -97,6 +99,11 @@ export function TargetForm({
           />
         </div>
       </div>
+      <p className="text-xs text-fg-3">
+        Current this cycle: {currentGoal.calls_per_cycle} calls · {currentGoal.appts_held_per_cycle} appts ·{' '}
+        ${(currentGoal.premium_cents_per_cycle / 100).toFixed(2)} premium · {currentGoal.min_calls_per_day} min
+        calls/day.
+      </p>
       <p className="text-xs text-fg-3">
         Applies from {effectiveDate}. Past cycles keep their original goal.
       </p>

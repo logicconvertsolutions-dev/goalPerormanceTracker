@@ -32,6 +32,7 @@ export default async function TeamTargetsPage() {
   const upcomingCycleStart = nextCycleStart(today);
   const upcomingCycleEnd = cycleBounds(new Date(upcomingCycleStart + 'T00:00:00Z')).to;
   const effectiveDate = formatDisplayDate(upcomingCycleStart);
+  const currentCycle = cycleBounds(new Date(today + 'T00:00:00Z'));
 
   // The true org default (agent_id IS NULL), read directly rather than via
   // team_target/effective_target -- those resolve the *effective* target for
@@ -41,20 +42,39 @@ export default async function TeamTargetsPage() {
   // agentId: null (as this "Org default" card always does) then silently
   // overwrote the real org default with whatever the SMD's personal
   // numbers happened to be -- the bug this now fixes.
-  const [{ data: orgDefaultRow }, { data: roster }] = await Promise.all([
-    supabase
-      .from('targets')
-      .select('calls_per_cycle, appts_held_per_cycle, premium_cents_per_cycle, min_calls_per_day')
-      .eq('org_id', session.agent!.org_id!)
-      .is('agent_id', null)
-      .lte('effective_from', upcomingCycleStart)
-      .order('effective_from', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase.rpc('team_period_summary', { p_from: upcomingCycleStart, p_to: upcomingCycleEnd }),
-  ]);
+  //
+  // Fetched alongside the upcoming-cycle values above: the *currently* live
+  // goal (org default row and roster resolved as of today's cycle, not the
+  // upcoming one), shown as a plain read-only line on each card so the SMD
+  // can see what's actually in effect right now next to what they're about
+  // to set for next cycle -- avoids the confusion of the "Applies from"
+  // date reading like it already happened.
+  const [{ data: orgDefaultRow }, { data: roster }, { data: currentOrgDefaultRow }, { data: currentRoster }] =
+    await Promise.all([
+      supabase
+        .from('targets')
+        .select('calls_per_cycle, appts_held_per_cycle, premium_cents_per_cycle, min_calls_per_day')
+        .eq('org_id', session.agent!.org_id!)
+        .is('agent_id', null)
+        .lte('effective_from', upcomingCycleStart)
+        .order('effective_from', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase.rpc('team_period_summary', { p_from: upcomingCycleStart, p_to: upcomingCycleEnd }),
+      supabase
+        .from('targets')
+        .select('calls_per_cycle, appts_held_per_cycle, premium_cents_per_cycle, min_calls_per_day')
+        .eq('org_id', session.agent!.org_id!)
+        .is('agent_id', null)
+        .lte('effective_from', currentCycle.from)
+        .order('effective_from', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase.rpc('team_period_summary', { p_from: currentCycle.from, p_to: currentCycle.to }),
+    ]);
 
   const defaultTarget = orgDefaultRow ?? FALLBACK;
+  const currentDefaultTarget = currentOrgDefaultRow ?? FALLBACK;
   // team_period_summary now returns min_calls_target (P20d migration,
   // applied to staging) alongside the other per-agent target columns, so
   // each card can show that agent's own value instead of always falling
@@ -75,6 +95,21 @@ export default async function TeamTargetsPage() {
   const me = rosterRows.find((a) => a.agent_id === session.agent!.id);
   const agents = rosterRows.filter((a) => a.agent_id !== session.agent!.id);
 
+  const currentRosterRows = (currentRoster ?? []) as unknown as typeof rosterRows;
+  const currentByAgentId = new Map(currentRosterRows.map((a) => [a.agent_id, a]));
+
+  function currentGoalFor(agentId: string) {
+    const row = currentByAgentId.get(agentId);
+    return row
+      ? {
+          calls_per_cycle: row.calls_target,
+          appts_held_per_cycle: row.appts_held_target,
+          premium_cents_per_cycle: Number(row.premium_cents_target),
+          min_calls_per_day: row.min_calls_target,
+        }
+      : currentDefaultTarget;
+  }
+
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center justify-between">
@@ -87,7 +122,12 @@ export default async function TeamTargetsPage() {
           <CardTitle>Org default</CardTitle>
         </CardHeader>
         <CardContent>
-          <TargetForm agentId={null} current={defaultTarget} effectiveDate={effectiveDate} />
+          <TargetForm
+            agentId={null}
+            current={defaultTarget}
+            currentGoal={currentDefaultTarget}
+            effectiveDate={effectiveDate}
+          />
         </CardContent>
       </Card>
 
@@ -108,6 +148,7 @@ export default async function TeamTargetsPage() {
                 premium_cents_per_cycle: Number(me.premium_cents_target),
                 min_calls_per_day: me.min_calls_target,
               }}
+              currentGoal={currentGoalFor(me.agent_id)}
             />
           </CardContent>
         </Card>
@@ -134,6 +175,7 @@ export default async function TeamTargetsPage() {
                   premium_cents_per_cycle: Number(a.premium_cents_target),
                   min_calls_per_day: a.min_calls_target,
                 }}
+                currentGoal={currentGoalFor(a.agent_id)}
               />
             ))
           )}
