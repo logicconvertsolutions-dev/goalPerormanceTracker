@@ -249,18 +249,23 @@ otp_expiry = 3600
 # user = "resend"
 # pass = "env(RESEND_API_KEY)"
 # admin_email = "notifications@kautis.ca"
-# sender_name = "Team Tracker"
+# sender_name = "Kautis"
 
 # Branded to match the app's navy/gold theme (src/lib/notifications/brand.ts)
 # -- production copies of these live in the Supabase Dashboard under
 # Authentication > Emails > Templates, since the hosted project doesn't read
-# this file. Keep both in sync by hand when the copy changes.
+# this file. Keep both in sync by hand when the copy changes. Both link to
+# our own /auth/confirm route (src/app/auth/confirm/route.ts) via
+# {{ .TokenHash }} + verifyOtp(), not {{ .ConfirmationURL }} -- that flow
+# doesn't need the code_verifier cookie from the requesting browser, so the
+# link still works when opened on a different device or a mail app's
+# in-app browser instead of failing with "expired".
 [auth.email.template.magic_link]
-subject = "Sign in to Team Tracker"
+subject = "Kautis - Login using link"
 content_path = "./supabase/templates/magic_link.html"
 
 [auth.email.template.recovery]
-subject = "Reset your Team Tracker password"
+subject = "Kautis - Reset your password"
 content_path = "./supabase/templates/recovery.html"
 
 [auth.sms]
