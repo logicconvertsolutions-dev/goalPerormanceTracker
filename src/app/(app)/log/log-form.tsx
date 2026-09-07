@@ -15,22 +15,22 @@ import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
 import { logCallAction, updateCallAction } from './actions';
 
 const SOURCES = [
-  { value: 'warm_market', label: 'Warm market' },
-  { value: 'referral', label: 'Referral' },
   { value: 'cold', label: 'Cold' },
-  { value: 'social_media', label: 'Social media' },
-  { value: 'friend', label: 'Friend' },
-  { value: 'other', label: 'Other' },
   { value: 'existing_client', label: 'Existing client' },
   { value: 'existing_recruit', label: 'Existing recruit' },
+  { value: 'friend', label: 'Friend' },
+  { value: 'other', label: 'Other' },
+  { value: 'referral', label: 'Referral' },
+  { value: 'social_media', label: 'Social media' },
+  { value: 'warm_market', label: 'Warm market' },
 ];
 
 const OUTCOMES = [
-  { value: 'connected', label: 'Connected' },
-  { value: 'voicemail', label: 'Voicemail' },
-  { value: 'no_answer', label: 'No answer' },
   { value: 'appointment_set', label: 'Appointment set' },
+  { value: 'connected', label: 'Connected' },
+  { value: 'no_answer', label: 'No answer' },
   { value: 'not_interested', label: 'Not interested' },
+  { value: 'voicemail', label: 'Voicemail' },
 ];
 
 function Chip({

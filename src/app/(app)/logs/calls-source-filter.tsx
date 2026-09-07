@@ -3,14 +3,14 @@
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 
 const SOURCES = [
-  { value: 'warm_market', label: 'Warm market' },
-  { value: 'referral', label: 'Referral' },
   { value: 'cold', label: 'Cold' },
-  { value: 'social_media', label: 'Social media' },
-  { value: 'friend', label: 'Friend' },
-  { value: 'other', label: 'Other' },
   { value: 'existing_client', label: 'Existing client' },
   { value: 'existing_recruit', label: 'Existing recruit' },
+  { value: 'friend', label: 'Friend' },
+  { value: 'other', label: 'Other' },
+  { value: 'referral', label: 'Referral' },
+  { value: 'social_media', label: 'Social media' },
+  { value: 'warm_market', label: 'Warm market' },
 ];
 
 /** Source filter for the Calls tab of /logs — updates the `source` search

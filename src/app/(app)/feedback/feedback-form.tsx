@@ -14,10 +14,10 @@ import { submitFeedbackAction } from './actions';
 // copy for someone unsure whether what they hit counts as a bug.
 const CATEGORIES = [
   { value: 'bug', label: 'Bug' },
-  { value: 'issue', label: 'Something not working' },
   { value: 'feature_request', label: 'Feature request' },
   { value: 'feedback', label: 'General feedback' },
   { value: 'other', label: 'Other' },
+  { value: 'issue', label: 'Something not working' },
 ];
 
 export function FeedbackForm() {

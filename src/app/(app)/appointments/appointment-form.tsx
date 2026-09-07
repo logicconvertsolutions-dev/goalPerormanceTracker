@@ -7,20 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ContactPicker } from '@/components/shell/contact-picker';
 import { todayIso, browserTimeZone, addDays, nextMonday } from '@/lib/dates';
 import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
-import { APPT_TYPES } from '@/lib/appointment-types';
+import { APPT_TYPES, APPT_STATUSES } from '@/lib/appointment-types';
+import { PRODUCT_TYPES } from '@/lib/product-types';
 import { createAppointmentAction, updateAppointmentAction } from './actions';
-
-const STATUSES = [
-  { value: 'scheduled', label: 'Scheduled' },
-  { value: 'held', label: 'Held' },
-  { value: 'no_show', label: 'No-show' },
-  { value: 'rescheduled', label: 'Rescheduled' },
-  { value: 'cancelled', label: 'Cancelled' },
-];
+import { createSaleAction } from '../sales/actions';
+import { createRecruitingLogAction } from '../recruiting/actions';
 
 // Statuses that describe an appointment that's done but may need another
 // touch — held/no-show/rescheduled/cancelled can all need a follow-up call;
@@ -86,6 +82,14 @@ export function AppointmentForm({
   );
   const [followUpOn, setFollowUpOn] = useState(defaultValues?.followUpOn ?? '');
   const [showFollowUpPicker, setShowFollowUpPicker] = useState(false);
+  // "Log as a Sale" (apptType === 'application') and "Recruited?" (apptType
+  // === 'marketing_presentation') only apply to a brand-new appointment --
+  // re-saving an edited one shouldn't silently create a second sale/
+  // recruiting log every time, so these only render in create mode.
+  const [logAsSale, setLogAsSale] = useState(false);
+  const [saleProductType, setSaleProductType] = useState('');
+  const [saleOtherProductType, setSaleOtherProductType] = useState('');
+  const [recruited, setRecruited] = useState(false);
   // Client component -- the browser's own resolved zone is the correct
   // "what day is it right now" source here (todayIso() with no zone falls
   // back to UTC's calendar day).
@@ -94,8 +98,8 @@ export function AppointmentForm({
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (status === 'held' && !apptType) {
-      toast.error('Select an appointment type before marking this held.');
+    if (!apptType) {
+      toast.error('Select an appointment type.');
       return;
     }
     const formData = new FormData(e.currentTarget);
@@ -121,14 +125,56 @@ export function AppointmentForm({
     }
 
     formData.set('clientRequestId', crypto.randomUUID());
+
+    // Reuses the same sale/recruiting-log creation actions the Sales and
+    // Recruiting tabs use, rather than duplicating their insert logic here.
+    // Passing along just the contact name (no id) is enough -- findOrCreateContact
+    // resolves it to the exact contact the appointment action just
+    // found/created via its own case-insensitive name match.
+    async function createLinkedRecords() {
+      const contactName = String(formData.get('contactName') || '');
+      const contactId = String(formData.get('contactId') || '') || undefined;
+
+      if (apptType === 'application' && logAsSale) {
+        const saleForm = new FormData();
+        saleForm.set('clientName', contactName);
+        if (contactId) saleForm.set('contactId', contactId);
+        saleForm.set('saleDate', apptDate);
+        saleForm.set('productType', saleProductType === 'other' ? saleOtherProductType : saleProductType);
+        saleForm.set('premiumCents', String(Math.round(Number(premiumDollars || 0) * 100)));
+        saleForm.set('clientRequestId', crypto.randomUUID());
+        const result = await createSaleAction(saleForm);
+        if (result.ok) {
+          toast.success('Sale logged');
+        } else {
+          toast.error(result.error ?? 'Could not log the sale.');
+        }
+      }
+
+      if (apptType === 'marketing_presentation' && recruited) {
+        const recruitForm = new FormData();
+        recruitForm.set('prospectName', contactName);
+        recruitForm.set('logDate', apptDate);
+        recruitForm.set('status', 'recruited');
+        recruitForm.set('clientRequestId', crypto.randomUUID());
+        const result = await createRecruitingLogAction(recruitForm);
+        if (result.ok) {
+          toast.success('Recruiting log added');
+        } else {
+          toast.error(result.error ?? 'Could not save the recruiting log.');
+        }
+      }
+    }
+
     startTransition(async () => {
       const result = await submitWithOfflineFallback('appointment', formData, createAppointmentAction);
-      if (result.ok) {
-        toast.success(result.queued ? 'Saved offline — will sync when back online' : 'Appointment logged');
-        onSuccess ? onSuccess() : router.push('/appointments');
-      } else {
+      if (!result.ok) {
         toast.error(result.error ?? 'Could not save the appointment.');
+        return;
       }
+      toast.success(result.queued ? 'Saved offline — will sync when back online' : 'Appointment logged');
+      if (!result.queued) await createLinkedRecords();
+      onSuccess ? onSuccess() : router.push('/appointments');
     });
   }
 
@@ -155,9 +201,23 @@ export function AppointmentForm({
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="apptType">
-          Type{status === 'held' ? '' : ' (optional)'}
-        </Label>
+        <Label htmlFor="status">Status</Label>
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger id="status">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {APPT_STATUSES.map((s) => (
+              <SelectItem key={s.value} value={s.value}>
+                {s.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="apptType">Type</Label>
         <Select value={apptType} onValueChange={setApptType}>
           <SelectTrigger id="apptType">
             <SelectValue placeholder="Select a type" />
@@ -166,25 +226,6 @@ export function AppointmentForm({
             {APPT_TYPES.map((t) => (
               <SelectItem key={t.value} value={t.value}>
                 {t.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {status === 'held' && !apptType && (
-          <p className="text-xs text-bad">Required when the appointment is held.</p>
-        )}
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="status">Status</Label>
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger id="status">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {STATUSES.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                {s.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -225,7 +266,7 @@ export function AppointmentForm({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className={apptType === 'application' ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-2 gap-4'}>
         <div className="space-y-1.5">
           <Label htmlFor="expectedPremiumDollars">Expected premium ($)</Label>
           <Input
@@ -237,18 +278,69 @@ export function AppointmentForm({
             onChange={(e) => setPremiumDollars(e.target.value)}
           />
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="referralsGiven">Referrals given</Label>
-          <Input
-            id="referralsGiven"
-            name="referralsGiven"
-            type="number"
-            min={0}
-            step={1}
-            defaultValue={defaultValues?.referralsGiven ?? 0}
-          />
-        </div>
+        {apptType !== 'application' && (
+          <div className="space-y-1.5">
+            <Label htmlFor="referralsGiven">Referrals given</Label>
+            <Input
+              id="referralsGiven"
+              name="referralsGiven"
+              type="number"
+              min={0}
+              step={1}
+              defaultValue={defaultValues?.referralsGiven ?? 0}
+            />
+          </div>
+        )}
       </div>
+
+      {mode === 'create' && apptType === 'application' && (
+        <div className="space-y-3 rounded-sm border border-line-2 p-3">
+          <div className="flex items-center gap-3">
+            <Checkbox
+              id="logAsSale"
+              checked={logAsSale}
+              onCheckedChange={(v) => setLogAsSale(v === true)}
+            />
+            <Label htmlFor="logAsSale" className="font-medium text-fg">
+              Log as a Sale
+            </Label>
+          </div>
+          {logAsSale && (
+            <div className="space-y-1.5">
+              <Label htmlFor="saleProductType">Product type</Label>
+              <Select value={saleProductType} onValueChange={setSaleProductType}>
+                <SelectTrigger id="saleProductType">
+                  <SelectValue placeholder="Select a product type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRODUCT_TYPES.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {saleProductType === 'other' && (
+                <Input
+                  value={saleOtherProductType}
+                  onChange={(e) => setSaleOtherProductType(e.target.value)}
+                  placeholder="Product type"
+                  className="mt-1.5"
+                />
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {mode === 'create' && apptType === 'marketing_presentation' && (
+        <div className="flex items-center gap-3 rounded-sm border border-line-2 p-3">
+          <Checkbox id="recruited" checked={recruited} onCheckedChange={(v) => setRecruited(v === true)} />
+          <Label htmlFor="recruited" className="font-medium text-fg">
+            Recruited?
+          </Label>
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <Label htmlFor="notes">Notes</Label>

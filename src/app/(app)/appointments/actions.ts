@@ -20,7 +20,7 @@ const appointmentSchema = z.object({
   // logging a same-day appointment after UTC has already rolled to
   // tomorrow would get rejected).
   apptDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
-  apptType: z.string().max(200).optional(),
+  apptType: z.string().min(1, 'Select an appointment type.').max(200),
   status: z.enum(APPT_STATUSES),
   expectedPremiumCents: z.coerce.number().int().min(0).default(0),
   referralsGiven: z.coerce.number().int().min(0).default(0),
@@ -58,12 +58,6 @@ export async function createAppointmentAction(formData: FormData) {
   }
   if (parsed.data.apptDate > today) {
     return { ok: false, error: 'Appointment date cannot be in the future.' };
-  }
-  // Cross-field check, not a zod .refine() -- same reasoning as the
-  // future-date check above: keeps appointmentSchema a plain ZodObject so
-  // updateSchema's .partial().extend() below keeps working.
-  if (parsed.data.status === 'held' && !parsed.data.apptType) {
-    return { ok: false, error: 'Select an appointment type before marking this held.' };
   }
 
   const agentId = session.agent!.id;
@@ -130,9 +124,6 @@ export async function updateAppointmentAction(formData: FormData) {
   const session = await requireAgent();
   if (parsed.data.apptDate && parsed.data.apptDate > todayIso(session.agent!.time_zone)) {
     return { ok: false, error: 'Appointment date cannot be in the future.' };
-  }
-  if (parsed.data.status === 'held' && !parsed.data.apptType) {
-    return { ok: false, error: 'Select an appointment type before marking this held.' };
   }
   const supabase = await createClient();
 
