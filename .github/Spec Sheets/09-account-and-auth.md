@@ -537,16 +537,25 @@ set plus extras:** **Orgs · Agents · Audit · Pilot · Feedback** (the five
 `/admin/*` screens from "Admin screens" above) — admin has no personal "My
 Day," logs no activity of their own, and (P11) isn't part of any
 organization, so none of My Day/Activity Logs/Contacts/My Dashboard/My Team
-apply. The account menu also drops the "Log Activity/Meeting Notes/Clients"
-mobile-only group for admin, for the same reason. This nav previously
-appended **My Team** to the associate/leader set for admin (since admin
-used to pass `requireLeader()`) — that's gone; see "Admin is not part of
-any organization" above.
+apply. The account menu also drops the secondary-group shortcuts entirely
+for admin, for the same reason. This nav previously appended **My Team** to
+the associate/leader set for admin (since admin used to pass
+`requireLeader()`) — that's gone; see "Admin is not part of any
+organization" above.
+
+**The secondary group differs by role, not just by screen size:**
+associates get **Log Activity, Meeting Notes, Clients**; leaders get
+**Organization, Meeting Notes, Clients** instead — "Log Activity" duplicates
+the header/page-level Log Activity buttons already reachable everywhere, and
+Organization (leader-only, `requireLeader()`-gated, previously reachable
+only via the button row on `/team` itself) had no shortcut of its own. Both
+variants surface identically on desktop (left rail) and mobile (account
+menu), keyed off role, not screen size.
 
 **Desktop** — left rail mirrors the same split: associate/leader get the
-primary items plus a secondary group (Log Activity, Meeting Notes, Clients)
-that doesn't fit the mobile tab bar's five slots (those three surface on
-mobile via the account menu instead); admin gets only the five `/admin/*`
+primary items plus the role-appropriate secondary group above, which
+doesn't fit the mobile tab bar's five slots (it surfaces on mobile via the
+account menu instead); admin gets only the five `/admin/*`
 items, no secondary group.
 
 **Header branding** — the shell header shows the signed-in agent's org logo
