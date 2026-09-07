@@ -7,7 +7,6 @@ import { getSessionAgent } from '@/lib/auth/session';
 import { sendEmail } from '@/lib/notifications/send';
 import { inviteEmail, rosterTrainingReminderEmail } from '@/lib/notifications/templates';
 import { appUrl } from '@/lib/notifications/app-url';
-import { orgLogoUrl } from '@/lib/notifications/brand';
 
 const schema = z.object({ agentId: z.string().uuid() });
 
@@ -102,10 +101,11 @@ export async function inviteRosterMemberAction(formData: FormData) {
   });
   if (error || !token) return { ok: false, error: error?.message ?? 'Could not send invite.' };
 
-  const [{ data: org }, logoUrl] = await Promise.all([
-    supabase.from('organizations').select('name').eq('id', session!.agent!.org_id!).maybeSingle(),
-    orgLogoUrl(session!.agent!.org_id!),
-  ]);
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('name')
+    .eq('id', session!.agent!.org_id!)
+    .maybeSingle();
 
   const inviteUrl = appUrl(`/invite/${token}`);
   await sendEmail({
@@ -114,7 +114,6 @@ export async function inviteRosterMemberAction(formData: FormData) {
       orgName: org?.name ?? 'the team',
       inviterName: session!.agent!.full_name,
       inviteUrl,
-      logoUrl,
     }),
   });
 
