@@ -2,6 +2,43 @@
 
 Design debt and deferred work surfaced by review. Newest first.
 
+## 2026-09-07 — RESOLVED (with a follow-up): staging dashboard showed zero numbers despite activity being logged correctly
+
+**What:** SMD-reported during staging testing: logging calls/appointments/
+sales/recruiting conversations worked, but both the personal dashboard and
+team dashboard stayed at zero. Root cause: `pg_cron` and `pg_net` were never
+actually enabled on the `staging` branch (confirmed via `list_extensions` --
+`installed_version: null` for both, versus both installed on production).
+Same failure class as the pgmq/auth-trigger gaps from 2026-09-06 above, one
+level deeper: `pg_dump` (what the baseline was built from) only captures
+schema objects, and neither an extension enabled via the Dashboard UI nor a
+`cron.schedule(...)` call (a plain INSERT into `cron.job` -- data, not DDL)
+is a schema object. So every one of the six pg_cron jobs this app depends on
+(`drain-metrics`, `reconcile-metrics`, `purge-old-call-logs`,
+`enqueue-due-notifications`, `ping-notification-drain`,
+`ping-legacy-notifications`) silently didn't exist on `staging`. The
+`enqueue_metrics` trigger (schema, so present on every branch) was correctly
+marking `private.metrics_dirty` on every activity write the whole time --
+nothing was ever draining it into `public.daily_metrics`, which is the only
+thing dashboards read (CLAUDE.md rule 10).
+
+**Resolution:** `supabase/migrations/20260907140000_p20c_pg_cron_jobs.sql`
+-- `CREATE EXTENSION IF NOT EXISTS` for both, then re-registers all six
+`cron.schedule(...)` calls (idempotent -- pg_cron upserts by job name).
+Merged dev -> staging, applied via the git-linked branch's auto-migration on
+push, confirmed via `list_migrations` (not the branch status field).
+`drain-metrics` running every minute catches up on whatever's already queued
+in `metrics_dirty` within a minute of the migration landing -- no backfill
+step needed.
+
+**Still open (cross-references item #3 in the 2026-09-06 entry above,
+unresolved since then):** the three notification jobs
+(`enqueue-due-notifications`, `ping-notification-drain`,
+`ping-legacy-notifications`) are now scheduled but still no-op on `staging`
+until the `app_base_url`/`cron_secret` Vault secrets exist for this branch
+(`private.ping_app_route()`'s own guard, `raise notice` instead of erroring)
+-- doesn't block dashboards/metrics, only notification emails.
+
 ## 2026-09-06 — RESOLVED (with follow-ups): rebuilt `staging` Supabase branch after repeated migration/encoding failures; production migration pipeline was briefly stuck
 
 **What:** The persistent `staging` Supabase branch failed to build correctly
