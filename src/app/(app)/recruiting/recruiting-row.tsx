@@ -17,12 +17,12 @@ import { formatDisplayDate } from '@/lib/dates';
 import { deleteRecruitingLogAction, updateRecruitingStatusAction } from './actions';
 
 const STATUSES = [
+  { value: 'certified', label: 'Certified' },
   { value: 'contacted', label: 'Contacted' },
+  { value: 'declined', label: 'Declined' },
+  { value: 'licensed', label: 'Licensed' },
   { value: 'marketing_presented', label: 'Marketing Presented' },
   { value: 'recruited', label: 'Recruited' },
-  { value: 'certified', label: 'Certified' },
-  { value: 'licensed', label: 'Licensed' },
-  { value: 'declined', label: 'Declined' },
 ] as const;
 
 export function RecruitingRow({

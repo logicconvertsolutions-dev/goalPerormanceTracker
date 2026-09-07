@@ -20,7 +20,7 @@ const appointmentSchema = z.object({
   // logging a same-day appointment after UTC has already rolled to
   // tomorrow would get rejected).
   apptDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
-  apptType: z.string().max(200).optional(),
+  apptType: z.string().min(1, 'Select an appointment type.').max(200),
   status: z.enum(APPT_STATUSES),
   expectedPremiumCents: z.coerce.number().int().min(0).default(0),
   referralsGiven: z.coerce.number().int().min(0).default(0),
@@ -59,12 +59,6 @@ export async function createAppointmentAction(formData: FormData) {
   if (parsed.data.apptDate > today) {
     return { ok: false, error: 'Appointment date cannot be in the future.' };
   }
-  // Cross-field check, not a zod .refine() -- same reasoning as the
-  // future-date check above: keeps appointmentSchema a plain ZodObject so
-  // updateSchema's .partial().extend() below keeps working.
-  if (parsed.data.status === 'held' && !parsed.data.apptType) {
-    return { ok: false, error: 'Select an appointment type before marking this held.' };
-  }
 
   const agentId = session.agent!.id;
   // Non-null: only associates/leaders reach this action (admin has no org).
@@ -80,31 +74,48 @@ export async function createAppointmentAction(formData: FormData) {
   );
   if ('error' in contact) return { ok: false, error: contact.error };
 
-  const { error } = await supabase.from('appointments').insert({
-    agent_id: agentId,
-    org_id: orgId,
-    contact_id: contact.id,
-    appt_date: parsed.data.apptDate,
-    appt_type: parsed.data.apptType || null,
-    status: parsed.data.status,
-    expected_premium_cents: parsed.data.expectedPremiumCents,
-    referrals_given: parsed.data.referralsGiven,
-    notes: parsed.data.notes || null,
-    follow_up_on: parsed.data.followUpOn || null,
-    client_request_id: parsed.data.clientRequestId || null,
-  });
+  const { data: inserted, error } = await supabase
+    .from('appointments')
+    .insert({
+      agent_id: agentId,
+      org_id: orgId,
+      contact_id: contact.id,
+      appt_date: parsed.data.apptDate,
+      appt_type: parsed.data.apptType || null,
+      status: parsed.data.status,
+      expected_premium_cents: parsed.data.expectedPremiumCents,
+      referrals_given: parsed.data.referralsGiven,
+      notes: parsed.data.notes || null,
+      follow_up_on: parsed.data.followUpOn || null,
+      client_request_id: parsed.data.clientRequestId || null,
+    })
+    .select('id')
+    .single();
 
   // A duplicate client_request_id means this exact submission already
-  // succeeded (offline retry) -- treat as success, not an error.
-  if (error && error.code !== UNIQUE_VIOLATION) {
-    console.error('createAppointmentAction: insert failed', error);
-    return { ok: false, error: 'Could not save the appointment.' };
+  // succeeded (offline retry) -- treat as success, not an error. The insert
+  // above returns no row in that case, so look the original one up instead
+  // -- the appointment form's "Log as a Sale"/"Recruited?" toggles need its
+  // id to link a record they create against it.
+  let appointmentId = inserted?.id;
+  if (error) {
+    if (error.code !== UNIQUE_VIOLATION) {
+      console.error('createAppointmentAction: insert failed', error);
+      return { ok: false, error: 'Could not save the appointment.' };
+    }
+    const { data: existing } = await supabase
+      .from('appointments')
+      .select('id')
+      .eq('agent_id', agentId)
+      .eq('client_request_id', parsed.data.clientRequestId ?? '')
+      .maybeSingle();
+    appointmentId = existing?.id;
   }
 
   revalidatePath('/appointments');
   revalidatePath('/logs');
   revalidatePath(`/contacts/${contact.id}`);
-  return { ok: true };
+  return { ok: true, id: appointmentId };
 }
 
 const updateSchema = appointmentSchema.partial({ contactName: true }).extend({
@@ -130,9 +141,6 @@ export async function updateAppointmentAction(formData: FormData) {
   const session = await requireAgent();
   if (parsed.data.apptDate && parsed.data.apptDate > todayIso(session.agent!.time_zone)) {
     return { ok: false, error: 'Appointment date cannot be in the future.' };
-  }
-  if (parsed.data.status === 'held' && !parsed.data.apptType) {
-    return { ok: false, error: 'Select an appointment type before marking this held.' };
   }
   const supabase = await createClient();
 
