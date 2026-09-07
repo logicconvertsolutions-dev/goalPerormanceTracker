@@ -70,6 +70,10 @@ export async function createRecruitingLogAction(formData: FormData) {
   const contact = await findOrCreateContact(supabase, agentId, orgId, parsed.data.prospectName);
   if ('error' in contact) return { ok: false, error: contact.error };
 
+  // recruiting_logs.appointment_id isn't in generated types yet -- migration
+  // 20260907130000_p20b hasn't been applied/regenerated (npm run types).
+  // Drop the cast below once it has.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await supabase.from('recruiting_logs').insert({
     agent_id: agentId,
     org_id: orgId,
@@ -80,7 +84,7 @@ export async function createRecruitingLogAction(formData: FormData) {
     status: parsed.data.status,
     notes: parsed.data.notes || null,
     client_request_id: parsed.data.clientRequestId || null,
-  });
+  } as any);
 
   // A duplicate client_request_id means this exact submission already
   // succeeded (offline retry) -- treat as success, not an error.

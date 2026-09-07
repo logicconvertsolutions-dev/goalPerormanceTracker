@@ -35,7 +35,11 @@ export default async function EditAppointmentPage({ params }: { params: Promise<
     supabase
       .from('recruiting_logs')
       .select('id')
-      .eq('appointment_id', id)
+      // recruiting_logs.appointment_id isn't in generated types yet --
+      // migration 20260907130000_p20b hasn't been applied/regenerated
+      // (npm run types). Drop this cast once it has.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .eq('appointment_id' as any, id)
       .eq('agent_id', session.agent!.id)
       .maybeSingle(),
   ]);
