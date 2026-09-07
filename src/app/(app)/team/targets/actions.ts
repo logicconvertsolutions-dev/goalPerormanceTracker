@@ -43,7 +43,14 @@ export async function setTargetAction(formData: FormData) {
   if (!agent) return { ok: false, error: 'Not signed in.' };
 
   const { error } = await supabase.rpc('set_target', {
-    p_agent_id: parsed.data.agentId,
+    // The generated type for this RPC arg lost its `| null` when types were
+    // last regenerated (a plain `uuid` Postgres parameter doesn't carry
+    // nullability info the generator can read from the catalog -- this
+    // isn't a real schema change, set_target still treats a null agent id
+    // as "org default", see its own `if p_agent_id is null` branch). Cast,
+    // not a value change: sending null here is exactly what saving the org
+    // default (as opposed to a per-agent override) requires.
+    p_agent_id: parsed.data.agentId as string,
     // Start of the next 10-day cycle from the leader's own local today --
     // not the server's UTC one, which could be a day ahead/behind near
     // their midnight.

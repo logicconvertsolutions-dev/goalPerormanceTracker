@@ -2,6 +2,77 @@
 
 Design debt and deferred work surfaced by review. Newest first.
 
+## 2026-09-07 — Auth email fixes: Kautis branding, magic-link/recovery "expired" bug, staging non-delivery, invite copy
+
+**What shipped (code, this repo):**
+1. `supabase/templates/{magic_link,recovery}.html` + `supabase/config.toml`'s
+   `[auth.email.template.*]` subjects: rebranded from "Team Tracker" to
+   "Kautis", with the Kautis mark (`public/kautis-logo.png`, resolved via
+   `{{ .SiteURL }}` so it works in local/staging/prod alike) next to the
+   wordmark in the navy header. Magic-link subject is now
+   "Kautis - Login using link"; recovery is "Kautis - Reset your password".
+2. **Root-caused the "link says expired" bug** (reported: received in
+   production, but clicking it always failed): both templates used
+   `{{ .ConfirmationURL }}`, which round-trips through Supabase's own
+   `/auth/v1/verify` and lands on our `/auth/callback?code=...`, which calls
+   `exchangeCodeForSession()` -- the PKCE flow, which requires the
+   `code_verifier` cookie set by the *exact browser* that called
+   `signInWithOtp`/`resetPasswordForEmail`. Opening the emailed link on a
+   different device, or in a mail app's own in-app browser (a different
+   cookie jar than whatever requested the link), fails that exchange and our
+   callback route turned every failure reason into the same generic
+   `?reason=link-expired`, which is genuinely what the user saw even though
+   the token itself hadn't actually expired. Fixed by switching both
+   templates to `{{ .TokenHash }}` + a new `src/app/auth/confirm/route.ts`
+   that calls `supabase.auth.verifyOtp({ type, token_hash })` instead --
+   this path checks the token itself and has no dependency on which browser
+   requested it. `/auth/callback` (PKCE) is left in place for any future
+   OAuth provider, just no longer used by these two flows.
+3. `src/lib/notifications/templates.ts`'s shared `header()` (used by every
+   Resend-sent email -- invite, nudges, cycle summary/digest, training
+   reminders, feedback alerts, email-change confirmation): the "no
+   org-logo-uploaded" fallback was wordmark-only text; now it's the Kautis
+   mark next to the wordmark, same treatment as the auth templates above. An
+   org that *has* uploaded its own logo still gets that instead — unchanged,
+   that's the deliberate multi-tenant branding behavior.
+4. `inviteEmail()` in the same file: fuller copy explaining what the invitee
+   is being invited into ("track your daily activity and see your progress
+   toward your goals... start tracking your calls, appointments, and
+   sales"), and the subject now names Kautis instead of just the org.
+
+**Still open — needs Supabase Dashboard / DNS access this session doesn't
+have (same access gap as the 2026-08-31 deliverability entry below):**
+1. **Staging magic-link/reset emails "never received" is almost certainly
+   missing custom SMTP on the `staging` project.** Per the existing note
+   below, the hosted project's SMTP is configured in Dashboard →
+   Authentication → Emails → SMTP Settings, separately per project --
+   `supabase/config.toml`'s commented-out Resend SMTP block is local-CLI-only
+   and was never something `supabase config push` propagates. Compare
+   staging's SMTP Settings against production's (which is evidently working,
+   since production *does* receive mail) and point staging at the same
+   verified Resend sender if it isn't already.
+2. **Copy the updated `magic_link.html`/`recovery.html` content and subjects
+   into both the staging and production project dashboards by hand.**
+   Confirmed (see the comment above `[auth.email.template.magic_link]` in
+   `config.toml`, predating this change): the hosted projects don't read
+   `content_path` from this repo, only the local CLI stack does. Everything
+   in this repo is the source of truth to copy from, not something that
+   auto-syncs.
+3. **Forgot-password emails "never received" on both staging and prod**
+   shares root cause #1 above for staging; for production, if SMTP is
+   already correctly configured (magic-link emails do arrive there), check
+   the account's `auth.rate_limit.email_sent` isn't being silently exhausted
+   by both flows sharing one hourly quota, and check spam placement per the
+   2026-08-31 entry below.
+4. Once the Dashboard templates are updated, verify both environments'
+   **Site URL** (Authentication → URL Configuration) is actually the app's
+   own domain (`https://staging.kautis.ca`, `https://kautis.ca` or
+   equivalent) — `{{ .SiteURL }}` is what the new `/auth/confirm` link and
+   the logo image URL resolve against, so a wrong Site URL breaks both at
+   once. `additional_redirect_urls` does not need a new entry for
+   `/auth/confirm` — it's reached via `{{ .SiteURL }}` directly, not
+   `{{ .RedirectTo }}`, so it isn't subject to that allow-list check.
+
 ## 2026-09-07 — RESOLVED (with a follow-up): staging dashboard showed zero numbers despite activity being logged correctly
 
 **What:** SMD-reported during staging testing: logging calls/appointments/

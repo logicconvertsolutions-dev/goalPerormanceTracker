@@ -908,6 +908,7 @@ export type Database = {
       recruiting_logs: {
         Row: {
           agent_id: string
+          appointment_id: string | null
           client_request_id: string | null
           contact_id: string | null
           created_at: string
@@ -921,6 +922,7 @@ export type Database = {
         }
         Insert: {
           agent_id: string
+          appointment_id?: string | null
           client_request_id?: string | null
           contact_id?: string | null
           created_at?: string
@@ -934,6 +936,7 @@ export type Database = {
         }
         Update: {
           agent_id?: string
+          appointment_id?: string | null
           client_request_id?: string | null
           contact_id?: string | null
           created_at?: string
@@ -951,6 +954,13 @@ export type Database = {
             columns: ["agent_id"]
             isOneToOne: false
             referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recruiting_logs_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
             referencedColumns: ["id"]
           },
           {
@@ -1337,6 +1347,8 @@ export type Database = {
         }
         Returns: string
       }
+      cycle_end: { Args: { d: string }; Returns: string }
+      cycle_start: { Args: { d: string }; Returns: string }
       deactivate_agent: { Args: { p_agent_id: string }; Returns: undefined }
       drain_metrics: { Args: { p_limit?: number }; Returns: number }
       my_followups: {
@@ -1401,7 +1413,7 @@ export type Database = {
       }
       set_target: {
         Args: {
-          p_agent_id: string | null
+          p_agent_id: string
           p_appts_held_per_cycle: number
           p_calls_per_cycle: number
           p_effective_from: string
@@ -1528,8 +1540,6 @@ export type Database = {
           week_start: string
         }[]
       }
-      cycle_start: { Args: { d: string }; Returns: string }
-      cycle_end: { Args: { d: string }; Returns: string }
       week_start: { Args: { d: string }; Returns: string }
     }
     Enums: {

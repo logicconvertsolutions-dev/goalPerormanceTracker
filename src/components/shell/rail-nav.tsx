@@ -3,7 +3,15 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { PRIMARY_NAV, SECONDARY_NAV, LEADER_NAV, ADMIN_NAV, HELP_NAV, type NavItem } from './nav-items';
+import {
+  PRIMARY_NAV,
+  SECONDARY_NAV,
+  LEADER_SECONDARY_NAV,
+  LEADER_NAV,
+  ADMIN_NAV,
+  HELP_NAV,
+  type NavItem,
+} from './nav-items';
 import { useLogActivityDialog } from './log-activity-dialog';
 
 function NavLink({ item, current }: { item: NavItem; current: boolean }) {
@@ -58,6 +66,7 @@ export function RailNav({ role }: { role: AppRole }) {
   }
 
   const items = role === 'leader' ? [...PRIMARY_NAV, LEADER_NAV] : PRIMARY_NAV;
+  const secondaryItems = role === 'leader' ? LEADER_SECONDARY_NAV : SECONDARY_NAV;
 
   return (
     <nav
@@ -70,7 +79,7 @@ export function RailNav({ role }: { role: AppRole }) {
 
       <div className="my-2 border-t border-line" />
 
-      {SECONDARY_NAV.map((item) => (
+      {secondaryItems.map((item) => (
         <NavLink key={item.href} item={item} current={pathname.startsWith(item.href)} />
       ))}
 

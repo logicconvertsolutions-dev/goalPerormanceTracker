@@ -44,9 +44,13 @@ function button(href: string, label: string): string {
 }
 
 function header(logoUrl: string | null | undefined): string {
+  // An org that's uploaded its own logo gets that instead -- deliberate,
+  // this is what makes the multi-tenant branding work. Everyone else gets
+  // the Kautis mark (public/kautis-logo.png) next to the wordmark, not the
+  // wordmark alone.
   const mark = logoUrl
     ? `<img src="${logoUrl}" alt="${BRAND.name}" height="28" style="height:28px;max-width:160px;display:block;" />`
-    : `<span style="color:#fff;font-size:18px;font-weight:700;">${BRAND.name}</span>`;
+    : `<img src="${appUrl('/kautis-logo.png')}" alt="${BRAND.name}" width="28" height="28" style="width:28px;height:28px;border-radius:50%;vertical-align:middle;display:inline-block;border:0;" /><span style="color:#fff;font-size:18px;font-weight:700;vertical-align:middle;margin-left:10px;">${BRAND.name}</span>`;
   return `<div style="background:${BRAND.navy};padding:20px 32px;border-radius:14px 14px 0 0;">${mark}</div>`;
 }
 
@@ -202,12 +206,13 @@ export interface InviteData {
 export function inviteEmail(d: InviteData): EmailContent {
   const bodyHtml = `
     <p>Hi,</p>
-    <p>${escapeHtml(firstName(d.inviterName))} invited you to join <strong>${escapeHtml(d.orgName)}</strong> on ${BRAND.name}.</p>
+    <p>${escapeHtml(firstName(d.inviterName))} invited you to join <strong>${escapeHtml(d.orgName)}</strong> on ${BRAND.name}, where you can track your daily activity and see your progress toward your goals.</p>
+    <p>Accept the invitation below to create your account and start tracking your calls, appointments, and sales.</p>
     ${button(d.inviteUrl, 'Accept invitation')}
     <p style="font-size:12px;color:${BRAND.muted};margin-top:16px;">This link expires in 7 days.</p>`;
-  const bodyText = `Hi,\n\n${firstName(d.inviterName)} invited you to join ${d.orgName} on ${BRAND.name}.\n\nAccept invitation: ${d.inviteUrl}\n\nThis link expires in 7 days.`;
+  const bodyText = `Hi,\n\n${firstName(d.inviterName)} invited you to join ${d.orgName} on ${BRAND.name}, where you can track your daily activity and see your progress toward your goals.\n\nAccept the invitation below to create your account and start tracking your calls, appointments, and sales.\n\nAccept invitation: ${d.inviteUrl}\n\nThis link expires in 7 days.`;
   return {
-    subject: `${d.inviterName} invited you to join ${d.orgName}`,
+    subject: `${d.inviterName} invited you to join ${d.orgName} on ${BRAND.name}`,
     html: `<div style="font-family:'Plus Jakarta Sans',-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;">
       ${header(d.logoUrl)}
       <div style="background:${BRAND.bg};padding:32px;border:1px solid #E7E2D3;border-top:none;border-radius:0 0 14px 14px;color:${BRAND.text};">
