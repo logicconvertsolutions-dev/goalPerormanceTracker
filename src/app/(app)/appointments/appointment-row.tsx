@@ -14,16 +14,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatDisplayDate } from '@/lib/dates';
-import { apptTypeLabel } from '@/lib/appointment-types';
+import { apptTypeLabel, APPT_STATUSES } from '@/lib/appointment-types';
 import { deleteAppointmentAction, updateAppointmentStatusAction } from './actions';
-
-const STATUSES = [
-  { value: 'scheduled', label: 'Scheduled' },
-  { value: 'held', label: 'Held' },
-  { value: 'no_show', label: 'No-show' },
-  { value: 'rescheduled', label: 'Rescheduled' },
-  { value: 'cancelled', label: 'Cancelled' },
-] as const;
 
 export function AppointmentRow({
   id,
@@ -47,7 +39,7 @@ export function AppointmentRow({
 
   function handleStatusChange(next: string) {
     startTransition(async () => {
-      const result = await updateAppointmentStatusAction(id, next as (typeof STATUSES)[number]['value']);
+      const result = await updateAppointmentStatusAction(id, next as (typeof APPT_STATUSES)[number]['value']);
       if (!result.ok) toast.error(result.error ?? 'Could not update status — try again');
     });
   }
@@ -75,7 +67,7 @@ export function AppointmentRow({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {STATUSES.map((s) => (
+            {APPT_STATUSES.map((s) => (
               <SelectItem key={s.value} value={s.value}>
                 {s.label}
               </SelectItem>

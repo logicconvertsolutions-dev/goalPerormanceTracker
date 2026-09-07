@@ -293,10 +293,10 @@ create table public.targets (
   -- 10-day cycle (day 1-10/11-20/21-end-of-month). Column values are
   -- unchanged for existing rows (never mutate a past target row); only
   -- targets inserted after P17 are actually sized for 10 days.
-  calls_per_cycle    int not null default 50,
-  appts_held_per_cycle int not null default 3,
-  premium_cents_per_cycle bigint not null default 18800,  -- workbook's $188/wk, pre-P17
-  min_calls_per_day int not null default 15,
+  calls_per_cycle    int not null default 72,
+  appts_held_per_cycle int not null default 24,
+  premium_cents_per_cycle bigint not null default 25000,  -- $250.00/cycle (P20)
+  min_calls_per_day int not null default 7,
   md_deadline       date,
   created_at        timestamptz not null default now()
 );

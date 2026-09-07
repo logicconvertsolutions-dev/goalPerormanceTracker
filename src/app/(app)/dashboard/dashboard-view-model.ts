@@ -114,7 +114,7 @@ export function buildDashboardViewModel(input: {
     : 0;
 
   const pipelineValueCents = pipelineValueOpenAppts(openAppointments);
-  const streak = currentStreak(streakRows, target?.min_calls_per_day ?? 15, today);
+  const streak = currentStreak(streakRows, target?.min_calls_per_day ?? 7, today);
 
   const callsTargetPct = scaled?.calls_per_cycle ? Math.round((100 * (t2?.calls_made ?? 0)) / scaled.calls_per_cycle) : 0;
   const apptsTargetPct = scaled?.appts_held_per_cycle

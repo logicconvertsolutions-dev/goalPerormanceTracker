@@ -11,15 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ContactPicker } from '@/components/shell/contact-picker';
 import { todayIso, browserTimeZone, addDays, nextMonday } from '@/lib/dates';
 import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
+import { PRODUCT_TYPES } from '@/lib/product-types';
 import { createSaleAction, updateSaleAction } from './actions';
-
-const PRODUCT_TYPES = [
-  { value: 'universal_life', label: 'Universal Life' },
-  { value: 'term_life', label: 'Term Life' },
-  { value: 'critical_illness', label: 'Critical Illness' },
-  { value: 'disability', label: 'Disability' },
-  { value: 'other', label: 'Other' },
-];
 
 function Chip({
   active,

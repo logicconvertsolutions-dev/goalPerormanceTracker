@@ -7,10 +7,10 @@ import { TargetForm } from './target-form';
 import { AgentOverrideRow } from './agent-override-row';
 
 const FALLBACK = {
-  calls_per_cycle: 50,
-  appts_held_per_cycle: 3,
-  premium_cents_per_cycle: 18800,
-  min_calls_per_day: 15,
+  calls_per_cycle: 72,
+  appts_held_per_cycle: 24,
+  premium_cents_per_cycle: 25000,
+  min_calls_per_day: 7,
 };
 
 // Org default + per-agent overrides (03-ui.md: "/team/targets, SMD-only").
@@ -33,12 +33,28 @@ export default async function TeamTargetsPage() {
   const upcomingCycleEnd = cycleBounds(new Date(upcomingCycleStart + 'T00:00:00Z')).to;
   const effectiveDate = formatDisplayDate(upcomingCycleStart);
 
-  const [{ data: orgDefault }, { data: roster }] = await Promise.all([
-    supabase.rpc('team_target', { p_agent_id: session.agent!.id, p_period_start: upcomingCycleStart }),
+  // The true org default (agent_id IS NULL), read directly rather than via
+  // team_target/effective_target -- those resolve the *effective* target for
+  // a specific agent (their own override, falling back to the org default),
+  // so calling them with the SMD's own id returned the SMD's own effective
+  // target here instead of the org's actual default. Saving that back with
+  // agentId: null (as this "Org default" card always does) then silently
+  // overwrote the real org default with whatever the SMD's personal
+  // numbers happened to be -- the bug this now fixes.
+  const [{ data: orgDefaultRow }, { data: roster }] = await Promise.all([
+    supabase
+      .from('targets')
+      .select('calls_per_cycle, appts_held_per_cycle, premium_cents_per_cycle, min_calls_per_day')
+      .eq('org_id', session.agent!.org_id!)
+      .is('agent_id', null)
+      .lte('effective_from', upcomingCycleStart)
+      .order('effective_from', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
     supabase.rpc('team_period_summary', { p_from: upcomingCycleStart, p_to: upcomingCycleEnd }),
   ]);
 
-  const defaultTarget = orgDefault?.[0] ?? FALLBACK;
+  const defaultTarget = orgDefaultRow ?? FALLBACK;
   const me = (roster ?? []).find((a) => a.agent_id === session.agent!.id);
   const agents = (roster ?? []).filter((a) => a.agent_id !== session.agent!.id);
 
