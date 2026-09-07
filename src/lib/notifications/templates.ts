@@ -43,19 +43,17 @@ function button(href: string, label: string): string {
   return `<a href="${href}" style="display:inline-block;padding:12px 24px;background:${BRAND.gold};color:${BRAND.navy};font-weight:600;text-decoration:none;border-radius:8px;margin-top:8px;">${label}</a>`;
 }
 
-function header(logoUrl: string | null | undefined): string {
-  // An org that's uploaded its own logo gets that instead -- deliberate,
-  // this is what makes the multi-tenant branding work. Everyone else gets
-  // the Kautis mark next to the wordmark, not the wordmark alone. Uses the
-  // pre-sized 112x112 email derivative (public/kautis-logo-email.png), not
-  // the 1024x1024/~112KB master (public/kautis-logo.png) -- some email image
-  // proxies (Gmail's especially) apply stricter size/thumbnailing limits to
-  // inline images than a normal page load, and serving an oversized source
-  // image at a 28px display size showed up as a broken icon in Gmail's own
-  // hero-image card even though the URL fetched fine directly.
-  const mark = logoUrl
-    ? `<img src="${logoUrl}" alt="${BRAND.name}" height="28" style="height:28px;max-width:160px;display:block;" />`
-    : `<img src="${appUrl('/kautis-logo-email.png')}" alt="${BRAND.name}" width="28" height="28" style="width:28px;height:28px;border-radius:50%;vertical-align:middle;display:inline-block;border:0;" /><span style="color:#fff;font-size:18px;font-weight:700;vertical-align:middle;margin-left:10px;">${BRAND.name}</span>`;
+// Always the Kautis mark next to the wordmark -- every email is Kautis
+// branding, never an org's own uploaded logo (that logo is for the app
+// shell/org settings screens only). Uses the pre-sized 112x112 email
+// derivative (public/kautis-logo-email.png), not the 1024x1024/~112KB
+// master (public/kautis-logo.png) -- some email image proxies (Gmail's
+// especially) apply stricter size/thumbnailing limits to inline images
+// than a normal page load, and serving an oversized source image at a
+// 28px display size showed up as a broken icon in Gmail's own hero-image
+// card even though the URL fetched fine directly.
+function header(): string {
+  const mark = `<img src="${appUrl('/kautis-logo-email.png')}" alt="${BRAND.name}" width="28" height="28" style="width:28px;height:28px;border-radius:50%;vertical-align:middle;display:inline-block;border:0;" /><span style="color:#fff;font-size:18px;font-weight:700;vertical-align:middle;margin-left:10px;">${BRAND.name}</span>`;
   return `<div style="background:${BRAND.navy};padding:20px 32px;border-radius:14px 14px 0 0;">${mark}</div>`;
 }
 
@@ -83,12 +81,11 @@ function footer(agentId: string, kind: NotificationKind | null): { html: string;
 function wrap(
   bodyHtml: string,
   agentId: string,
-  kind: NotificationKind | null,
-  logoUrl?: string | null
+  kind: NotificationKind | null
 ): EmailContent['html'] {
   const f = footer(agentId, kind);
   return `<div style="font-family:'Plus Jakarta Sans',-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;">
-    ${header(logoUrl)}
+    ${header()}
     <div style="background:${BRAND.bg};padding:32px;border:1px solid #E7E2D3;border-top:none;border-radius:0 0 14px 14px;color:${BRAND.text};">
       ${bodyHtml}
       ${f.html}
@@ -105,7 +102,6 @@ export interface EveningNudgeData {
   fullName: string;
   streakDays: number;
   minCallsPerDay: number;
-  logoUrl?: string | null;
 }
 
 export function eveningNudgeEmail(d: EveningNudgeData): EmailContent {
@@ -121,7 +117,7 @@ export function eveningNudgeEmail(d: EveningNudgeData): EmailContent {
   const bodyText = `Hi ${firstName(d.fullName)},\n\nYou haven't logged any calls today. ${streakLine}\n\nLog a call: ${logUrl}`;
   return {
     subject: "You haven't logged any calls today",
-    html: wrap(bodyHtml, d.agentId, 'evening_nudge', d.logoUrl),
+    html: wrap(bodyHtml, d.agentId, 'evening_nudge'),
     text: wrapText(bodyText, d.agentId, 'evening_nudge'),
     unsubscribeUrl: unsubscribeUrlFor(d.agentId, 'evening_nudge'),
   };
@@ -134,7 +130,6 @@ export interface CycleSummaryData {
   callsTarget: number;
   streakDays: number;
   followUpsDueNextCycle: number;
-  logoUrl?: string | null;
 }
 
 // Notification kind stays 'sunday_summary' (the DB/URL identifier, unchanged
@@ -151,7 +146,7 @@ export function cycleSummaryEmail(d: CycleSummaryData): EmailContent {
   const bodyText = `Hi ${firstName(d.fullName)},\n\nThis cycle: ${d.callsMade} of ${d.callsTarget} calls, a ${d.streakDays}-day streak, and ${d.followUpsDueNextCycle} follow-up(s) due next cycle.\n\nView your dashboard: ${dashboardUrl}`;
   return {
     subject: 'Your cycle in review',
-    html: wrap(bodyHtml, d.agentId, 'sunday_summary', d.logoUrl),
+    html: wrap(bodyHtml, d.agentId, 'sunday_summary'),
     text: wrapText(bodyText, d.agentId, 'sunday_summary'),
     unsubscribeUrl: unsubscribeUrlFor(d.agentId, 'sunday_summary'),
   };
@@ -165,7 +160,6 @@ export interface CycleDigestData {
   totalPremiumCents: number;
   quietAgentNames: string[];
   moverNames: string[];
-  logoUrl?: string | null;
 }
 
 // Notification kind stays 'monday_digest' (the DB/URL identifier, unchanged
@@ -193,7 +187,7 @@ export function cycleDigestEmail(d: CycleDigestData): EmailContent {
   const bodyText = `Hi ${firstName(d.fullName)},\n\nTeam so far this cycle: ${d.totalCalls} of ${d.totalCallsTarget} calls, ${formatMoney(d.totalPremiumCents)} in premium.\n\n${quietLine}${moversLine ? ` ${moversLine}` : ''}\n\nView team dashboard: ${teamUrl}`;
   return {
     subject: 'Your team cycle digest',
-    html: wrap(bodyHtml, d.agentId, 'monday_digest', d.logoUrl),
+    html: wrap(bodyHtml, d.agentId, 'monday_digest'),
     text: wrapText(bodyText, d.agentId, 'monday_digest'),
     unsubscribeUrl: unsubscribeUrlFor(d.agentId, 'monday_digest'),
   };
@@ -203,7 +197,6 @@ export interface InviteData {
   orgName: string;
   inviterName: string;
   inviteUrl: string;
-  logoUrl?: string | null;
 }
 
 // No agentId/unsubscribe footer -- the invitee isn't an agent yet, there's
@@ -219,7 +212,7 @@ export function inviteEmail(d: InviteData): EmailContent {
   return {
     subject: `${d.inviterName} invited you to join ${d.orgName} on ${BRAND.name}`,
     html: `<div style="font-family:'Plus Jakarta Sans',-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;">
-      ${header(d.logoUrl)}
+      ${header()}
       <div style="background:${BRAND.bg};padding:32px;border:1px solid #E7E2D3;border-top:none;border-radius:0 0 14px 14px;color:${BRAND.text};">
         ${bodyHtml}
       </div>
@@ -251,7 +244,7 @@ export function emailChangeConfirmationEmail(d: EmailChangeConfirmationData): Em
   return {
     subject: 'Confirm your new email address',
     html: `<div style="font-family:'Plus Jakarta Sans',-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;">
-      ${header(null)}
+      ${header()}
       <div style="background:${BRAND.bg};padding:32px;border:1px solid #E7E2D3;border-top:none;border-radius:0 0 14px 14px;color:${BRAND.text};">
         ${bodyHtml}
       </div>
@@ -264,7 +257,6 @@ export interface TrainingReminderData {
   agentId: string;
   fullName: string;
   sentByName: string;
-  logoUrl?: string | null;
 }
 
 // A distinct notification from the ad-hoc "Nudge" above — that one is about
@@ -286,7 +278,7 @@ export function trainingReminderEmail(d: TrainingReminderData): EmailContent {
   const bodyText = `Hello ${firstName(d.fullName)},\n\nThis is the reminder to attend for today's training session.\n\nIt's a valuable opportunity for growth and improvement, and it will help everyone to take your business to the next level.\n\nTraining is the key to growth in the Business.\n\nKindly make sure to attend the training with your Video ON.\n\nAnd please take some good notes to improve your identity and to achieve highest level in the Business.\u{1F51D}\n\nThanks!\n${d.sentByName}\n\nOpen the app: ${trainingUrl}`;
   return {
     subject: `${d.sentByName} sent you a training reminder`,
-    html: wrap(bodyHtml, d.agentId, null, d.logoUrl),
+    html: wrap(bodyHtml, d.agentId, null),
     text: wrapText(bodyText, d.agentId, null),
   };
 }
@@ -294,7 +286,6 @@ export function trainingReminderEmail(d: TrainingReminderData): EmailContent {
 export interface RosterTrainingReminderData {
   fullName: string;
   sentByName: string;
-  logoUrl?: string | null;
 }
 
 // Same copy as trainingReminderEmail, standalone (no wrap/footer) because the
@@ -313,7 +304,7 @@ export function rosterTrainingReminderEmail(d: RosterTrainingReminderData): Emai
   return {
     subject: `${d.sentByName} sent you a training reminder`,
     html: `<div style="font-family:'Plus Jakarta Sans',-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;">
-      ${header(d.logoUrl)}
+      ${header()}
       <div style="background:${BRAND.bg};padding:32px;border:1px solid #E7E2D3;border-top:none;border-radius:0 0 14px 14px;color:${BRAND.text};">
         ${bodyHtml}
       </div>
@@ -351,7 +342,7 @@ export function feedbackNotificationEmail(d: FeedbackNotificationData): EmailCon
   return {
     subject: `[Feedback] ${d.subject}`,
     html: `<div style="font-family:'Plus Jakarta Sans',-apple-system,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;">
-      ${header(null)}
+      ${header()}
       <div style="background:${BRAND.bg};padding:32px;border:1px solid #E7E2D3;border-top:none;border-radius:0 0 14px 14px;color:${BRAND.text};">
         ${bodyHtml}
       </div>
@@ -366,7 +357,6 @@ export interface NudgeData {
   sentByName: string;
   streakDays: number;
   minCallsPerDay: number;
-  logoUrl?: string | null;
   // Set for the automatic daily send (p12a: an SMD flips a persistent toggle
   // instead of clicking Nudge each time) -- unlike the manual one-off nudge
   // below (rate-limited to 1/day, no standing preference to unsubscribe
@@ -395,7 +385,7 @@ export function nudgeEmail(d: NudgeData): EmailContent {
   const kind: NotificationKind | null = d.recurring ? 'evening_nudge' : null;
   return {
     subject: `${d.sentByName} sent you a reminder`,
-    html: wrap(bodyHtml, d.agentId, kind, d.logoUrl),
+    html: wrap(bodyHtml, d.agentId, kind),
     text: wrapText(bodyText, d.agentId, kind),
     ...(kind ? { unsubscribeUrl: unsubscribeUrlFor(d.agentId, kind) } : {}),
   };
