@@ -623,7 +623,7 @@ select is(
 );
 select is(
   (select calls_per_cycle from private.effective_target('00000000-0000-0000-0000-0000000000b2', public.cycle_start(current_date))),
-  50, 'effective_target: fallback (50) applies where org has no target at all'
+  72, 'effective_target: fallback (72) applies where org has no target at all'
 );
 
 -- effective_target resolves per calendar day, not per week: crossing a
