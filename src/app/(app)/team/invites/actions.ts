@@ -7,7 +7,6 @@ import { getSessionAgent } from '@/lib/auth/session';
 import { sendEmail } from '@/lib/notifications/send';
 import { inviteEmail } from '@/lib/notifications/templates';
 import { appUrl } from '@/lib/notifications/app-url';
-import { orgLogoUrl } from '@/lib/notifications/brand';
 
 const emailListSchema = z.object({
   emails: z.string().min(1),
@@ -40,10 +39,11 @@ async function sendInvite(
 ): Promise<{ inviteUrl: string; emailSent: boolean }> {
   const session = await getSessionAgent();
   const supabase = await createClient();
-  const [{ data: org }, logoUrl] = await Promise.all([
-    supabase.from('organizations').select('name').eq('id', session!.agent!.org_id!).maybeSingle(),
-    orgLogoUrl(session!.agent!.org_id!),
-  ]);
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('name')
+    .eq('id', session!.agent!.org_id!)
+    .maybeSingle();
 
   const inviteUrl = appUrl(`/invite/${token}`);
   let emailSent = true;
@@ -54,7 +54,6 @@ async function sendInvite(
         orgName: org?.name ?? 'the team',
         inviterName: session!.agent!.full_name,
         inviteUrl,
-        logoUrl,
       }),
     });
   } catch (err) {
