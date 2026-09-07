@@ -55,8 +55,25 @@ export default async function TeamTargetsPage() {
   ]);
 
   const defaultTarget = orgDefaultRow ?? FALLBACK;
-  const me = (roster ?? []).find((a) => a.agent_id === session.agent!.id);
-  const agents = (roster ?? []).filter((a) => a.agent_id !== session.agent!.id);
+  // team_period_summary now returns min_calls_target (P20d migration,
+  // applied to staging) alongside the other per-agent target columns, so
+  // each card can show that agent's own value instead of always falling
+  // back to the org default's. Cast rather than editing the generated
+  // Database type -- types/database.ts is regenerated via `npm run types`
+  // and isn't hand-edited; this narrows the one call site until that
+  // regeneration happens, after which the cast becomes redundant (but
+  // harmless) and can be dropped.
+  const rosterRows = (roster ?? []) as unknown as Array<{
+    agent_id: string;
+    full_name: string;
+    calls_target: number;
+    appts_held_target: number;
+    premium_cents_target: number;
+    min_calls_target: number;
+    has_override: boolean;
+  }>;
+  const me = rosterRows.find((a) => a.agent_id === session.agent!.id);
+  const agents = rosterRows.filter((a) => a.agent_id !== session.agent!.id);
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -89,7 +106,7 @@ export default async function TeamTargetsPage() {
                 calls_per_cycle: me.calls_target,
                 appts_held_per_cycle: me.appts_held_target,
                 premium_cents_per_cycle: Number(me.premium_cents_target),
-                min_calls_per_day: defaultTarget.min_calls_per_day,
+                min_calls_per_day: me.min_calls_target,
               }}
             />
           </CardContent>
@@ -115,7 +132,7 @@ export default async function TeamTargetsPage() {
                   calls_per_cycle: a.calls_target,
                   appts_held_per_cycle: a.appts_held_target,
                   premium_cents_per_cycle: Number(a.premium_cents_target),
-                  min_calls_per_day: defaultTarget.min_calls_per_day,
+                  min_calls_per_day: a.min_calls_target,
                 }}
               />
             ))
