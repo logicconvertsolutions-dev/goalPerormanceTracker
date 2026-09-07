@@ -39,6 +39,17 @@ export const SECONDARY_NAV: NavItem[] = [
   { href: '/clients', label: 'Clients', icon: UserCheck },
 ];
 
+// A leader gets this instead of SECONDARY_NAV -- "Log Activity" duplicates
+// the header/page-level Log Activity buttons already reachable everywhere,
+// while Organization (leader-only, requireLeader()-gated) had no shortcut
+// outside the button row on /team itself. Associates keep SECONDARY_NAV
+// as-is; they can't reach /team/organization.
+export const LEADER_SECONDARY_NAV: NavItem[] = [
+  { href: '/team/organization', label: 'Organization', icon: Building2 },
+  { href: '/notes', label: 'Meeting Notes', icon: NotebookText },
+  { href: '/clients', label: 'Clients', icon: UserCheck },
+];
+
 export const LEADER_NAV: NavItem = { href: '/team', label: 'My Team', icon: UsersRound };
 
 // An admin isn't a member of any organization and doesn't log activity of

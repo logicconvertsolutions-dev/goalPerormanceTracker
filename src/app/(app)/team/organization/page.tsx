@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireLeader } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { BackLink } from '@/components/shell/back-link';
 import { OrgNameForm } from './org-name-form';
 import { OrgLogoUpload } from './org-logo-upload';
@@ -26,9 +27,17 @@ export default async function OrganizationSettingsPage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-y-2">
         <h1 className="text-[28px] font-bold leading-[34px] tracking-heading-tight text-fg">Organization</h1>
-        <BackLink href="/team" label="Team" />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" size="sm" asChild>
+            <Link href="/team/members">Members</Link>
+          </Button>
+          <Button variant="secondary" size="sm" asChild>
+            <Link href="/team/invites">Invites</Link>
+          </Button>
+          <BackLink href="/team" label="Team" />
+        </div>
       </div>
 
       <Card>

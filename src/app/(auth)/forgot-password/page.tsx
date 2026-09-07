@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { createClient } from '@/lib/supabase/client';
+import { requestPasswordReset } from './actions';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -14,17 +14,12 @@ export default function ForgotPasswordPage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     startTransition(async () => {
-      const supabase = createClient();
       // Always shows the same confirmation regardless of outcome — never
       // reveals whether the address has an account. Real failures (rate
-      // limit, misconfigured email provider) are still logged so they don't
-      // vanish silently.
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
-      });
-      if (error) {
-        console.error('[forgot-password] resetPasswordForEmail failed:', error.message);
-      }
+      // limit, misconfigured email provider, a bad redirect_to) are logged
+      // server-side by the action itself -- see actions.ts for why this
+      // isn't just a direct browser-client call like the other auth flows.
+      await requestPasswordReset(email);
       setSent(true);
     });
   }
