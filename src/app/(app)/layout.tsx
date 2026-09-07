@@ -66,7 +66,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 {org?.name ?? 'Kautis'}
               </span>
             </Link>
-            <AccountMenu fullName={session.agent!.full_name} isAdmin={role === 'admin'} />
+            <AccountMenu
+              fullName={session.agent!.full_name}
+              isAdmin={role === 'admin'}
+              isLeader={role === 'leader'}
+            />
           </header>
           <AnnouncementBanner announcements={visibleAnnouncements} />
           <main className="flex-1 px-4 py-6 pb-24 md:px-6 md:pb-6 print:p-0">{children}</main>

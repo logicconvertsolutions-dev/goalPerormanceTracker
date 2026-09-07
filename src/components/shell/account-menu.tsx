@@ -13,7 +13,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { signOutAction } from '@/app/(app)/logout/actions';
 import { formatVersion } from '@/lib/version';
-import { SECONDARY_NAV } from './nav-items';
+import { SECONDARY_NAV, LEADER_SECONDARY_NAV } from './nav-items';
 
 function initials(name: string) {
   return name
@@ -27,11 +27,14 @@ function initials(name: string) {
 export function AccountMenu({
   fullName,
   isAdmin,
+  isLeader,
 }: {
   fullName: string;
   isAdmin: boolean;
+  isLeader: boolean;
 }) {
   const [, startTransition] = useTransition();
+  const secondaryItems = isLeader ? LEADER_SECONDARY_NAV : SECONDARY_NAV;
 
   return (
     <DropdownMenu>
@@ -54,7 +57,7 @@ export function AccountMenu({
             entirely — an admin doesn't log activity of their own. */}
         {!isAdmin && (
           <>
-            {SECONDARY_NAV.map((item) => (
+            {secondaryItems.map((item) => (
               <DropdownMenuItem key={item.href} asChild className="md:hidden">
                 <Link href={item.href}>{item.label}</Link>
               </DropdownMenuItem>
