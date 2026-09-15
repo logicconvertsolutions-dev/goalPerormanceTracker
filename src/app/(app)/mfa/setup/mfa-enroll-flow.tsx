@@ -10,6 +10,23 @@ import { createClient } from '@/lib/supabase/client';
 import { generateRecoveryCodes } from './actions';
 
 type Step = 'qr' | 'verify' | 'codes';
+type SupabaseClient = ReturnType<typeof createClient>;
+
+/**
+ * Removes any unverified TOTP factor left behind by an attempt that never
+ * finished (e.g. the user left the page to read the code in their
+ * authenticator app, and a reload wiped this component's state -- common on
+ * mobile, especially an installed/PWA session, which is far more likely to
+ * be reloaded on backgrounding than a desktop tab). enroll() always creates
+ * a factor with an empty friendly name, and Supabase rejects a second one
+ * with the same name for the same user (422 mfa_factor_name_conflict) --
+ * so a stale one has to go before a retry can succeed.
+ */
+async function cleanupStaleFactor(supabase: SupabaseClient) {
+  const { data } = await supabase.auth.mfa.listFactors();
+  const stale = data?.all.filter((f) => f.factor_type === 'totp' && f.status === 'unverified') ?? [];
+  await Promise.all(stale.map((f) => supabase.auth.mfa.unenroll({ factorId: f.id })));
+}
 
 export function MfaEnrollFlow() {
   const router = useRouter();
@@ -26,12 +43,22 @@ export function MfaEnrollFlow() {
     setPending(true);
     setError(null);
     const supabase = createClient();
-    const { data, error: enrollError } = await supabase.auth.mfa.enroll({
+    await cleanupStaleFactor(supabase);
+
+    let { data, error: enrollError } = await supabase.auth.mfa.enroll({
       factorType: 'totp',
     });
+
+    // Another tab/session enrolled in the moment between cleanup and this
+    // call -- clean up once more and retry before giving up.
+    if (enrollError?.code === 'mfa_factor_name_conflict') {
+      await cleanupStaleFactor(supabase);
+      ({ data, error: enrollError } = await supabase.auth.mfa.enroll({ factorType: 'totp' }));
+    }
     setPending(false);
 
     if (enrollError || !data) {
+      if (enrollError) console.error('MFA enroll failed:', enrollError.code, enrollError.message);
       setError('Could not start MFA setup. Try again.');
       return;
     }
