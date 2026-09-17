@@ -411,6 +411,19 @@ plus two more found via a follow-up user report and a requested full audit:
 See `TODOS.md`'s 2026-09-06 entries for the full diagnosis-by-diagnosis
 detail, including what was verified live vs. by test suite alone.
 
+## P21 — Admin Reports (unplanned)
+A curated Reports tab for Admin: pick from four report types (Agent Roster,
+Organization Summary, Activity Summary, Targets vs Actuals) instead of a
+generic object/join builder, since CLAUDE.md rule 2 forbids exposing raw
+activity tables to a cross-agent reader at all. Agent Roster/Org Summary
+read `agents`/`organizations` directly (already admin-readable via existing
+RLS); Activity Summary/Targets vs Actuals are two new `SECURITY DEFINER`
+RPCs (`admin_activity_report`, `admin_targets_vs_actuals`), service-role
+only like `admin_daily_active_loggers` (P7). Supports column selection, an
+org filter, a date range for the two aggregate types, CSV export, and named
+saved report definitions (`report_definitions`, config only — always re-run
+against live data on load).
+
 ---
 
 ## Working with Claude Code on this repo (token discipline)
