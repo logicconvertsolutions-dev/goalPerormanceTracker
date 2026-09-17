@@ -14,6 +14,7 @@ import {
   MessageSquareWarning,
   HelpCircle,
   Megaphone,
+  BarChart3,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -59,6 +60,7 @@ export const LEADER_NAV: NavItem = { href: '/team', label: 'My Team', icon: User
 export const ADMIN_NAV: NavItem[] = [
   { href: '/admin/orgs', label: 'Orgs', icon: Building2 },
   { href: '/admin/agents', label: 'Agents', icon: UserCog },
+  { href: '/admin/reports', label: 'Reports', icon: BarChart3 },
   { href: '/admin/audit', label: 'Audit', icon: ScrollText },
   { href: '/admin/pilot', label: 'Pilot', icon: Gauge },
   { href: '/admin/feedback', label: 'Feedback', icon: MessageSquareWarning },
