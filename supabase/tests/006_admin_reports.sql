@@ -120,9 +120,11 @@ select is(
 
 -- ---------------------------------------------------------------------
 -- admin_targets_vs_actuals correctness -- no targets row was ever inserted
--- for this org/agent, so effective_target() falls back to the documented
--- global defaults (50 calls/cycle, 15 min-calls/day); a 10-day window is
--- exactly one cycle, so calls_target should equal the default verbatim.
+-- for this org/agent, so effective_target() falls back to its own COALESCE
+-- literals: 72 calls/cycle, 7 min-calls/day (P20a org_default_target_values
+-- raised these from the original baseline's 50/15 -- read the live function
+-- body, don't trust the baseline migration alone). A 10-day window is
+-- exactly one cycle, so calls_target should equal the fallback verbatim.
 -- ---------------------------------------------------------------------
 create temporary table tmp_targets on commit drop as
   select * from public.admin_targets_vs_actuals(current_date - 9, current_date, null::uuid);
@@ -130,11 +132,11 @@ select tests.clear_authentication();
 
 select is(
   (select calls_target from tmp_targets where agent_id = '000000000000000000000000000000d2'),
-  50, 'admin_targets_vs_actuals falls back to the 50-calls/cycle default with no target row'
+  72, 'admin_targets_vs_actuals falls back to the 72-calls/cycle default with no target row'
 );
 select is(
   (select min_calls_target from tmp_targets where agent_id = '000000000000000000000000000000d2'),
-  15, 'admin_targets_vs_actuals surfaces min_calls_target for parity with the Goals page'
+  7, 'admin_targets_vs_actuals surfaces min_calls_target for parity with the Goals page'
 );
 select is(
   (select calls_made from tmp_targets where agent_id = '000000000000000000000000000000d2'),
@@ -150,6 +152,12 @@ select throws_ok(
     values ('000000000000000000000000000000d1', 'agent_roster', 'Leader attempt')$$
 ); -- a leader cannot insert a saved report
 
+-- guard_agent_privileged_columns() rejects a role change made under an
+-- authenticated, non-admin session (that's the point of the throws_ok
+-- above) -- clear_authentication() first, same as every other role-flip in
+-- 001_rls_and_hierarchy.sql's privilege-escalation section, so this update
+-- runs as the unauthenticated superuser context instead.
+select tests.clear_authentication();
 update public.agents set role = 'admin' where id = '000000000000000000000000000000d1';
 select tests.authenticate_as('000000000000000000000000000000d1'); -- now admin
 select lives_ok(
