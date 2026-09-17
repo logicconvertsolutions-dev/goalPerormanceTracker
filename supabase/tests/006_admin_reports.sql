@@ -128,6 +128,12 @@ select is(
 -- ---------------------------------------------------------------------
 create temporary table tmp_targets on commit drop as
   select * from public.admin_targets_vs_actuals(current_date - 9, current_date, null::uuid);
+
+select is(
+  (select count(*)::int from public.admin_targets_vs_actuals(current_date - 9, current_date, '00000000-0000-0000-0000-00000000ee52')
+   where agent_id = '000000000000000000000000000000d2'),
+  0, 'filtering admin_targets_vs_actuals by a different org excludes the associate'
+);
 select tests.clear_authentication();
 
 select is(
