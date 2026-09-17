@@ -4,8 +4,8 @@ import type { Database } from '../../../types/database';
 import type { ReportTypeId } from './report-types';
 
 // admin_activity_report/admin_targets_vs_actuals don't exist in
-// types/database.ts yet (P21 migration is staged for review, not applied --
-// see supabase/migrations/20260917100000_p21_admin_reports.sql). Scoped type
+// types/database.ts yet (P22 migration is staged for review, not applied --
+// see supabase/migrations/20260917110000_p22_admin_reports.sql). Scoped type
 // assertion at this one call site rather than hand-editing the generated
 // file, same convention as team/targets/page.tsx's P20d cast: once
 // `npm run types` regenerates against a project with this migration applied,
@@ -74,7 +74,7 @@ export type ReportRow = Record<string, string | number | boolean | null>;
 // client (agent_roster/org_summary read agents/organizations directly,
 // already admin-readable via agents_admin_read/organizations_admin_read);
 // `admin` is the service-role client, required for the two cross-agent RPCs
-// since they grant EXECUTE to service_role only (see the P21 migration).
+// since they grant EXECUTE to service_role only (see the P22 migration).
 export async function fetchReportRows(
   supabase: SupabaseClient<Database>,
   admin: SupabaseClient<Database>,

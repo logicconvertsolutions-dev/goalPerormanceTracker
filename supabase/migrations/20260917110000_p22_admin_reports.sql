@@ -1,4 +1,14 @@
--- P21: Admin Reports tab.
+-- P22: Admin Reports tab.
+--
+-- Renumbered from P21 to P22 -- 20260917100000_p21a_admin_org_roster.sql
+-- (unrelated work: admin adding roster members from /admin/orgs/[orgId])
+-- landed on dev/master under the P21 label and the exact same leading
+-- timestamp this migration originally used, while this branch was still
+-- based on an older commit. Two migration files sharing one leading
+-- timestamp would collide in supabase_migrations.schema_migrations (the
+-- timestamp *is* the version), so this file was renamed to a later
+-- timestamp after merging dev in, rather than picking a fresh P21 that's
+-- already spoken for.
 --
 -- Admin gets a curated set of cross-org report types (Agent Roster, Org
 -- Summary, Activity Summary, Targets vs Actuals) instead of a generic

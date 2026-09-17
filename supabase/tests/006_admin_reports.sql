@@ -1,4 +1,4 @@
--- pgTAP suite for P21 (supabase/migrations/20260917100000_p21_admin_reports.sql):
+-- pgTAP suite for P22 (supabase/migrations/20260917110000_p22_admin_reports.sql):
 -- admin_activity_report / admin_targets_vs_actuals access control and
 -- correctness, plus report_definitions RLS.
 --

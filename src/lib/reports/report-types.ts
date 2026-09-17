@@ -1,4 +1,4 @@
-// The Reports tab (P21) is a curated set of report types, not a generic
+// The Reports tab (P22) is a curated set of report types, not a generic
 // object/join picker -- CLAUDE.md rule 2 forbids exposing raw activity
 // tables to a cross-agent reader, so every reportable "object" here is
 // either roster data (agents/organizations, already admin-readable via

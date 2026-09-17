@@ -411,7 +411,13 @@ plus two more found via a follow-up user report and a requested full audit:
 See `TODOS.md`'s 2026-09-06 entries for the full diagnosis-by-diagnosis
 detail, including what was verified live vs. by test suite alone.
 
-## P21 — Admin Reports (unplanned)
+## P22 — Admin Reports (unplanned)
+Renumbered from P21 -- `20260917100000_p21a_admin_org_roster.sql` (admin
+adding roster members from `/admin/orgs/[orgId]`) landed on `dev`/`master`
+under the P21 label while this work was still in progress on an older base,
+including the exact same leading migration timestamp; see this migration's
+own header comment for the collision this caused and how it was resolved.
+
 A curated Reports tab for Admin: pick from four report types (Agent Roster,
 Organization Summary, Activity Summary, Targets vs Actuals) instead of a
 generic object/join builder, since CLAUDE.md rule 2 forbids exposing raw

@@ -1,6 +1,6 @@
-// public.report_definitions doesn't exist in types/database.ts yet (P21
+// public.report_definitions doesn't exist in types/database.ts yet (P22
 // migration is staged for review, not applied -- see
-// supabase/migrations/20260917100000_p21_admin_reports.sql). Scoped type
+// supabase/migrations/20260917110000_p22_admin_reports.sql). Scoped type
 // assertion shared by the reports page and its Server Actions, same
 // convention as fetch-report.ts's ReportRpcClient: becomes redundant (but
 // harmless) once `npm run types` regenerates against a project with this
