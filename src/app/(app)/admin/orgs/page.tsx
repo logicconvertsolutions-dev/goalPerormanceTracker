@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { requireAdmin } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,7 +49,9 @@ export default async function AdminOrgsPage() {
                 key={org.id}
                 className="flex items-center justify-between gap-3 text-sm text-fg border-b border-line py-2 last:border-0"
               >
-                {org.name}
+                <Link href={`/admin/orgs/${org.id}`} className="hover:underline">
+                  {org.name}
+                </Link>
                 <DeleteOrgButton
                   orgId={org.id}
                   orgName={org.name}
