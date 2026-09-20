@@ -318,6 +318,7 @@ export type Database = {
       appointments: {
         Row: {
           agent_id: string
+          appointment_at: string | null
           appt_date: string
           appt_type: string | null
           client_request_id: string | null
@@ -335,6 +336,7 @@ export type Database = {
         }
         Insert: {
           agent_id: string
+          appointment_at?: string | null
           appt_date: string
           appt_type?: string | null
           client_request_id?: string | null
@@ -352,6 +354,7 @@ export type Database = {
         }
         Update: {
           agent_id?: string
+          appointment_at?: string | null
           appt_date?: string
           appt_type?: string | null
           client_request_id?: string | null
@@ -427,6 +430,8 @@ export type Database = {
       call_logs: {
         Row: {
           agent_id: string
+          appointment_at: string | null
+          appointment_done_at: string | null
           call_date: string
           client_request_id: string | null
           contact_id: string
@@ -442,6 +447,8 @@ export type Database = {
         }
         Insert: {
           agent_id: string
+          appointment_at?: string | null
+          appointment_done_at?: string | null
           call_date?: string
           client_request_id?: string | null
           contact_id: string
@@ -457,6 +464,8 @@ export type Database = {
         }
         Update: {
           agent_id?: string
+          appointment_at?: string | null
+          appointment_done_at?: string | null
           call_date?: string
           client_request_id?: string | null
           contact_id?: string
@@ -979,6 +988,44 @@ export type Database = {
           },
         ]
       }
+      report_definitions: {
+        Row: {
+          columns: Json
+          created_at: string
+          created_by: string
+          filters: Json
+          id: string
+          name: string
+          report_type: string
+        }
+        Insert: {
+          columns?: Json
+          created_at?: string
+          created_by: string
+          filters?: Json
+          id?: string
+          name: string
+          report_type: string
+        }
+        Update: {
+          columns?: Json
+          created_at?: string
+          created_by?: string
+          filters?: Json
+          id?: string
+          name?: string
+          report_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_definitions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales: {
         Row: {
           agent_id: string
@@ -1231,6 +1278,32 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_activity_report: {
+        Args: { p_from: string; p_org_id?: string; p_to: string }
+        Returns: {
+          agent_id: string
+          appts_held: number
+          appts_set: number
+          calls_made: number
+          full_name: string
+          org_id: string
+          org_name: string
+          premium_cents: number
+          role: Database["public"]["Enums"]["agent_role"]
+          sales_count: number
+        }[]
+      }
+      admin_add_roster_member: {
+        Args: {
+          p_actor_id: string
+          p_email: string
+          p_full_name: string
+          p_org_id: string
+          p_phone?: string
+          p_upline_id: string
+        }
+        Returns: string
+      }
       admin_create_announcement: {
         Args: { p_actor_id: string; p_message: string }
         Returns: string
@@ -1254,6 +1327,10 @@ export type Database = {
         Args: { p_actor_id: string; p_agent_id: string }
         Returns: undefined
       }
+      admin_invite_roster_member: {
+        Args: { p_actor_id: string; p_roster_id: string }
+        Returns: string
+      }
       admin_move_agent: {
         Args: {
           p_actor_id: string
@@ -1264,6 +1341,10 @@ export type Database = {
       }
       admin_reactivate_agent: {
         Args: { p_actor_id: string; p_agent_id: string }
+        Returns: undefined
+      }
+      admin_remove_roster_member: {
+        Args: { p_actor_id: string; p_roster_id: string }
         Returns: undefined
       }
       admin_set_agent_role: {
@@ -1282,6 +1363,26 @@ export type Database = {
           p_announcement_id: string
         }
         Returns: undefined
+      }
+      admin_targets_vs_actuals: {
+        Args: { p_from: string; p_org_id?: string; p_to: string }
+        Returns: {
+          agent_id: string
+          appts_held: number
+          appts_held_target: number
+          appts_set: number
+          calls_made: number
+          calls_target: number
+          full_name: string
+          has_override: boolean
+          min_calls_target: number
+          org_id: string
+          org_name: string
+          pct_calls: number
+          premium_cents: number
+          premium_cents_target: number
+          streak_days: number
+        }[]
       }
       agent_aggregate: {
         Args: { p_agent_id: string; p_from: string; p_to: string }
@@ -1354,11 +1455,13 @@ export type Database = {
       my_followups: {
         Args: { p_as_of?: string }
         Returns: {
+          appointment_at: string
           call_id: string
           contact_id: string
           contact_name: string
           days_late: number
-          follow_up_on: string
+          due_date: string
+          kind: string
           last_note: string
           times_called: number
         }[]
@@ -1445,6 +1548,7 @@ export type Database = {
           full_name: string
           has_override: boolean
           last_logged_at: string
+          min_calls_target: number
           pct_calls: number
           premium_cents: number
           premium_cents_target: number
@@ -1515,6 +1619,7 @@ export type Database = {
           full_name: string
           has_override: boolean
           last_logged_at: string
+          min_calls_target: number
           pct_calls: number
           premium_cents: number
           premium_cents_target: number
