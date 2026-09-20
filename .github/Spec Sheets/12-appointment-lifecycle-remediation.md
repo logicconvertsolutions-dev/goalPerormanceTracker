@@ -13,7 +13,8 @@ revertible.
 
 Read with: `02-data-model.md` (schema/RPC contracts), `05-testing.md` (test
 plan), `08-screen-specs.md` (per-page KPIs), `06-build-phases.md` (where P25
-sits).
+sits), and `13-p25-phase-c-staging-verification.md` (how to promote Phase C
+and how to prove it on staging).
 
 ---
 
@@ -519,15 +520,26 @@ half. With C1, Phase C is complete.
 for historical periods on every screen. Nothing else in C2 moves a stored
 number.
 
-**Measured against production, 2026-09-20:** the current cycle's no-show
-denominator drops from 7 to 4 product-wide, but **no agent currently has a
-no-show**, so every displayed rate is 0% before and after. The restatement
-is real and invisible today — which makes this the cheapest moment it will
-ever be to ship it. Zero rows carry `rescheduled_to_id` and zero are
+**Measured against production, 2026-09-20 — the restatement is invisible.**
+`scripts/noshow-restatement-preview.sql` computes both formulas side by
+side and returns **zero rows**: across all 31 agent-cycles in the product's
+history, not one contains a single no-show. Every displayed rate is 0%
+under both the old formula and the new one, for every agent, for every
+cycle ever recorded.
+
+So **no agent's number changes on this deploy**. §9's comms requirement is
+satisfied by documenting the definition (done, in `02-data-model.md` and
+`08-screen-specs.md`); there is nothing for an agent to be told they will
+see move, because nothing moves. That will stop being true the first time
+anyone records a no-show, which is precisely the argument for shipping the
+correct formula now rather than after it has a visible number attached to
+it.
+
+Also measured: zero rows carry `rescheduled_to_id` and zero are
 `rescheduled`, so both new guards create safely. One scheduled appointment
 (imported) already carries a premium, and one sale is linked to an
-appointment, so F16's dialog has exactly one live case to exercise on
-staging.
+appointment — so F16's dialog has exactly one live case to exercise on
+staging, and Open Pipeline has one non-zero row to prove itself against.
 
 **Not verified locally:** pgTAP could not run in the authoring environment
 (the Docker registry is blocked by network policy). `007`–`010` run in CI

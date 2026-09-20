@@ -48,12 +48,15 @@
 --   scheduled appointments carrying a premium ............ 1  (imported)
 --   sales linked to an appointment ....................... 1  <- F16's dialog has one live case
 --
--- The no-show DENOMINATOR for the current cycle drops from 7 to 4
--- product-wide under the §3 formula. No agent currently has a no-show, so
--- every displayed rate is 0% before and after -- the restatement is real
--- but invisible today, which makes this the cheapest possible moment to
--- ship it. That will not stay true, so announce it now (§9) rather than
--- when someone's rate visibly jumps.
+-- The no-show rate is RESTATED by this release, and the restatement is
+-- invisible: scripts/noshow-restatement-preview.sql computes both formulas
+-- side by side and returns zero rows. Across all 31 agent-cycles in the
+-- product's history, not one contains a no-show, so every displayed rate
+-- is 0% under both. No agent's number changes.
+--
+-- That will stop being true the first time anyone records a no-show, which
+-- is exactly the argument for landing the correct formula now rather than
+-- once it has a visible number attached.
 --
 -- Re-run the footer query before promoting; these move with ordinary use.
 
