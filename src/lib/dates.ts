@@ -49,6 +49,22 @@ export function todayIso(timeZone?: string | null): string {
   }).format(new Date());
 }
 
+/**
+ * Same idea as {@link todayIso}, but for an arbitrary instant instead of
+ * "now" -- the calendar date (YYYY-MM-DD) a given ISO timestamp falls on in
+ * the given IANA zone. Server-safe (unlike {@link isoToLocalParts}, which
+ * reads the runtime's own zone): pass the acting agent's `time_zone`
+ * explicitly, same as todayIso.
+ */
+export function isoToDateInZone(iso: string, timeZone?: string | null): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: resolveTimeZone(timeZone),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(iso));
+}
+
 export function formatDisplayDate(iso: string): string {
   const d = new Date(iso + 'T00:00:00Z');
   return d.toLocaleDateString('en-CA', {
@@ -101,6 +117,22 @@ export function formatDisplayDateTime(isoTimestamp: string, timeZone?: string | 
     month: 'short',
     timeZone: resolveTimeZone(timeZone),
   });
+}
+
+/**
+ * Splits an ISO instant into the local `date`/`time` strings an
+ * `<input type="date">`/`<input type="time">` pair need, in the browser's
+ * own zone -- the inverse of `new Date(`${date}T${time}`).toISOString()`,
+ * which combines them back on submit. Client-side use only (see
+ * {@link browserTimeZone}'s own caveat -- this reads the *current* runtime's
+ * zone via Intl's default, same reasoning applies here).
+ */
+export function isoToLocalParts(iso: string): { date: string; time: string } {
+  const d = new Date(iso);
+  return {
+    date: new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(d),
+    time: new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }).format(d),
+  };
 }
 
 /** Adds `days` (may be negative) to an ISO date string, returning an ISO date string. */

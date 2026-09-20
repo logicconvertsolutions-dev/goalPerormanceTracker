@@ -18,9 +18,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ContactPicker } from '@/components/shell/contact-picker';
-import { todayIso, browserTimeZone, addDays, nextMonday } from '@/lib/dates';
+import { todayIso, browserTimeZone, addDays, isoToLocalParts, nextMonday } from '@/lib/dates';
 import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
-import { APPT_TYPES, APPT_STATUSES, SELECTABLE_APPT_STATUSES } from '@/lib/appointment-types';
+import { APPT_TYPES, APPT_STATUSES } from '@/lib/appointment-types';
 import { PRODUCT_TYPES } from '@/lib/product-types';
 import { createAppointmentAction, updateAppointmentAction } from './actions';
 import { createSaleAction, syncSaleFromAppointmentAction, deleteSaleAction } from '../sales/actions';
@@ -84,6 +84,7 @@ export function AppointmentForm({
     referralsGiven: number;
     notes: string | null;
     followUpOn?: string | null;
+    appointmentAt?: string | null;
     /** A sale/recruiting log this appointment already spawned via the
      * toggles below (sales/recruiting_logs.appointment_id) -- editing here
      * updates that record instead of creating a second one. */
@@ -95,17 +96,19 @@ export function AppointmentForm({
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [pending, startTransition] = useTransition();
-  // "Scheduled" is no longer a status an agent picks by hand here -- see
-  // SELECTABLE_APPT_STATUSES. A brand-new manual appointment log is most
-  // often recording one that already happened, so "Held" is the sensible
-  // default rather than a status meaning "still pending".
-  const [status, setStatus] = useState(defaultValues?.status ?? 'held');
+  const [status, setStatus] = useState(defaultValues?.status ?? 'scheduled');
   const [apptType, setApptType] = useState(defaultValues?.apptType ?? '');
   const [premiumDollars, setPremiumDollars] = useState(
     defaultValues ? String(defaultValues.expectedPremiumCents / 100) : '0'
   );
   const [followUpOn, setFollowUpOn] = useState(defaultValues?.followUpOn ?? '');
   const [showFollowUpPicker, setShowFollowUpPicker] = useState(false);
+  // Only asked for when status is "Scheduled" -- an in-person appointment set
+  // for a future date/time (the meeting hasn't happened, so there's no
+  // premium/referrals to record yet either). See the Date section below.
+  const defaultAppointment = defaultValues?.appointmentAt ? isoToLocalParts(defaultValues.appointmentAt) : null;
+  const [appointmentDate, setAppointmentDate] = useState(defaultAppointment?.date ?? todayIso(browserTimeZone()));
+  const [appointmentTime, setAppointmentTime] = useState(defaultAppointment?.time ?? '');
   // "Log as a Sale" (apptType === 'application') and "Recruited?" (apptType
   // === 'marketing_presentation'). Pre-checked in edit mode when this
   // appointment already has a linked sale/recruiting log, so re-saving
@@ -131,7 +134,14 @@ export function AppointmentForm({
   // "what day is it right now" source here (todayIso() with no zone falls
   // back to UTC's calendar day).
   const tz = browserTimeZone();
-  const apptDate = defaultValues?.apptDate ?? todayIso(tz);
+  const today = todayIso(tz);
+  // A "Scheduled" row's stored apptDate can be a future date (it's derived
+  // from appointmentAt) -- clamp to today for the plain "Date" field's
+  // initial value if the status gets changed away from "Scheduled" here,
+  // since that field's own `max` is today and a future defaultValue would
+  // start it invalid.
+  const apptDate =
+    defaultValues?.apptDate && defaultValues.apptDate <= today ? defaultValues.apptDate : today;
 
   const willDeleteSale = Boolean(defaultValues?.linkedSaleId) && !(apptType === 'application' && logAsSale);
   const willDeleteRecruit =
@@ -202,7 +212,11 @@ export function AppointmentForm({
     const formData = new FormData(formRef.current);
     formData.set('status', status);
     formData.set('apptType', apptType);
-    formData.set('expectedPremiumCents', String(Math.round(Number(premiumDollars || 0) * 100)));
+    if (status === 'scheduled') {
+      formData.set('appointmentAt', new Date(`${appointmentDate}T${appointmentTime}`).toISOString());
+    } else {
+      formData.set('expectedPremiumCents', String(Math.round(Number(premiumDollars || 0) * 100)));
+    }
     if (NEEDS_FOLLOW_UP_STATUSES.has(status) && followUpOn) {
       formData.set('followUpOn', followUpOn);
     }
@@ -268,17 +282,41 @@ export function AppointmentForm({
         </div>
       )}
 
-      <div className="space-y-1.5">
-        <Label htmlFor="apptDate">Date</Label>
-        <Input
-          id="apptDate"
-          name="apptDate"
-          type="date"
-          defaultValue={apptDate}
-          max={todayIso(tz)}
-          required
-        />
-      </div>
+      {status === 'scheduled' ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="appointmentDate">Appointment date &amp; time</Label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              id="appointmentDate"
+              type="date"
+              value={appointmentDate}
+              onChange={(e) => setAppointmentDate(e.target.value)}
+              className="w-auto"
+              required
+            />
+            <Input
+              id="appointmentTime"
+              type="time"
+              value={appointmentTime}
+              onChange={(e) => setAppointmentTime(e.target.value)}
+              className="w-auto"
+              required
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <Label htmlFor="apptDate">Date</Label>
+          <Input
+            id="apptDate"
+            name="apptDate"
+            type="date"
+            defaultValue={apptDate}
+            max={today}
+            required
+          />
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <Label htmlFor="status">Status</Label>
@@ -287,7 +325,7 @@ export function AppointmentForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {(status === 'scheduled' ? APPT_STATUSES : SELECTABLE_APPT_STATUSES).map((s) => (
+            {APPT_STATUSES.map((s) => (
               <SelectItem key={s.value} value={s.value}>
                 {s.label}
               </SelectItem>
@@ -346,32 +384,34 @@ export function AppointmentForm({
         </div>
       )}
 
-      <div className={apptType === 'application' ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-2 gap-4'}>
-        <div className="space-y-1.5">
-          <Label htmlFor="expectedPremiumDollars">Expected premium ($)</Label>
-          <Input
-            id="expectedPremiumDollars"
-            type="number"
-            min={0}
-            step={1}
-            value={premiumDollars}
-            onChange={(e) => setPremiumDollars(e.target.value)}
-          />
-        </div>
-        {apptType !== 'application' && (
+      {status !== 'scheduled' && (
+        <div className={apptType === 'application' ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-2 gap-4'}>
           <div className="space-y-1.5">
-            <Label htmlFor="referralsGiven">Referrals given</Label>
+            <Label htmlFor="expectedPremiumDollars">Expected premium ($)</Label>
             <Input
-              id="referralsGiven"
-              name="referralsGiven"
+              id="expectedPremiumDollars"
               type="number"
               min={0}
               step={1}
-              defaultValue={defaultValues?.referralsGiven ?? 0}
+              value={premiumDollars}
+              onChange={(e) => setPremiumDollars(e.target.value)}
             />
           </div>
-        )}
-      </div>
+          {apptType !== 'application' && (
+            <div className="space-y-1.5">
+              <Label htmlFor="referralsGiven">Referrals given</Label>
+              <Input
+                id="referralsGiven"
+                name="referralsGiven"
+                type="number"
+                min={0}
+                step={1}
+                defaultValue={defaultValues?.referralsGiven ?? 0}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {apptType === 'application' && (
         <div className="space-y-3 rounded-sm border border-line-2 p-3">

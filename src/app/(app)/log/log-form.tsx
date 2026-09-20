@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ContactPicker } from '@/components/shell/contact-picker';
 import { cn } from '@/lib/utils';
-import { addDays, browserTimeZone, nextMonday, todayIso } from '@/lib/dates';
+import { addDays, browserTimeZone, isoToLocalParts, nextMonday, todayIso } from '@/lib/dates';
 import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
 import { logCallAction, updateCallAction } from './actions';
 
@@ -32,18 +32,6 @@ const OUTCOMES = [
   { value: 'not_interested', label: 'Not interested' },
   { value: 'voicemail', label: 'Voicemail' },
 ];
-
-/** Splits an ISO instant into the local `date`/`time` strings the
- * `<input type="date">`/`<input type="time">` pair below need, in the
- * browser's own zone -- the inverse of the `new Date(`${date}T${time}`)`
- * combine done on submit. */
-function isoToLocalParts(iso: string): { date: string; time: string } {
-  const d = new Date(iso);
-  return {
-    date: new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(d),
-    time: new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }).format(d),
-  };
-}
 
 function Chip({
   active,

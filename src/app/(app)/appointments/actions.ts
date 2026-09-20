@@ -5,21 +5,32 @@ import { revalidatePath } from 'next/cache';
 import { requireAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { findOrCreateContact } from '@/lib/contacts';
-import { todayIso } from '@/lib/dates';
+import { todayIso, isoToDateInZone } from '@/lib/dates';
 
 const APPT_STATUSES = ['scheduled', 'held', 'no_show', 'rescheduled', 'cancelled'] as const;
 
-const appointmentSchema = z.object({
+// Base object only -- .partial()/.extend() (used below for updateSchema)
+// aren't available once .refine() wraps it in a ZodEffects, so the two
+// status-dependent .refine() checks are applied separately to each of
+// appointmentSchema/updateSchema instead of chained on here directly.
+const baseAppointmentSchema = z.object({
   contactName: z.string().min(1, 'Enter who the appointment is with.').max(200),
   contactId: z.string().uuid().optional(),
-  // "Cannot be in the future" is checked below in createAppointmentAction,
-  // against the acting agent's own local today -- a zod .refine() here can't
-  // close over that per-request value (this schema is built once at module
-  // load), and the UTC "today" a refine would otherwise fall back to is
-  // wrong for exactly the evening hours this check matters most (an agent
-  // logging a same-day appointment after UTC has already rolled to
-  // tomorrow would get rejected).
-  apptDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
+  // Optional here (required below only when status isn't "scheduled") --
+  // "Cannot be in the future" for it is checked in createAppointmentAction
+  // against the acting agent's own local today, not in a .refine() here,
+  // since this schema is built once at module load and can't close over
+  // that per-request value (the UTC "today" a refine would otherwise fall
+  // back to is wrong for exactly the evening hours this check matters
+  // most -- an agent logging a same-day appointment after UTC has already
+  // rolled to tomorrow would get rejected).
+  apptDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.').optional(),
+  // ISO instant -- required when status is "scheduled" (P24). Unlike every
+  // other status, which logs an appointment that already happened as of
+  // apptDate, "Scheduled" describes one that hasn't yet -- an in-person
+  // appointment set for a future date/time -- so it needs its own date
+  // field that's actually allowed to be in the future, plus a time.
+  appointmentAt: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date/time.').optional(),
   apptType: z.string().min(1, 'Select an appointment type.').max(200),
   status: z.enum(APPT_STATUSES),
   expectedPremiumCents: z.coerce.number().int().min(0).default(0),
@@ -28,6 +39,16 @@ const appointmentSchema = z.object({
   followUpOn: z.string().optional(),
   clientRequestId: z.string().optional(),
 });
+
+const appointmentSchema = baseAppointmentSchema
+  .refine((data) => data.status !== 'scheduled' || !!data.appointmentAt, {
+    message: 'Enter the appointment date and time.',
+    path: ['appointmentAt'],
+  })
+  .refine((data) => data.status === 'scheduled' || !!data.apptDate, {
+    message: 'Enter a date.',
+    path: ['apptDate'],
+  });
 
 // Postgres unique-violation error code.
 const UNIQUE_VIOLATION = '23505';
@@ -43,7 +64,8 @@ export async function createAppointmentAction(formData: FormData) {
   const parsed = appointmentSchema.safeParse({
     contactName: formData.get('contactName'),
     contactId: formData.get('contactId') || undefined,
-    apptDate: formData.get('apptDate') || today,
+    apptDate: formData.get('apptDate') || undefined,
+    appointmentAt: formData.get('appointmentAt') || undefined,
     apptType: formData.get('apptType') || undefined,
     status: formData.get('status') || 'scheduled',
     expectedPremiumCents: formData.get('expectedPremiumCents') || 0,
@@ -56,9 +78,20 @@ export async function createAppointmentAction(formData: FormData) {
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input.' };
   }
-  if (parsed.data.apptDate > today) {
+  const isScheduled = parsed.data.status === 'scheduled';
+  // "Cannot be in the future" only applies to a status that logs something
+  // that already happened -- "Scheduled" is the one status that's for a
+  // future date/time by design, validated as a real date/time above instead.
+  if (!isScheduled && parsed.data.apptDate! > today) {
     return { ok: false, error: 'Appointment date cannot be in the future.' };
   }
+  // appt_date stays the source every other query buckets this row by
+  // (appt_scheduled/held/no_show/etc, all keyed off it) -- for "Scheduled"
+  // it's just derived from appointmentAt's own date part instead of typed
+  // in directly.
+  const apptDate = isScheduled
+    ? isoToDateInZone(parsed.data.appointmentAt!, session.agent!.time_zone)
+    : parsed.data.apptDate!;
 
   const agentId = session.agent!.id;
   // Non-null: only associates/leaders reach this action (admin has no org).
@@ -80,7 +113,8 @@ export async function createAppointmentAction(formData: FormData) {
       agent_id: agentId,
       org_id: orgId,
       contact_id: contact.id,
-      appt_date: parsed.data.apptDate,
+      appt_date: apptDate,
+      appointment_at: isScheduled ? parsed.data.appointmentAt : null,
       appt_type: parsed.data.apptType || null,
       status: parsed.data.status,
       expected_premium_cents: parsed.data.expectedPremiumCents,
@@ -118,14 +152,23 @@ export async function createAppointmentAction(formData: FormData) {
   return { ok: true, id: appointmentId };
 }
 
-const updateSchema = appointmentSchema.partial({ contactName: true }).extend({
-  id: z.string().uuid(),
-});
+const updateSchema = baseAppointmentSchema
+  .partial({ contactName: true })
+  .extend({ id: z.string().uuid() })
+  .refine((data) => data.status !== 'scheduled' || !!data.appointmentAt, {
+    message: 'Enter the appointment date and time.',
+    path: ['appointmentAt'],
+  })
+  .refine((data) => data.status === 'scheduled' || !!data.apptDate, {
+    message: 'Enter a date.',
+    path: ['apptDate'],
+  });
 
 export async function updateAppointmentAction(formData: FormData) {
   const parsed = updateSchema.safeParse({
     id: formData.get('id'),
-    apptDate: formData.get('apptDate'),
+    apptDate: formData.get('apptDate') || undefined,
+    appointmentAt: formData.get('appointmentAt') || undefined,
     apptType: formData.get('apptType') || undefined,
     status: formData.get('status'),
     expectedPremiumCents: formData.get('expectedPremiumCents') || 0,
@@ -139,15 +182,20 @@ export async function updateAppointmentAction(formData: FormData) {
   }
 
   const session = await requireAgent();
-  if (parsed.data.apptDate && parsed.data.apptDate > todayIso(session.agent!.time_zone)) {
+  const isScheduled = parsed.data.status === 'scheduled';
+  if (!isScheduled && parsed.data.apptDate && parsed.data.apptDate > todayIso(session.agent!.time_zone)) {
     return { ok: false, error: 'Appointment date cannot be in the future.' };
   }
+  const apptDate = isScheduled
+    ? isoToDateInZone(parsed.data.appointmentAt!, session.agent!.time_zone)
+    : parsed.data.apptDate!;
   const supabase = await createClient();
 
   const { error } = await supabase
     .from('appointments')
     .update({
-      appt_date: parsed.data.apptDate,
+      appt_date: apptDate,
+      appointment_at: isScheduled ? parsed.data.appointmentAt : null,
       appt_type: parsed.data.apptType || null,
       status: parsed.data.status,
       expected_premium_cents: parsed.data.expectedPremiumCents,
@@ -175,22 +223,33 @@ export async function updateAppointmentStatusAction(id: string, status: (typeof 
   // The quick status-changer on the appointments table skips the full form,
   // so the "type required when held" rule (createAppointmentAction /
   // updateAppointmentAction) needs its own check here against whatever
-  // appt_type is already on the row.
-  if (status === 'held') {
-    const { data: appt } = await supabase
-      .from('appointments')
-      .select('appt_type')
-      .eq('id', id)
-      .eq('agent_id', session.agent!.id)
-      .maybeSingle();
-    if (!appt?.appt_type) {
-      return { ok: false, error: 'Set an appointment type before marking this held.' };
-    }
+  // appt_type is already on the row -- fetched alongside status/appt_date
+  // for the resolve-a-scheduled-appointment check below.
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('appt_type, status, appt_date')
+    .eq('id', id)
+    .eq('agent_id', session.agent!.id)
+    .maybeSingle();
+
+  if (status === 'held' && !appt?.appt_type) {
+    return { ok: false, error: 'Set an appointment type before marking this held.' };
+  }
+
+  const today = todayIso(session.agent!.time_zone);
+  // This quick changer has no date field. A "Scheduled" appointment's
+  // appt_date can be a future date/time (appointment-form.tsx) -- resolving
+  // it to any other status here means "as of today", so appt_date needs to
+  // move off that future date, or Appts Held/No-show/etc would land on a
+  // day that hasn't happened yet instead of today.
+  const update: { status: string; appt_date?: string } = { status };
+  if (appt?.status === 'scheduled' && status !== 'scheduled' && appt.appt_date > today) {
+    update.appt_date = today;
   }
 
   const { error } = await supabase
     .from('appointments')
-    .update({ status })
+    .update(update)
     .eq('id', id)
     .eq('agent_id', session.agent!.id);
 
