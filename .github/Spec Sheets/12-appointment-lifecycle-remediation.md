@@ -268,9 +268,38 @@ state is untouched, so revert is a pure function swap.
 
 ---
 
-### Phase B — Additive schema + dual write (no UI change)
+### Phase B — Additive schema ✅ IMPLEMENTED
 
-Fixes F8's data loss and the time-zone drift; makes Phase C possible.
+Shipped as `20260920130000_p25b_appointment_identity.sql`. Fixes **F8** and
+**E3**, guards **E20/E11**, and makes Phase C possible. One deviation from
+this section as written, decided during implementation:
+
+- **No dual-write in the app.** This section called for the server actions
+  to write both the old and new columns. A `BEFORE INSERT OR UPDATE` trigger
+  does it instead, because the invariant then holds for *every* writer —
+  the live app, the offline replay queue submitting a pre-Phase-B payload
+  days later (E15), the import path, psql — rather than only the code paths
+  we remembered to update. The consequence is that **Phase B shipped with no
+  application change at all**, so it could be judged on the data alone.
+
+Also narrower than planned in one place, deliberately: the
+`appt_scheduled/held/no_show/rescheduled/cancelled` counts stay bucketed by
+`appt_date` rather than moving to `resolved_on`. The trigger maintains
+`appt_date = resolved_on` for every terminal row, so they are equal by
+construction — keeping `appt_date` moved one metric instead of six and left
+Phase A's verification queries valid.
+
+**F4 remains deferred.** The dedup clause ships here but is inert until
+Phase C populates `source_call_log_id`; legacy rows are not retro-linked
+(see the migration header for why, and its footer for a read-only query
+measuring how many rows a retro-link would affect).
+
+Staging verification: `set_on` immutable, `scheduled_for` survives
+resolution through the old code path, all columns correctly populated, zero
+linked rows, and the Phase A metric query returned identical values — the
+migration moved no numbers.
+
+Original scope as planned, for reference:
 
 **Migration `…_p25b_appointment_identity.sql`:**
 
