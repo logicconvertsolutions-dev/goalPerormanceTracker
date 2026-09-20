@@ -268,9 +268,38 @@ state is untouched, so revert is a pure function swap.
 
 ---
 
-### Phase B — Additive schema + dual write (no UI change)
+### Phase B — Additive schema ✅ IMPLEMENTED
 
-Fixes F8's data loss and the time-zone drift; makes Phase C possible.
+Shipped as `20260920130000_p25b_appointment_identity.sql`. Fixes **F8** and
+**E3**, guards **E20/E11**, and makes Phase C possible. One deviation from
+this section as written, decided during implementation:
+
+- **No dual-write in the app.** This section called for the server actions
+  to write both the old and new columns. A `BEFORE INSERT OR UPDATE` trigger
+  does it instead, because the invariant then holds for *every* writer —
+  the live app, the offline replay queue submitting a pre-Phase-B payload
+  days later (E15), the import path, psql — rather than only the code paths
+  we remembered to update. The consequence is that **Phase B shipped with no
+  application change at all**, so it could be judged on the data alone.
+
+Also narrower than planned in one place, deliberately: the
+`appt_scheduled/held/no_show/rescheduled/cancelled` counts stay bucketed by
+`appt_date` rather than moving to `resolved_on`. The trigger maintains
+`appt_date = resolved_on` for every terminal row, so they are equal by
+construction — keeping `appt_date` moved one metric instead of six and left
+Phase A's verification queries valid.
+
+**F4 remains deferred.** The dedup clause ships here but is inert until
+Phase C populates `source_call_log_id`; legacy rows are not retro-linked
+(see the migration header for why, and its footer for a read-only query
+measuring how many rows a retro-link would affect).
+
+Staging verification: `set_on` immutable, `scheduled_for` survives
+resolution through the old code path, all columns correctly populated, zero
+linked rows, and the Phase A metric query returned identical values — the
+migration moved no numbers.
+
+Original scope as planned, for reference:
 
 **Migration `…_p25b_appointment_identity.sql`:**
 
@@ -660,6 +689,43 @@ dashboard reflects it. Worth writing even though the CI job is
 already blocks on vitest — `05-testing.md` says otherwise and is stale.
 
 ---
+
+## 9a. What Phase A actually did — production record (2026-09-20)
+
+Kept so a future "why did my number change on that day?" is answerable
+without re-deriving it.
+
+**Nothing was lost.** `metrics-damage-report.sql` before the migration:
+F1 = 0 and F2 = 0 across all five orgs, oldest call anywhere `2026-08-08`
+against a `2024-09-20` purge horizon. Production's call volume happened to
+keep appointment days alive; **staging was not so lucky and had lost one
+agent-day**, which is the same bug landing for real.
+
+**Seven agent-days were restated, every one upward** (all `F3 restore`; no
+`F5` rows, since production carries no imported appointments):
+
+| Agent | Date | Was | Now |
+|---|---|---|---|
+| Abhinav Kamsali | 2026-09-03 | 0 | 1 |
+| Harkaran Singh | 2026-09-15 | 0 | 1 |
+| Srinath Reddy Yellugari | 2026-09-09 | 0 | 1 |
+| Srinath Reddy Yellugari | 2026-09-16 | 0 | 1 |
+| Sukhvir Singh | 2026-09-16 | 0 | 2 |
+| *Sample Associate One* (demo) | 2026-08-24 | 1 | 2 |
+| *Sample SMD* (demo) | 2026-08-29 | 0 | 1 |
+
+Four real agents, five days, +6 Appts Set.
+
+**`daily_metrics` went 124 → 122.** Not a loss. The migration re-marked
+every row dirty, so rows whose counters had long since dropped to zero —
+and which nothing had re-marked since — were finally cleaned up. The new
+guard deletes *fewer* rows than the old one (it requires every counter to
+be zero, not five of them), so a drop cannot come from over-deleting.
+Confirmed after the fact: zero days with real source activity lack a row,
+and zero all-zero rows remain.
+
+Post-migration verification, production and staging both: F1 recoverable
+agent-days 0, `appts_set` mismatches 0, `metrics_dirty` 0.
 
 ## 9. Communicating the metric restatement
 

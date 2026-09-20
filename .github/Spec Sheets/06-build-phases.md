@@ -457,9 +457,33 @@ Five phases, each independently shippable and revertible.
         forgotten.
       - Rebuild by marking agent-days dirty and letting `drain_metrics` run,
         never a hand-written `UPDATE` (that is what let P23/P24 drift).
-- [ ] **Phase B — additive schema + dual write.** `set_on`, `scheduled_for`,
-      `resolved_on`, `source_call_log_id`, `rescheduled_to_id`; fixes F4 and
-      F8. No UI change.
+- [x] **Phase B — additive schema** (`20260920130000_p25b_appointment_identity.sql`).
+      `set_on`, `scheduled_for`, `resolved_on`, `source_call_log_id`,
+      `rescheduled_to_id`. No UI change — and, as it turned out, no
+      application change either.
+      - F8 — resolving an appointment destroyed the record of when it
+        actually was: `updateAppointmentStatusAction` rewrites `appt_date`
+        to today and `updateAppointmentAction` additionally nulls
+        `appointment_at`, so the two paths left different rows for the same
+        action. `scheduled_for` now survives both.
+      - E3 — `set_on` is a stored, immutable column, so an agent changing
+        their time zone can no longer move a past day's Appts Set.
+      - E20/E11 — links can't cross agents or point at themselves.
+      - **Planned as an app-level dual-write; implemented as a BEFORE
+        trigger instead.** The invariant then holds for every writer —
+        the live app, the offline replay queue submitting a pre-Phase-B
+        payload days later, the import path, psql — not just the code
+        paths we remembered to change. `appt_date` stays as a
+        compatibility column maintained by that same trigger.
+      - **F4 still deferred.** The dedup clause ships here but is inert:
+        nothing sets `source_call_log_id` until Phase C. Legacy rows are
+        deliberately not retro-linked — guessing which call produced which
+        appointment can merge two real ones, and it would push historical
+        Appts Set *down* days after Phase A's restatement was announced as
+        "no number goes down".
+      - Verified on staging: all four acceptance tests passed, and a
+        400-op fuzz proved `set_on` equals exactly what Phase A's
+        expression computed — i.e. the migration moved no numbers.
 - [ ] **Phase C — single record + lifecycle UI.** Call creates the
       appointment; resolve sheet; Upcoming view. F6, F7, F9, F10, F11, F12,
       F15, F16.

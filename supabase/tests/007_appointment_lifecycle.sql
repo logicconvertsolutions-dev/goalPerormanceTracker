@@ -137,7 +137,18 @@ select ok(
 --    (contact, appointment_at), which would break on resolution (F8 nulls
 --    appointment_at) and make the number flap between 2 and 1.
 --
---    WHEN PHASE B LANDS: this assertion becomes 1.
+--    UPDATED IN PHASE B: this assertion stays 2, and that is correct.
+--    Phase B added `source_call_log_id` and the dedup clause that uses it,
+--    but deliberately did NOT backfill the column for legacy rows — a
+--    retro-link means guessing which call produced which appointment, and
+--    a wrong guess merges two real appointments into one. It would also
+--    push historical Appts Set DOWN, days after Phase A's restatement was
+--    announced to agents as "no number goes down".
+--
+--    So an UNLINKED pair still counts twice, as asserted here; a LINKED
+--    pair counts once, asserted in 008_appointment_identity.sql. Phase C
+--    closes F4 for good by having the call form create the appointment
+--    with the link already set.
 -- ---------------------------------------------------------------------
 insert into public.call_logs (id, agent_id, contact_id, call_date, source, outcome, appointment_at)
 values ('00000000-0000-0000-0000-0000000000a5', '00000000-0000-0000-0000-0000000000a1',
