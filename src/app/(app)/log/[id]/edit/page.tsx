@@ -11,7 +11,7 @@ export default async function EditCallPage({ params }: { params: Promise<{ id: s
 
   const { data: call } = await supabase
     .from('call_logs')
-    .select('id, call_date, source, outcome, notes, follow_up_on')
+    .select('id, call_date, source, outcome, notes, follow_up_on, appointment_at')
     .eq('id', id)
     .eq('agent_id', session.agent!.id)
     .maybeSingle();
@@ -30,6 +30,7 @@ export default async function EditCallPage({ params }: { params: Promise<{ id: s
           outcome: call.outcome,
           notes: call.notes,
           followUpOn: call.follow_up_on,
+          appointmentAt: call.appointment_at,
         }}
       />
     </div>

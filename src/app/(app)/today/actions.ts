@@ -41,3 +41,43 @@ export async function markFollowUpDoneAction(callLogId: string) {
   revalidatePath('/today');
   return { ok: !error };
 }
+
+export async function snoozeAppointmentAction(callLogId: string, days: number) {
+  const session = await requireAgent();
+  const supabase = await createClient();
+
+  const { data: row } = await supabase
+    .from('call_logs')
+    .select('appointment_at')
+    .eq('id', callLogId)
+    .eq('agent_id', session.agent!.id)
+    .maybeSingle();
+
+  if (!row?.appointment_at) return { ok: false, error: 'Appointment not found.' };
+
+  const next = new Date(row.appointment_at);
+  next.setUTCDate(next.getUTCDate() + days);
+
+  const { error } = await supabase
+    .from('call_logs')
+    .update({ appointment_at: next.toISOString() })
+    .eq('id', callLogId)
+    .eq('agent_id', session.agent!.id);
+
+  revalidatePath('/today');
+  return { ok: !error };
+}
+
+export async function markAppointmentDoneAction(callLogId: string) {
+  const session = await requireAgent();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('call_logs')
+    .update({ appointment_done_at: new Date().toISOString() })
+    .eq('id', callLogId)
+    .eq('agent_id', session.agent!.id);
+
+  revalidatePath('/today');
+  return { ok: !error };
+}

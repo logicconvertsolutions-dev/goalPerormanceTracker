@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ContactPicker } from '@/components/shell/contact-picker';
 import { cn } from '@/lib/utils';
-import { addDays, browserTimeZone, nextMonday, todayIso } from '@/lib/dates';
+import { addDays, browserTimeZone, isoToLocalParts, nextMonday, todayIso } from '@/lib/dates';
 import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
 import { logCallAction, updateCallAction } from './actions';
 
@@ -78,6 +78,7 @@ export function LogForm({
     outcome: string;
     notes: string | null;
     followUpOn: string | null;
+    appointmentAt: string | null;
   };
   /** When set (e.g. inside a modal), called instead of navigating away on success/cancel. */
   onSuccess?: () => void;
@@ -99,15 +100,23 @@ export function LogForm({
   const [outcome, setOutcome] = useState(defaultValues?.outcome ?? '');
   const [followUpOn, setFollowUpOn] = useState(defaultValues?.followUpOn ?? '');
   const [showFollowUpPicker, setShowFollowUpPicker] = useState(false);
+  const defaultAppointment = defaultValues?.appointmentAt ? isoToLocalParts(defaultValues.appointmentAt) : null;
+  const [appointmentDate, setAppointmentDate] = useState(defaultAppointment?.date ?? callDate);
+  const [appointmentTime, setAppointmentTime] = useState(defaultAppointment?.time ?? '');
 
   const isToday = callDate === todayIso(tz);
+  const isAppointmentSet = outcome === 'appointment_set';
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     formData.set('callDate', callDate);
     formData.set('source', source);
-    if (followUpOn) formData.set('followUpOn', followUpOn);
+    if (isAppointmentSet) {
+      formData.set('appointmentAt', new Date(`${appointmentDate}T${appointmentTime}`).toISOString());
+    } else if (followUpOn) {
+      formData.set('followUpOn', followUpOn);
+    }
 
     if (mode === 'edit') {
       formData.set('id', defaultValues!.id);
@@ -225,7 +234,31 @@ export function LogForm({
         </Select>
       </div>
 
-      {outcome && (
+      {isAppointmentSet && (
+        <div className="space-y-1.5">
+          <Label htmlFor="appointmentDate">Appointment date &amp; time</Label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              id="appointmentDate"
+              type="date"
+              value={appointmentDate}
+              onChange={(e) => setAppointmentDate(e.target.value)}
+              className="w-auto"
+              required
+            />
+            <Input
+              id="appointmentTime"
+              type="time"
+              value={appointmentTime}
+              onChange={(e) => setAppointmentTime(e.target.value)}
+              className="w-auto"
+              required
+            />
+          </div>
+        </div>
+      )}
+
+      {outcome && !isAppointmentSet && (
         <div className="space-y-1.5">
           <Label>Call back on…</Label>
           <div className="flex flex-wrap gap-2">

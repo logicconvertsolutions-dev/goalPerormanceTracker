@@ -12,6 +12,7 @@ import { NextUpCard } from './next-up-card';
 import { TodayRow } from './today-row';
 import { ActivityRow } from './activity-row';
 import type { ActivityKind } from '@/components/shell/activity-icons';
+import type { DueItemKind } from './use-follow-up-actions';
 
 const ACTIVITY_EDIT_PATH: Record<ActivityKind, string> = {
   call: '/log',
@@ -36,8 +37,12 @@ export default async function TodayPage() {
   const { data: followUps } = await supabase.rpc('my_followups', {
     p_as_of: todayIso(session.agent!.time_zone),
   });
-  // Already ordered by follow_up_on ascending (most overdue first) by the RPC.
-  const rows = followUps ?? [];
+  // Already ordered by due date ascending (most overdue first) by the RPC --
+  // follow-ups and appointments due are interleaved into one queue.
+  // `kind` is only ever 'follow_up'/'appointment' (it's a SQL literal in
+  // my_followups), but generated RPC return types type it as a plain
+  // string -- narrowed here once instead of casting at every prop site.
+  const rows = (followUps ?? []).map((r) => ({ ...r, kind: r.kind as DueItemKind }));
   const [nextUp, ...remaining] = rows;
 
   const { count: callsToday } = await supabase
@@ -83,18 +88,21 @@ export default async function TodayPage() {
         {!nextUp ? (
           <div className="rounded-lg border border-line bg-panel px-4 py-4 shadow-card">
             <p className="text-sm text-fg-3">
-              Nothing due today. Set a follow-up when you log a call and it&apos;ll show up here.
+              Nothing due today. Set a follow-up, or log a call with an appointment set, and it&apos;ll show up here.
             </p>
           </div>
         ) : (
           <>
             <NextUpCard
+              kind={nextUp.kind}
               callLogId={nextUp.call_id}
               contactId={nextUp.contact_id}
               contactName={nextUp.contact_name}
               lastNote={nextUp.last_note}
               timesCalled={nextUp.times_called}
               daysLate={nextUp.days_late}
+              appointmentAt={nextUp.appointment_at}
+              timeZone={session.agent!.time_zone}
             />
 
             {remaining.length > 0 && (
@@ -105,12 +113,15 @@ export default async function TodayPage() {
                 {remaining.map((row) => (
                   <TodayRow
                     key={row.call_id}
+                    kind={row.kind}
                     callLogId={row.call_id}
                     contactId={row.contact_id}
                     contactName={row.contact_name}
                     lastNote={row.last_note}
                     timesCalled={row.times_called}
                     daysLate={row.days_late}
+                    appointmentAt={row.appointment_at}
+                    timeZone={session.agent!.time_zone}
                     overdue={row.days_late > 0}
                   />
                 ))}
