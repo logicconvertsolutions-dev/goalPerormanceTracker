@@ -169,7 +169,9 @@ otherwise — raising them after Phase C is expensive.
 | D6 | **Call notes and appointment notes stay separate.** Not copied at creation. | They are different facts; copying creates silent divergence on edit. | Low. |
 | D7 | **A call-created appointment is bound to the called contact.** No contact picker on the call form. | Keeps the hot path fast; `/appointments/new` still handles the referral-books-a-friend case. | Low. |
 | D8 | **Historical `appts_set` changes again** under the new definition. | It is currently wrong in both directions (F3 erosion, F4 double-count). One more corrected restatement is better than permanent wrongness. | N/A — but it must be communicated (§9). |
-| D9 | **Appointment reminders are in-app only. No email.** | Requested 2026-09-20. Removes the Resend template, the new notification kind, the cron job and the per-kind unsubscribe surface from scope entirely. Trade-off in Phase D. | Low — the email path can be added later without changing anything built in Phase D. |
+| D9 | **Reminders are in-app + Web Push. No email.** | Requested 2026-09-20. Push is built as a reusable channel; appointment reminders are its first consumer. No Resend template, no email unsubscribe surface. | Low — email can be added later as a third channel behind the same interface. |
+| D10 | **`web-push` approved as a new prod dependency** (rule 11). Server-only. | Hand-rolled VAPID/ECDH/aes128gcm fails silently on device when subtly wrong. Update CLAUDE.md's locked-stack line when it lands. | Low. |
+| D11 | **`notification_log` is not touched.** New kinds use `notification_deliveries` + `notification_channel_prefs`. | Its `UNIQUE (agent_id, kind, local_date)` and `kind` CHECK are correct for daily digests and wrong for per-entity events. Widening them would put the three live email kinds at risk for no benefit. | Low — legacy booleans can migrate onto the new tables later. |
 
 ---
 
@@ -316,23 +318,23 @@ harmless.
 
 ---
 
-### Phase D — In-app reminders (F13)
+### Phase D — In-app bands + Web Push (F13)
 
-**Decision D9: in-app only. No email.** No new notification kind, no
-`enqueue_due_notifications` change, no Resend template, no cron job, no
-unsubscribe handling, no new table. Everything below is derived at read time
-from `appointments.scheduled_for` + `status`, which Phase B already
-guarantees.
+**Decision D9 (revised 2026-09-20): in-app reminders AND Web Push. No
+email.** Push is built as a **reusable channel**, not as appointment-specific
+code — appointment reminders are its first consumer, and adding a second kind
+later should be a payload builder plus a preference row, nothing more.
 
-This is materially cheaper than the email version and removes the whole
-P14a per-kind unsubscribe surface from scope.
+**D10: `web-push` is approved** as a new production dependency under
+CLAUDE.md rule 11. Server-only; never imported from a client component.
+Rationale: VAPID ES256 signing plus ECDH/HKDF/aes128gcm payload encryption
+hand-rolled is ~300 lines of crypto that fails *silently on device* when
+subtly wrong. Update CLAUDE.md's locked-stack line when it lands.
 
-**What exists today:** no in-app notification centre. The only persistent
-in-app surface is `AnnouncementBanner` (admin-authored, platform-wide, not
-per-agent). `sonner` toasts are transient. `/sw.js` is registered but has no
-push handler.
+#### D-1. In-app bands (no new infrastructure)
 
-**What gets built:**
+Derived at read time from `appointments.scheduled_for` + `status`, which
+Phase B already guarantees. No table, no cron, no stored state.
 
 1. **My Day shows appointments before the day they fall on.** Today
    `my_followups` filters `appointment_at::date <= p_as_of`, so an
@@ -351,18 +353,93 @@ push handler.
    number is actionable rather than decorative.
 3. **Empty states** per band, per `10-journeys.md`.
 
-**Accepted limitation, stated plainly:** an in-app reminder only reaches the
-agent when they open the app. An 8am appointment gets no 6pm-the-night-before
-nudge unless they happen to open Kautis that evening. This is a deliberate
-trade (no inbox noise, no email infrastructure, no unsubscribe compliance
-surface) and it still fixes the core defect — the appointment is *visible in
-advance* instead of invisible until the day. If reach-while-closed is wanted
-later, web push through the already-registered service worker is the natural
-add-on and is a self-contained follow-up; it does not change anything in this
-phase.
+#### D-2. Web Push — reusable channel
 
-**Revert:** app-only. Revert the deploy; the banding is a read-time concern
-with no stored state.
+**What already exists:** `/sw.js` is a Route Handler
+(`src/app/sw.js/route.ts`) doing app-shell caching only — **no `push` or
+`notificationclick` handler**. A PWA manifest exists (`src/app/manifest.ts`),
+and its comments show iOS Add-to-Home-Screen was already considered.
+`notification_log`, `notification_prefs`, the `enqueue → drain → route`
+cron pipeline and an unsubscribe-token module all exist, all email-shaped.
+
+**What must NOT be reused as-is:** `notification_log` carries
+`UNIQUE (agent_id, kind, local_date)` (baseline:2168) plus a CHECK pinning
+`kind` to the three live values. That unique key encodes *one notification of
+a kind per agent per day* — correct for a digest, wrong for appointments,
+where an agent can have four in a day. Overloading it would either drop
+reminders or force the CHECK and the key open under the three live email
+kinds. **Leave `notification_log` untouched** so nothing currently in
+production can regress.
+
+**New, generic, reusable pieces:**
+
+1. **`push_subscriptions`** — `agent_id`, `org_id`, `endpoint` (unique),
+   `p256dh`, `auth`, `user_agent`, `created_at`, `last_seen_at`,
+   `failure_count`, `disabled_at`. One agent → many devices. RLS: agent
+   reads/writes only its own; sending is service-role. `org_id` per rule 8.
+2. **`notification_deliveries`** — the channel-agnostic delivery log that
+   `notification_log` cannot be: `agent_id`, `org_id`, `channel`
+   (`push`/`email`/`in_app`), `kind`, `entity_id` (nullable),
+   `dedup_key` (text, NOT NULL), `sent_at`, `status`, `attempts`,
+   `last_error`, with `UNIQUE (agent_id, channel, dedup_key)`.
+   The dedup key is the reusable part:
+   - appointment reminder → `appointment:<id>:evening` / `appointment:<id>:t2h`
+   - a future daily kind → `evening_nudge:2026-09-20`
+
+   Per-entity and per-day kinds both dedup correctly with no schema change.
+3. **`notification_channel_prefs`** — `(agent_id, kind, channel, enabled)`.
+   `notification_prefs`' column-per-kind shape does not scale and is wired
+   into the live settings page and unsubscribe flow, so it is **left alone**;
+   new kinds and channels use this table. Migration path for the three legacy
+   booleans is documented, not executed.
+4. **`src/lib/notifications/push/`** — `vapid.ts` (key load + validation),
+   `send.ts` (`sendPushToAgent(agentId, { kind, dedupKey, title, body, url,
+   tag })`, fans out to every live subscription, prunes dead ones),
+   `subscribe.ts` (client-side subscribe/unsubscribe/resync). Nothing in this
+   module knows what an appointment is.
+5. **Service worker** — add generic `push` and `notificationclick` handlers
+   to `SW_SOURCE`, reading `{ title, body, url, tag }` from the payload.
+   Click focuses an existing client if one is open, else opens `url`.
+6. **Scheduling** — a `private.due_push_notifications()` returning rows to
+   send, drained by a cron route in the existing `ping_app_route` pattern.
+   DB decides *what is due*, app *sends* — consistent with how the email
+   pipeline is already split. 5-minute granularity is sufficient for both
+   lead times.
+
+**Lead times:** evening before (~18:00 agent-local) and T-2h. Both
+per-agent-timezone, both individually toggleable.
+
+#### D-3. Constraints that must be designed for, not discovered
+
+- **iOS is the big one.** Safari on iOS/iPadOS supports Web Push only from
+  16.4+, and **only when the app has been added to the Home Screen** — never
+  in a normal Safari tab. For a field-sales app this is most of the user
+  base. Required: a capability check that distinguishes "not supported",
+  "supported but you must install the app first", and "you denied
+  permission", each with its own explanation. Silently showing a dead toggle
+  is not acceptable. Pairs with an A2HS prompt in onboarding.
+- **Permission must follow a user gesture.** Never prompt on page load. A
+  card on My Day ("Get reminded before your appointments") plus a Settings
+  toggle. `denied` is sticky and unrecoverable in-app — detect it and say so.
+- **Subscriptions expire.** 404/410 from the push service → delete the row.
+  429 → backoff. Repeated other failures → `failure_count`, disable after N.
+  Re-sync `pushManager.getSubscription()` against the server on app load.
+- **No prospect PII in a push payload.** A push body renders on a lock
+  screen and is stored by the OS. "Appointment at 2:00 PM" ships; "Appointment
+  with John Smith" does not. This follows the spirit of rule 2 and belongs in
+  `04-security.md` as a standing rule for every future kind, not a one-off
+  choice for this one.
+- **VAPID keys.** Private key is server-only env (`VAPID_PRIVATE_KEY`); the
+  public key is *designed* to be public and correctly lives in
+  `NEXT_PUBLIC_VAPID_PUBLIC_KEY`. Confirm `ci.yml`'s service-key leak gate
+  neither false-positives on the public one nor ignores the private one. Per
+  CLAUDE.md's staging gotcha, re-verify both in Vercel whenever the Supabase
+  `staging` branch is recreated.
+
+**Revert:** D-1 is read-time only — revert the deploy. D-2 reverts by
+disabling the cron job; the tables are additive and inert, and
+`notification_log` was never touched, so the three live email kinds are
+unaffected either way.
 
 ---
 
@@ -477,6 +554,29 @@ Every one of these gets a test (§8).
 - E24 Appointments are not purged; only call logs are. A purged call whose
   appointment row survives must keep counting.
 
+**Push (Phase D)**
+- E25 Reminder fires once per appointment per lead time, never twice —
+  including across a cron overlap or a retry (`dedup_key` uniqueness).
+- E26 Appointment resolved, cancelled, deleted or rescheduled *after* the
+  reminder was queued but before it sends → **do not send**. Check current
+  status at send time, not enqueue time.
+- E27 Reschedule moves the time → the successor gets its own reminders; the
+  predecessor's are cancelled.
+- E28 Multi-device: one agent, three devices → one notification each, and one
+  dead endpoint must not block the other two.
+- E29 Subscription expired (404/410) → row deleted, no retry storm.
+- E30 Permission `denied`, or iOS Safari not installed to Home Screen → the
+  toggle explains *which* case it is; never a dead control.
+- E31 Same account signed in on a shared/borrowed device — unsubscribe on
+  sign-out so reminders don't follow the agent to someone else's phone.
+- E32 Payload contains no contact name or notes (lock-screen PII).
+- E33 Agent changes time zone between enqueue and send → lead times
+  recompute from the agent's current zone.
+- E34 Push send path is never reachable from a client component; VAPID
+  private key never crosses the boundary.
+- E35 Appointment in the past at creation (backdated) must not fire a
+  retroactive reminder.
+
 ---
 
 ## 8. Test plan
@@ -510,6 +610,23 @@ Fills the F17 gap. Priority per `05-testing.md`: RLS > integration > unit > E2E.
 - `dates.test.ts` — E3, E4.
 - `commit-import.test.ts` — `created_at`/`set_on` from `appt_date` (F5).
 - Offline queue — E15 old-shape replay.
+
+**Push (Phase D)**
+- pgTAP: `push_subscriptions` RLS (agent sees only its own, anon sees none,
+  no cross-org read); `notification_deliveries` dedup uniqueness; the
+  due-window function returns nothing for resolved/cancelled/deleted
+  appointments (E26) and nothing for backdated ones (E35).
+- Vitest: dedup-key builder; payload builder asserts **no contact name or
+  notes** (E32) — this one is a privacy regression test, not a nicety;
+  subscription pruning on 404/410 (E29); capability detection branches for
+  iOS-not-installed vs denied vs unsupported (E30); VAPID config validation
+  fails loudly on a missing/malformed key.
+- Service-key leak gate: extend `ci.yml`'s grep so `VAPID_PRIVATE_KEY` can
+  never appear in a client bundle, and so it does not false-positive on
+  `NEXT_PUBLIC_VAPID_PUBLIC_KEY`.
+- Manual: real-device matrix — Android Chrome, desktop Chrome/Edge, macOS
+  Safari, and iOS Safari **installed to Home Screen**. Push cannot be
+  meaningfully covered by Playwright; the device pass is the gate.
 
 **Playwright** — the `e2e/` directory does not exist; P25 is a reasonable
 place to start it, with the one journey that covers the most surface:
@@ -553,6 +670,9 @@ Part of each phase's DoD, not a cleanup pass afterwards.
 | `10-journeys.md` | Book → remind → resolve; the reschedule journey; per-band empty states | C, D |
 | `03-ui.md` | Resolve sheet component + tokens; My Day band treatments; nav count badge | C, D |
 | `08-screen-specs.md` | My Day bands (Starting soon / Today / Tomorrow / Later / Needs an outcome) and the badge rule | D |
+| `04-security.md` | **No prospect PII in a push payload** as a standing rule for every future kind; VAPID key handling; `push_subscriptions` RLS | D |
+| `09-account-and-auth.md` | Settings: push toggle + per-lead-time toggles; the three capability states (unsupported / install-to-Home-Screen / denied); unsubscribe-on-sign-out | D |
+| `CLAUDE.md` | Add `web-push` to the locked stack; note that `notification_log` is for daily-digest kinds and `notification_deliveries` for per-entity ones | D |
 | `01-requirements.md` | Appointment lifecycle user stories | C |
 | `00-open-questions.md` | Record D1–D8 as decided, with dates | A |
 | `11-incident-response.md` | Runbook for a bad backfill: snapshot → re-mark dirty → drain | A |
@@ -575,6 +695,10 @@ Part of each phase's DoD, not a cleanup pass afterwards.
 | Metric restatement reads as a bug | **High** | Med | §9 comms before promotion |
 | Phase C's UI lands with Phase B unmigrated | Low | High | Phase C reads only columns Phase B guarantees `NOT NULL`; CI asserts the migration order |
 | `staging` Supabase branch env drift | Med | Med | CLAUDE.md's known gotcha — re-verify `NEXT_PUBLIC_*` against the branch's live API settings before trusting a staging result |
+| iOS agents can't receive push (not installed to Home Screen) | **High** | Med | Treated as a first-class UI state, not an error; A2HS prompt in onboarding; in-app bands (D-1) still work for everyone, so push is additive reach rather than the only channel |
+| Prospect name reaches a lock screen | Low | **High** | E32 payload test is a blocking privacy regression test; rule written into `04-security.md` for all future kinds |
+| Reminder fires for an appointment already cancelled | Med | Med | E26 — status checked at send time, not enqueue time |
+| Push send path leaks the VAPID private key clientward | Low | High | `server-only` import in the push module + extended `ci.yml` leak gate (E34) |
 
 ---
 
@@ -586,7 +710,7 @@ Phase A  metrics integrity (F1,F2,F3,F4,F5)       — DB + import, no UI      �
 Phase B  additive schema + dual write (F8,E3)     — DB + actions, no UI
 Phase C  single record + lifecycle UI             — the visible change
          (F6,F7,F9,F10,F11,F12,F15,F16)
-Phase D  in-app reminders (F13)                   — My Day bands + badge
+Phase D  in-app bands + Web Push (F13)            — reusable push channel
 Phase E  contract                                 — after one clean cycle
 ```
 
