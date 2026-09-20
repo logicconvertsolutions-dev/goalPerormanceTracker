@@ -135,6 +135,73 @@ export function isoToLocalParts(iso: string): { date: string; time: string } {
   };
 }
 
+/**
+ * Shifts a timestamptz by whole days *in the given IANA zone*, preserving
+ * the local wall-clock time across a DST transition -- "2:00 PM on the 7th"
+ * snoozed by one day is "2:00 PM on the 8th", not "1:00 PM" or "3:00 PM"
+ * (P25 edge case E4).
+ *
+ * `addDays` can't do this: it operates on date-only strings, and adding
+ * 24h*n to an instant slides the local time by an hour whenever the shift
+ * crosses a transition. Pass the acting agent's `time_zone`, same as
+ * {@link isoToDateInZone}.
+ */
+export function shiftZonedTimestampByDays(iso: string, days: number, timeZone?: string | null): string {
+  const zone = resolveTimeZone(timeZone);
+  const parts = zonedParts(new Date(iso), zone);
+  // Date.UTC normalises an out-of-range day (e.g. Jan 32 -> Feb 1) for us.
+  const target = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days, parts.hour, parts.minute, parts.second));
+  const wall = target.getTime();
+
+  // Solve for the instant whose local wall-clock reading in `zone` is
+  // `wall`. One correction lands on the answer except when the guess and
+  // the answer sit on opposite sides of a transition; a second settles it.
+  // (A wall time skipped by a spring-forward gap has no exact instant --
+  // this converges on the hour after the gap, which is the useful answer.)
+  let ts = wall;
+  for (let i = 0; i < 2; i += 1) {
+    ts = wall - zoneOffsetMs(new Date(ts), zone);
+  }
+  return new Date(ts).toISOString();
+}
+
+interface ZonedParts {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+}
+
+/** The calendar fields an instant reads as in `zone`. */
+function zonedParts(date: Date, zone: string): ZonedParts {
+  const fields = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: zone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+      .formatToParts(date)
+      .filter((p) => p.type !== 'literal')
+      .map((p) => [p.type, Number(p.value)])
+  ) as unknown as ZonedParts;
+  return fields;
+}
+
+/** `zone`'s UTC offset in milliseconds at the given instant. */
+function zoneOffsetMs(date: Date, zone: string): number {
+  const p = zonedParts(date, zone);
+  // Milliseconds are dropped by formatToParts, so compare against a
+  // second-truncated instant rather than date.getTime() directly.
+  return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - Math.floor(date.getTime() / 1000) * 1000;
+}
+
 /** Adds `days` (may be negative) to an ISO date string, returning an ISO date string. */
 export function addDays(iso: string, days: number): string {
   const d = new Date(iso + 'T00:00:00Z');

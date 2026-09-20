@@ -12,6 +12,7 @@ import { ContactPicker } from '@/components/shell/contact-picker';
 import { cn } from '@/lib/utils';
 import { addDays, browserTimeZone, isoToLocalParts, nextMonday, todayIso } from '@/lib/dates';
 import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
+import { APPT_TYPES } from '@/lib/appointment-types';
 import { logCallAction, updateCallAction } from './actions';
 
 const SOURCES = [
@@ -79,6 +80,7 @@ export function LogForm({
     notes: string | null;
     followUpOn: string | null;
     appointmentAt: string | null;
+    apptType?: string | null;
   };
   /** When set (e.g. inside a modal), called instead of navigating away on success/cancel. */
   onSuccess?: () => void;
@@ -103,6 +105,10 @@ export function LogForm({
   const defaultAppointment = defaultValues?.appointmentAt ? isoToLocalParts(defaultValues.appointmentAt) : null;
   const [appointmentDate, setAppointmentDate] = useState(defaultAppointment?.date ?? callDate);
   const [appointmentTime, setAppointmentTime] = useState(defaultAppointment?.time ?? '');
+  // P25 C1 / decision D5: optional on the call form, defaulting to Follow
+  // Up. /appointments/new keeps it required; here the field exists so an
+  // agent CAN answer on the hot path, not so they must.
+  const [apptType, setApptType] = useState(defaultValues?.apptType || 'follow_up');
 
   const isToday = callDate === todayIso(tz);
   const isAppointmentSet = outcome === 'appointment_set';
@@ -114,6 +120,7 @@ export function LogForm({
     formData.set('source', source);
     if (isAppointmentSet) {
       formData.set('appointmentAt', new Date(`${appointmentDate}T${appointmentTime}`).toISOString());
+      formData.set('apptType', apptType);
     } else if (followUpOn) {
       formData.set('followUpOn', followUpOn);
     }
@@ -235,27 +242,45 @@ export function LogForm({
       </div>
 
       {isAppointmentSet && (
-        <div className="space-y-1.5">
-          <Label htmlFor="appointmentDate">Appointment date &amp; time</Label>
-          <div className="flex flex-wrap items-center gap-2">
-            <Input
-              id="appointmentDate"
-              type="date"
-              value={appointmentDate}
-              onChange={(e) => setAppointmentDate(e.target.value)}
-              className="w-auto"
-              required
-            />
-            <Input
-              id="appointmentTime"
-              type="time"
-              value={appointmentTime}
-              onChange={(e) => setAppointmentTime(e.target.value)}
-              className="w-auto"
-              required
-            />
+        <>
+          <div className="space-y-1.5">
+            <Label htmlFor="appointmentDate">Appointment date &amp; time</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                id="appointmentDate"
+                type="date"
+                value={appointmentDate}
+                onChange={(e) => setAppointmentDate(e.target.value)}
+                className="w-auto"
+                required
+              />
+              <Input
+                id="appointmentTime"
+                type="time"
+                value={appointmentTime}
+                onChange={(e) => setAppointmentTime(e.target.value)}
+                className="w-auto"
+                required
+              />
+            </div>
           </div>
-        </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="apptType">Appointment type</Label>
+            <Select value={apptType} onValueChange={setApptType}>
+              <SelectTrigger id="apptType">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {APPT_TYPES.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </>
       )}
 
       {outcome && !isAppointmentSet && (

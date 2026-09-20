@@ -484,9 +484,48 @@ Five phases, each independently shippable and revertible.
       - Verified on staging: all four acceptance tests passed, and a
         400-op fuzz proved `set_on` equals exactly what Phase A's
         expression computed — i.e. the migration moved no numbers.
-- [ ] **Phase C — single record + lifecycle UI.** Call creates the
-      appointment; resolve sheet; Upcoming view. F6, F7, F9, F10, F11, F12,
-      F15, F16.
+- [x] **Phase C1 — call creates the appointment; My Day reads it**
+      (`20260920140000_p25c1_call_creates_appointment.sql`). The invisible
+      half of Phase C: one migration, no new screen, one optional select.
+      - F4 — **closed.** Logging a call with outcome `appointment_set` now
+        creates an `appointments` row stamped with `source_call_log_id`, so
+        the dedup clause Phase B shipped inert starts matching and one
+        booking counts once instead of twice. Nothing is backfilled, so no
+        historical number moves and there is nothing to announce.
+      - F11 — **closed.** An appointment booked from a call had no status
+        and could never become Held / No-show / Cancelled;
+        `appointment_done_at` fed nothing. It is now an ordinary
+        appointments row, resolvable straight from My Day.
+      - F12 — **closed.** `appointments.follow_up_on` had been written by
+        the form since P20 and read by nothing. `my_followups` now has a
+        branch for it.
+      - `my_followups` returns four kinds across two tables. `call_id`
+        keeps its name but now means "the id of the row this came from";
+        `kind` says which table, and routes the row's actions.
+      - Snooze moves `scheduled_for` in whole *agent-local* days (E4), and
+        **Mark done is replaced by Held / No-show / Cancelled** for a
+        pending appointment — there is no honest "done" in the status
+        machine. Rescheduled waits for C2's successor picker (D1).
+      - Resolving stamps `resolved_on` with the day the outcome was
+        *recorded* (E6), in `updateAppointmentStatusAction` only — My Day
+        delegates to it rather than growing a second definition, which is
+        the shape F8 had.
+      - **Beyond the section as written:** editing a call carries the edit
+        across to the appointment it created (move the slot, create the row
+        if the outcome just became `appointment_set`, drop a still-pending
+        row if it stopped being one). Without it the call form could move
+        an appointment on one screen and not the other — the divergence
+        this phase exists to remove.
+      - `appointments_source_call_log_idx` is now UNIQUE, so "one call
+        produces at most one appointment" is a table invariant, not just a
+        server-action convention (E16).
+- [ ] **Phase C2 — lifecycle UI.** Resolve sheet (Held's premium /
+      referrals / notes / log-as-sale, and Reschedule's successor picker),
+      Upcoming section on `/appointments`, Open Pipeline, the corrected
+      no-show formula, the linked-sale delete guard. F6, F7, F9, F10, F15,
+      F16 — and F14's remaining half, the appointment form submitting its
+      own booking date so an offline replay doesn't bucket on the sync day
+      (the call form's half is done in C1).
 - [ ] **Phase D — in-app bands + Web Push.** Reusable push channel
       (`web-push`, approved under rule 11); appointment reminders are its
       first consumer. No email.

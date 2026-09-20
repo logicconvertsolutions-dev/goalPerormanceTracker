@@ -114,6 +114,13 @@ export async function createAppointmentAction(formData: FormData) {
       org_id: orgId,
       contact_id: contact.id,
       appt_date: apptDate,
+      // The booking day (P25 Phase B). Identical to what the identity
+      // trigger would derive for an insert with no set_on, but stated here
+      // because the column is NOT NULL and the generated Insert type asks
+      // for it. Note this is TODAY even when apptDate is back-dated: an
+      // appointment logged after the fact was still booked today, and
+      // set_on is immutable from here on.
+      set_on: today,
       appointment_at: isScheduled ? parsed.data.appointmentAt : null,
       appt_type: parsed.data.apptType || null,
       status: parsed.data.status,
@@ -227,7 +234,7 @@ export async function updateAppointmentStatusAction(id: string, status: (typeof 
   // for the resolve-a-scheduled-appointment check below.
   const { data: appt } = await supabase
     .from('appointments')
-    .select('appt_type, status, appt_date')
+    .select('appt_type, status')
     .eq('id', id)
     .eq('agent_id', session.agent!.id)
     .maybeSingle();
@@ -236,15 +243,30 @@ export async function updateAppointmentStatusAction(id: string, status: (typeof 
     return { ok: false, error: 'Set an appointment type before marking this held.' };
   }
 
-  const today = todayIso(session.agent!.time_zone);
-  // This quick changer has no date field. A "Scheduled" appointment's
-  // appt_date can be a future date/time (appointment-form.tsx) -- resolving
-  // it to any other status here means "as of today", so appt_date needs to
-  // move off that future date, or Appts Held/No-show/etc would land on a
-  // day that hasn't happened yet instead of today.
-  const update: { status: (typeof APPT_STATUSES)[number]; appt_date?: string } = { status };
-  if (appt?.status === 'scheduled' && status !== 'scheduled' && appt.appt_date > today) {
-    update.appt_date = today;
+  // P25 C1. This is the ONE definition of "resolve an appointment" -- the
+  // /appointments quick status-changer calls it, and so does My Day's row
+  // menu (via resolveAppointmentAction in today/actions.ts). F8 was two
+  // code paths for the same action leaving two different rows; a second
+  // resolve implementation for the new My Day queue would be the same
+  // mistake with the columns renamed.
+  //
+  // Recording an outcome stamps resolved_on with the agent's TODAY, and
+  // lets the Phase B identity trigger derive appt_date from it. Before
+  // Phase B this action wrote appt_date directly, and only when the
+  // appointment was future-dated -- so an appointment held last Tuesday
+  // and recorded this morning landed its Appts Held on last Tuesday,
+  // reaching back into a cycle that may already be closed. resolved_on is
+  // the day the outcome was RECORDED (§7 E6), which never moves history.
+  //
+  // Only the scheduled -> terminal transition stamps it. A terminal row
+  // changed to another terminal status is a correction to the same
+  // resolution event, so it keeps the day it was first recorded on
+  // (the trigger preserves old.resolved_on when none is supplied), and
+  // returning a row to `scheduled` clears it in the trigger (E7).
+  const isResolving = appt?.status === 'scheduled' && status !== 'scheduled';
+  const update: { status: (typeof APPT_STATUSES)[number]; resolved_on?: string } = { status };
+  if (isResolving) {
+    update.resolved_on = todayIso(session.agent!.time_zone);
   }
 
   const { error } = await supabase
@@ -253,6 +275,9 @@ export async function updateAppointmentStatusAction(id: string, status: (typeof 
     .eq('id', id)
     .eq('agent_id', session.agent!.id);
 
+  // My Day's queue is sourced from appointments since C1, so a status
+  // change here removes the row from it.
+  revalidatePath('/today');
   revalidatePath('/appointments');
   revalidatePath('/logs');
   return { ok: !error };

@@ -7,18 +7,19 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useFollowUpActions, type DueItemKind } from './use-follow-up-actions';
+import { useFollowUpActions, isResolvable, RESOLVE_OPTIONS, type DueItemKind } from './use-follow-up-actions';
 import { useLogActivityDialog } from '@/components/shell/log-activity-dialog';
 import { formatDisplayTime } from '@/lib/dates';
 
 /** The single most urgent item, featured above the rest of the queue —
- * answers "what should I do next" the moment the page opens. Covers both
- * call follow-ups and appointments due (P23). */
+ * answers "what should I do next" the moment the page opens. Covers call
+ * follow-ups and appointments due, from either table (P23, P25 C1). */
 export function NextUpCard({
   kind,
-  callLogId,
+  rowId,
   contactId,
   contactName,
   lastNote,
@@ -28,7 +29,8 @@ export function NextUpCard({
   timeZone,
 }: {
   kind: DueItemKind;
-  callLogId: string;
+  /** call_logs.id or appointments.id — `kind` says which (P25 C1). */
+  rowId: string;
   contactId: string;
   contactName: string;
   lastNote: string | null;
@@ -37,10 +39,11 @@ export function NextUpCard({
   appointmentAt: string | null;
   timeZone: string | null;
 }) {
-  const { pending, handleSnooze, handleMarkDone } = useFollowUpActions(kind, callLogId);
+  const { pending, handleSnooze, handleMarkDone, handleResolve } = useFollowUpActions(kind, rowId);
   const { open: openLog } = useLogActivityDialog();
   const overdue = daysLate > 0;
-  const isAppointment = kind === 'appointment';
+  const isAppointment = kind === 'appointment' || kind === 'call_appointment';
+  const resolvable = isResolvable(kind);
 
   return (
     <div className="flex items-stretch gap-3 rounded-lg border border-line bg-panel pr-2 shadow-card">
@@ -81,7 +84,20 @@ export function NextUpCard({
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => handleSnooze(1)}>Snooze 1 day</DropdownMenuItem>
             <DropdownMenuItem onClick={() => handleSnooze(7)}>Snooze 1 week</DropdownMenuItem>
-            <DropdownMenuItem onClick={handleMarkDone}>Mark done</DropdownMenuItem>
+            {/* See TodayRow -- a pending appointment records an outcome
+                instead of being marked done (P25 C1, F11). */}
+            {resolvable ? (
+              <>
+                <DropdownMenuSeparator />
+                {RESOLVE_OPTIONS.map((o) => (
+                  <DropdownMenuItem key={o.value} onClick={() => handleResolve(o.value)}>
+                    {o.label}
+                  </DropdownMenuItem>
+                ))}
+              </>
+            ) : (
+              <DropdownMenuItem onClick={handleMarkDone}>Mark done</DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

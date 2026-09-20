@@ -53,6 +53,19 @@ time, how many times called. Tap → the log form pre-filled with that contact.
 "Call back on…" with quick chips — *Tomorrow · Monday · Next week · 1 month · Pick a date*.
 That single field is what makes tomorrow's `/today` list exist.
 
+**Booking one (P25 C1):** outcome `Appointment set` asks for the
+appointment's date and time instead of a callback date, plus an optional
+type. The agent does nothing else — the appointment is created for them,
+against the person they just called. It turns up on `/today` on the day,
+and on `/appointments` immediately. **The agent never has to log the same
+appointment twice**, which is the whole point: before C1 they either logged
+the call and lost the appointment, or logged both and had it counted twice.
+
+**After one:** the appointment sits in `/today` until it has an outcome —
+*Held · No-show · Cancelled* on the row's own menu, or *Snooze* if it
+moved. It does not quietly disappear; an appointment with no outcome is a
+number nobody can trust.
+
 **Evening:** batch entry. Many agents log nothing until 8 PM. `/log` must accept a
 back-date without friction — a date chip at the top reading *Today* that opens
 a picker. A tracker that only accepts same-day entry gets abandoned in week two.

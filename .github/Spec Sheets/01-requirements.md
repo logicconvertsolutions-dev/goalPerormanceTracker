@@ -105,6 +105,11 @@ the roster can lead with it. Every target change is audit-logged.
   resurface
 - Log yesterday's calls tonight without fighting a date picker
 - Log a call in one screen without leaving the dialer flow
+- Book an appointment while logging the call that produced it, once —
+  without entering the same appointment a second time, and without it
+  being counted twice (P25 C1)
+- See an appointment I booked sitting in my day until I say how it went,
+  and record Held / No-show / Cancelled in one tap (P25 C1)
 - See today's count against my daily minimum, and my streak
 - See this week vs. the target my SMD set for me, and the 8-week trend
 - Import my existing spreadsheet once, on day 1

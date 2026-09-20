@@ -620,27 +620,45 @@ Finding numbers (F1–F17) are defined in its §1.
 - F5 imported appointments counted on the import day — fixed
 - `007_appointment_lifecycle.sql` + snapshot/damage scripts — added
 
-## Next — Phase B (additive schema, no UI change)
-- F4 double counting across `call_logs` and `appointments` — **deferred here
-  deliberately**; needs `source_call_log_id`. A test currently pins the
-  double count; flip it to 1 when this lands.
-- F8 resolution rewrites `appt_date` and nulls `appointment_at`, so a held
-  appointment's real date/time is unrecoverable, and the quick dropdown and
-  the edit form leave different rows
-- E3 time-zone drift — `set_on` as a stored date makes history immutable
+## Done — Phase B (additive schema, no app change) (2026-09-20)
+- F8 resolution rewrote `appt_date` and nulled `appointment_at`, so a held
+  appointment's real date/time was unrecoverable and the two code paths
+  left different rows — fixed by the identity trigger
+- E3 time-zone drift — `set_on` is a stored date, so history is immutable
+- E20/E11 link columns can't cross agents/orgs or point at themselves
 - `min_calls_per_day = 0` streak edge case
+- F4's dedup clause shipped but inert — nothing set `source_call_log_id` yet
 
-## Phase C (the visible change)
+## Done — Phase C1 (call creates the appointment, My Day reads it) (2026-09-20)
+- F4 double counting across `call_logs` and `appointments` — **closed.** The
+  call form stamps `source_call_log_id`, so the Phase B clause starts
+  matching. No backfill, so no historical number moves. 007's test 5 stays
+  at 2 (an *unlinked* pair still double-counts, per D4); `009`'s asserts 1
+  for a linked one.
+- F11 a call-booked appointment could never be resolved — **closed.** It is
+  an ordinary appointments row now, with Held / No-show / Cancelled on the
+  My Day menu.
+- F12 `appointments.follow_up_on` never reached My Day — **closed.**
+- E16 pinned by a UNIQUE index, not just the server action
+- E6 resolving stamps `resolved_on` with the recording day. This changes
+  where a *late-recorded* outcome lands, going forward only.
+- E4 snooze shifts the slot in whole agent-local days (DST-safe)
+- F14 half done — the call form's half. `/appointments/new` still stamps the
+  sync day on an offline replay; that's a form change, so it rides with C2.
+
+## Phase C2 (the visible change)
 - F6 editing an imported appointment silently moves it to today
 - F7 Open Pipeline is structurally always $0 — the premium field is hidden on
   scheduled appointments but the metric only sums scheduled ones
 - F9 reschedule is undefined; both plausible user behaviours give different
-  numbers
+  numbers. C1 deliberately omits **Rescheduled** from the My Day menu for
+  this reason — it needs the successor picker (D1).
 - F10 two different no-show rates between `/appointments` and the dashboard
-- F11 a call-booked appointment has no status and can never be resolved
-- F12 `appointments.follow_up_on` never reaches My Day
 - F15 linked sale can drift from its appointment's date
 - F16 deleting an appointment orphans its sale
+- The resolve **sheet** proper: Held's premium / referrals / notes /
+  log-as-a-sale. C1 gives the three outcomes as bare one-tap items.
+- F14's remaining half (see above)
 
 ## Phase D
 - F13 no appointment reminders at all — in-app bands + Web Push

@@ -84,12 +84,39 @@ shell section — `nav-items.ts` labels it "My Day"), route unchanged at
 
 **Next Up card:** the single most-overdue/soonest-due follow-up, featured —
 contact name, last note (or "Called Nx" if no note), overdue/due-today
-badge. Tap opens the quick-log dialog pre-filled with that contact. Per-row
-menu: **Snooze 1 day · Snooze 1 week · Mark done** — matches spec.
+badge. Tap opens the quick-log dialog pre-filled with that contact.
 
 **Rest of queue:** plain list below Next Up, same actions, revealed via
 "View all (n)". **Empty state:** "Nothing due today. Set a follow-up when you
 log a call and it'll show up here." — matches spec verbatim.
+
+**Per-row menu (P25 C1).** The queue interleaves four kinds of item from
+two tables (`my_followups`' contract is in `02-data-model.md`), and the
+menu follows what the row actually is:
+
+| Row | Menu |
+|---|---|
+| A follow-up, or a pre-C1 call-log appointment | Snooze 1 day · Snooze 1 week · **Mark done** |
+| A pending appointment | Snooze 1 day · Snooze 1 week · **Held · No-show · Cancelled** |
+
+A pending appointment leaves the queue by recording what happened, not by
+being ticked off. There is no `done` status in the appointment machine, and
+the old "Mark done" wrote `appointment_done_at`, which fed no metric at all
+— an appointment booked from a call could never become Held (F11).
+
+**Snooze moves the appointment itself**, not a reminder: it shifts
+`scheduled_for` by whole days *in the agent's own zone*, so a 2:00 PM slot
+snoozed across a DST boundary is still at 2:00 PM. Per decision D1 that is
+a correction, not a reschedule — **Rescheduled is absent from this menu**
+until Phase C2's successor picker, because a reschedule needs to know the
+new slot and creates a second row.
+
+**Recording an outcome dates it to today**, not to the day the appointment
+was for (§7 E6). An appointment held last Tuesday and marked Held this
+morning counts this morning; the alternative lets a late-recorded outcome
+change a cycle that may already be closed. This is the same action the
+`/appointments` quick status-changer calls — one definition, deliberately,
+since two paths leaving two different rows is exactly what F8 was.
 
 **Recent activity (new, not in original spec):** last 7 days across all
 activity types, icon + contact + summary + date, "View all" → `/logs`.
@@ -270,6 +297,32 @@ Within the Call tab, matches the original five-field flow: date chip
 (Today/back-date, max today), contact picker, source, outcome, "Call back
 on…" chips once an outcome is chosen, notes. Offline-fallback submit;
 success navigates to `/today` unless invoked inside a modal.
+
+**Outcome "Appointment set" (P23, P24, P25 C1).** Instead of the "Call back
+on…" chips, the form asks for the appointment's own **date and time** — the
+appointment is the thing to come back to, not a separate reminder — plus an
+**Appointment type** select. The type is *optional* here and defaults to
+Follow Up (decision D5): `/appointments/new` keeps it required, but the
+call form is the hot path at roughly 40 uses a day, and the "type required
+before marking Held" guard already forces the answer at the point it
+actually matters.
+
+Since P25 C1 this outcome **creates a real `appointments` row**, linked back
+to the call by `source_call_log_id`, with the call's date as its booking
+day. Consequences worth knowing:
+
+- The appointment appears on `/appointments` and can be resolved like any
+  other. Before C1 it had no status and could never become Held (F11).
+- It counts **once** toward Appts Set, not twice (F4).
+- The call's notes are *not* copied onto it (D6) — two records that would
+  silently diverge the first time either was edited. The appointment is
+  bound to the contact that was called (D7).
+- Editing the call carries the edit across: moving the date/time moves the
+  appointment, and changing the outcome away from "Appointment set" removes
+  a still-pending one. A **resolved** appointment is never touched by a
+  call edit — its slot is a recorded fact and its outcome is a number the
+  SMD has already seen.
+- Deleting the call leaves the appointment standing.
 **Source auto-fill (P10):** picking an existing contact from the picker that
 already has a prior call on file collapses the Source field into a
 read-only summary pre-filled with that contact's most recent source,

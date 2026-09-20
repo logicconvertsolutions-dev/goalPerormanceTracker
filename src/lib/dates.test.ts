@@ -11,6 +11,7 @@ import {
   cyclesInRange,
   isPeriodPreset,
   resolvePeriod,
+  shiftZonedTimestampByDays,
 } from './dates';
 
 describe('todayIso', () => {
@@ -126,5 +127,44 @@ describe('isPeriodPreset / resolvePeriod (current_cycle, previous_cycle)', () =>
     const asOf = '2026-09-15';
     expect(resolvePeriod('current_cycle', asOf)).toEqual(cycleBounds(new Date(asOf + 'T00:00:00Z')));
     expect(resolvePeriod('previous_cycle', asOf)).toEqual(previousCycleBounds(new Date(asOf + 'T00:00:00Z')));
+  });
+});
+
+// P25 C1 edge case E4: snoozing an appointment shifts the slot by whole
+// days in the agent's own zone. Adding 24h*n to the instant instead would
+// slide the appointment an hour off whenever the shift crosses a DST
+// transition -- a 2:00 PM appointment becoming 1:00 PM or 3:00 PM.
+describe('shiftZonedTimestampByDays', () => {
+  it('keeps the local wall-clock time across spring-forward', () => {
+    // 2026-03-08 is the US spring-forward. 2:00 PM EST on the 7th must stay
+    // 2:00 PM (EDT) on the 8th, even though only 23 real hours elapsed.
+    const out = shiftZonedTimestampByDays('2026-03-07T19:00:00.000Z', 1, 'America/New_York');
+    expect(out).toBe('2026-03-08T18:00:00.000Z');
+  });
+
+  it('keeps the local wall-clock time across fall-back', () => {
+    // 2026-11-01 is the US fall-back: 25 real hours, same wall clock.
+    const out = shiftZonedTimestampByDays('2026-10-31T18:00:00.000Z', 1, 'America/New_York');
+    expect(out).toBe('2026-11-01T19:00:00.000Z');
+  });
+
+  it('shifts whole days with no transition in between', () => {
+    expect(shiftZonedTimestampByDays('2026-06-10T18:00:00.000Z', 7, 'America/New_York')).toBe(
+      '2026-06-17T18:00:00.000Z'
+    );
+  });
+
+  it('rolls over a month boundary', () => {
+    expect(shiftZonedTimestampByDays('2026-01-30T18:00:00.000Z', 7, 'America/New_York')).toBe(
+      '2026-02-06T18:00:00.000Z'
+    );
+  });
+
+  it('falls back to the default zone rather than the runtime zone', () => {
+    // Same reasoning as todayIso above -- an agent with no time_zone set
+    // must not get whatever zone the server process happens to run in.
+    expect(shiftZonedTimestampByDays('2026-06-10T18:00:00.000Z', 1, null)).toBe(
+      shiftZonedTimestampByDays('2026-06-10T18:00:00.000Z', 1, 'America/New_York')
+    );
   });
 });
