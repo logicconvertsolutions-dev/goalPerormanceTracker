@@ -26,16 +26,27 @@ const CALL_OUTCOMES = [
   'not_interested',
 ] as const;
 
-const logCallSchema = z.object({
-  contactName: z.string().min(1, 'Enter who you called.').max(200),
-  contactId: z.string().uuid().optional(),
-  callDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
-  source: z.enum(CALL_SOURCES),
-  outcome: z.enum(CALL_OUTCOMES),
-  notes: z.string().max(2000).optional(),
-  followUpOn: z.string().optional(),
-  clientRequestId: z.string().optional(),
-});
+const logCallSchema = z
+  .object({
+    contactName: z.string().min(1, 'Enter who you called.').max(200),
+    contactId: z.string().uuid().optional(),
+    callDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
+    source: z.enum(CALL_SOURCES),
+    outcome: z.enum(CALL_OUTCOMES),
+    notes: z.string().max(2000).optional(),
+    followUpOn: z.string().optional(),
+    // ISO instant (client combines the date+time pickers in the browser's own
+    // zone before submitting) -- required when outcome is "appointment_set",
+    // see the .refine() below. Outcome "appointment_set" asks for this
+    // instead of a follow-up date (P23): the appointment itself is the thing
+    // to come back to, not a separate reminder.
+    appointmentAt: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date/time.').optional(),
+    clientRequestId: z.string().optional(),
+  })
+  .refine((data) => data.outcome !== 'appointment_set' || !!data.appointmentAt, {
+    message: 'Enter the appointment date and time.',
+    path: ['appointmentAt'],
+  });
 
 // Postgres unique-violation error code.
 const UNIQUE_VIOLATION = '23505';
@@ -54,6 +65,7 @@ export async function logCallAction(formData: FormData) {
     outcome: formData.get('outcome'),
     notes: formData.get('notes') || undefined,
     followUpOn: formData.get('followUpOn') || undefined,
+    appointmentAt: formData.get('appointmentAt') || undefined,
     clientRequestId: formData.get('clientRequestId') || undefined,
   });
 
@@ -87,6 +99,11 @@ export async function logCallAction(formData: FormData) {
   );
   if ('error' in contact) return { ok: false, error: contact.error };
 
+  // "Appointment set" asks for the appointment's own date/time instead of a
+  // follow-up date (P23) -- ignore any followUpOn a stale form might still
+  // submit for that outcome, and vice versa.
+  const isAppointmentSet = parsed.data.outcome === 'appointment_set';
+
   const { error } = await supabase.from('call_logs').insert({
     agent_id: agentId,
     org_id: orgId,
@@ -95,7 +112,8 @@ export async function logCallAction(formData: FormData) {
     source: parsed.data.source,
     outcome: parsed.data.outcome,
     notes: parsed.data.notes || null,
-    follow_up_on: parsed.data.followUpOn || null,
+    follow_up_on: isAppointmentSet ? null : parsed.data.followUpOn || null,
+    appointment_at: isAppointmentSet ? parsed.data.appointmentAt : null,
     client_request_id: parsed.data.clientRequestId || null,
   });
 
@@ -113,14 +131,20 @@ export async function logCallAction(formData: FormData) {
   return { ok: true };
 }
 
-const updateCallSchema = z.object({
-  id: z.string().uuid(),
-  callDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
-  source: z.enum(CALL_SOURCES),
-  outcome: z.enum(CALL_OUTCOMES),
-  notes: z.string().max(2000).optional(),
-  followUpOn: z.string().optional(),
-});
+const updateCallSchema = z
+  .object({
+    id: z.string().uuid(),
+    callDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
+    source: z.enum(CALL_SOURCES),
+    outcome: z.enum(CALL_OUTCOMES),
+    notes: z.string().max(2000).optional(),
+    followUpOn: z.string().optional(),
+    appointmentAt: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date/time.').optional(),
+  })
+  .refine((data) => data.outcome !== 'appointment_set' || !!data.appointmentAt, {
+    message: 'Enter the appointment date and time.',
+    path: ['appointmentAt'],
+  });
 
 export async function updateCallAction(formData: FormData) {
   const parsed = updateCallSchema.safeParse({
@@ -130,6 +154,7 @@ export async function updateCallAction(formData: FormData) {
     outcome: formData.get('outcome'),
     notes: formData.get('notes') || undefined,
     followUpOn: formData.get('followUpOn') || undefined,
+    appointmentAt: formData.get('appointmentAt') || undefined,
   });
 
   if (!parsed.success) {
@@ -138,6 +163,7 @@ export async function updateCallAction(formData: FormData) {
 
   const session = await requireAgent();
   const supabase = await createClient();
+  const isAppointmentSet = parsed.data.outcome === 'appointment_set';
 
   const { error } = await supabase
     .from('call_logs')
@@ -146,7 +172,8 @@ export async function updateCallAction(formData: FormData) {
       source: parsed.data.source,
       outcome: parsed.data.outcome,
       notes: parsed.data.notes || null,
-      follow_up_on: parsed.data.followUpOn || null,
+      follow_up_on: isAppointmentSet ? null : parsed.data.followUpOn || null,
+      appointment_at: isAppointmentSet ? parsed.data.appointmentAt : null,
     })
     .eq('id', parsed.data.id)
     .eq('agent_id', session.agent!.id);

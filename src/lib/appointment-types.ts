@@ -33,3 +33,13 @@ export const APPT_STATUSES = [
   { value: 'rescheduled', label: 'Rescheduled' },
   { value: 'scheduled', label: 'Scheduled' },
 ] as const;
+
+// "Scheduled" used to be the default status for a brand-new appointment log.
+// Since a call logged with outcome "Appointment set" now carries its own
+// date/time (P23) and no longer creates an appointments row at all, nothing
+// should let an agent pick "Scheduled" here going forward -- both selects
+// below use this pruned list instead of APPT_STATUSES. Rows already sitting
+// at 'scheduled' from before this change keep that value (each select adds
+// it back in as an option only when it's the row's current status, so an
+// old row still displays and edits correctly).
+export const SELECTABLE_APPT_STATUSES = APPT_STATUSES.filter((s) => s.value !== 'scheduled');

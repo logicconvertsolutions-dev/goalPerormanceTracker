@@ -9,31 +9,43 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useFollowUpActions } from './use-follow-up-actions';
+import { useFollowUpActions, type DueItemKind } from './use-follow-up-actions';
 import { useLogActivityDialog } from '@/components/shell/log-activity-dialog';
+import { formatDisplayTime } from '@/lib/dates';
 
 /** One row in the "rest of today's queue" list, below the featured Next Up
  * card. Deliberately plain — no border/shadow of its own — so a run of these
- * inside one bordered container reads as a scannable list, not a stack of cards. */
+ * inside one bordered container reads as a scannable list, not a stack of
+ * cards. Covers both call follow-ups and appointments due (P23). */
 export function TodayRow({
+  kind,
   callLogId,
   contactId,
   contactName,
   lastNote,
   timesCalled,
   daysLate,
+  appointmentAt,
+  timeZone,
   overdue = false,
 }: {
+  kind: DueItemKind;
   callLogId: string;
   contactId: string;
   contactName: string;
   lastNote: string | null;
   timesCalled: number;
   daysLate: number;
+  appointmentAt: string | null;
+  timeZone: string | null;
   overdue?: boolean;
 }) {
-  const { pending, handleSnooze, handleMarkDone } = useFollowUpActions(callLogId);
+  const { pending, handleSnooze, handleMarkDone } = useFollowUpActions(kind, callLogId);
   const { open: openLog } = useLogActivityDialog();
+  const subtitle =
+    kind === 'appointment' && appointmentAt
+      ? `Appointment · ${formatDisplayTime(appointmentAt, timeZone)}`
+      : lastNote || `Called ${timesCalled}x`;
 
   return (
     <div className="flex items-center justify-between gap-2 py-3">
@@ -43,7 +55,7 @@ export function TodayRow({
         className="min-w-0 flex-1 text-left"
       >
         <p className="truncate text-[15px] font-semibold text-fg">{contactName}</p>
-        <p className="truncate text-sm text-fg-3">{lastNote || `Called ${timesCalled}x`}</p>
+        <p className="truncate text-sm text-fg-3">{subtitle}</p>
       </button>
 
       {overdue && <Badge variant="bad">{daysLate}d overdue</Badge>}

@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatDisplayDate } from '@/lib/dates';
-import { apptTypeLabel, APPT_STATUSES } from '@/lib/appointment-types';
+import { apptTypeLabel, APPT_STATUSES, SELECTABLE_APPT_STATUSES } from '@/lib/appointment-types';
 import { deleteAppointmentAction, updateAppointmentStatusAction } from './actions';
 
 export function AppointmentRow({
@@ -67,7 +67,7 @@ export function AppointmentRow({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {APPT_STATUSES.map((s) => (
+            {(status === 'scheduled' ? APPT_STATUSES : SELECTABLE_APPT_STATUSES).map((s) => (
               <SelectItem key={s.value} value={s.value}>
                 {s.label}
               </SelectItem>

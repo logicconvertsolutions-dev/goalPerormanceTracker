@@ -33,6 +33,18 @@ const OUTCOMES = [
   { value: 'voicemail', label: 'Voicemail' },
 ];
 
+/** Splits an ISO instant into the local `date`/`time` strings the
+ * `<input type="date">`/`<input type="time">` pair below need, in the
+ * browser's own zone -- the inverse of the `new Date(`${date}T${time}`)`
+ * combine done on submit. */
+function isoToLocalParts(iso: string): { date: string; time: string } {
+  const d = new Date(iso);
+  return {
+    date: new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(d),
+    time: new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }).format(d),
+  };
+}
+
 function Chip({
   active,
   onClick,
@@ -78,6 +90,7 @@ export function LogForm({
     outcome: string;
     notes: string | null;
     followUpOn: string | null;
+    appointmentAt: string | null;
   };
   /** When set (e.g. inside a modal), called instead of navigating away on success/cancel. */
   onSuccess?: () => void;
@@ -99,15 +112,23 @@ export function LogForm({
   const [outcome, setOutcome] = useState(defaultValues?.outcome ?? '');
   const [followUpOn, setFollowUpOn] = useState(defaultValues?.followUpOn ?? '');
   const [showFollowUpPicker, setShowFollowUpPicker] = useState(false);
+  const defaultAppointment = defaultValues?.appointmentAt ? isoToLocalParts(defaultValues.appointmentAt) : null;
+  const [appointmentDate, setAppointmentDate] = useState(defaultAppointment?.date ?? callDate);
+  const [appointmentTime, setAppointmentTime] = useState(defaultAppointment?.time ?? '');
 
   const isToday = callDate === todayIso(tz);
+  const isAppointmentSet = outcome === 'appointment_set';
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     formData.set('callDate', callDate);
     formData.set('source', source);
-    if (followUpOn) formData.set('followUpOn', followUpOn);
+    if (isAppointmentSet) {
+      formData.set('appointmentAt', new Date(`${appointmentDate}T${appointmentTime}`).toISOString());
+    } else if (followUpOn) {
+      formData.set('followUpOn', followUpOn);
+    }
 
     if (mode === 'edit') {
       formData.set('id', defaultValues!.id);
@@ -225,7 +246,31 @@ export function LogForm({
         </Select>
       </div>
 
-      {outcome && (
+      {isAppointmentSet && (
+        <div className="space-y-1.5">
+          <Label htmlFor="appointmentDate">Appointment date &amp; time</Label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              id="appointmentDate"
+              type="date"
+              value={appointmentDate}
+              onChange={(e) => setAppointmentDate(e.target.value)}
+              className="w-auto"
+              required
+            />
+            <Input
+              id="appointmentTime"
+              type="time"
+              value={appointmentTime}
+              onChange={(e) => setAppointmentTime(e.target.value)}
+              className="w-auto"
+              required
+            />
+          </div>
+        </div>
+      )}
+
+      {outcome && !isAppointmentSet && (
         <div className="space-y-1.5">
           <Label>Call back on…</Label>
           <div className="flex flex-wrap gap-2">

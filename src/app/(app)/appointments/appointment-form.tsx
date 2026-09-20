@@ -20,7 +20,7 @@ import {
 import { ContactPicker } from '@/components/shell/contact-picker';
 import { todayIso, browserTimeZone, addDays, nextMonday } from '@/lib/dates';
 import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
-import { APPT_TYPES, APPT_STATUSES } from '@/lib/appointment-types';
+import { APPT_TYPES, APPT_STATUSES, SELECTABLE_APPT_STATUSES } from '@/lib/appointment-types';
 import { PRODUCT_TYPES } from '@/lib/product-types';
 import { createAppointmentAction, updateAppointmentAction } from './actions';
 import { createSaleAction, syncSaleFromAppointmentAction, deleteSaleAction } from '../sales/actions';
@@ -95,7 +95,11 @@ export function AppointmentForm({
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [pending, startTransition] = useTransition();
-  const [status, setStatus] = useState(defaultValues?.status ?? 'scheduled');
+  // "Scheduled" is no longer a status an agent picks by hand here -- see
+  // SELECTABLE_APPT_STATUSES. A brand-new manual appointment log is most
+  // often recording one that already happened, so "Held" is the sensible
+  // default rather than a status meaning "still pending".
+  const [status, setStatus] = useState(defaultValues?.status ?? 'held');
   const [apptType, setApptType] = useState(defaultValues?.apptType ?? '');
   const [premiumDollars, setPremiumDollars] = useState(
     defaultValues ? String(defaultValues.expectedPremiumCents / 100) : '0'
@@ -283,7 +287,7 @@ export function AppointmentForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {APPT_STATUSES.map((s) => (
+            {(status === 'scheduled' ? APPT_STATUSES : SELECTABLE_APPT_STATUSES).map((s) => (
               <SelectItem key={s.value} value={s.value}>
                 {s.label}
               </SelectItem>
