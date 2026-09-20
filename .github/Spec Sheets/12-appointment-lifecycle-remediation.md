@@ -169,6 +169,7 @@ otherwise — raising them after Phase C is expensive.
 | D6 | **Call notes and appointment notes stay separate.** Not copied at creation. | They are different facts; copying creates silent divergence on edit. | Low. |
 | D7 | **A call-created appointment is bound to the called contact.** No contact picker on the call form. | Keeps the hot path fast; `/appointments/new` still handles the referral-books-a-friend case. | Low. |
 | D8 | **Historical `appts_set` changes again** under the new definition. | It is currently wrong in both directions (F3 erosion, F4 double-count). One more corrected restatement is better than permanent wrongness. | N/A — but it must be communicated (§9). |
+| D9 | **Appointment reminders are in-app only. No email.** | Requested 2026-09-20. Removes the Resend template, the new notification kind, the cron job and the per-kind unsubscribe surface from scope entirely. Trade-off in Phase D. | Low — the email path can be added later without changing anything built in Phase D. |
 
 ---
 
@@ -315,15 +316,53 @@ harmless.
 
 ---
 
-### Phase D — Reminders (F13)
+### Phase D — In-app reminders (F13)
 
-New notification kind `appointment_reminder` in
-`private.enqueue_due_notifications`, driven by `scheduled_for`, at an
-org-configurable lead time (default: evening before + 2h before). Reuses the
-existing enqueue → drain → Resend pipeline. Needs the P14a per-kind
-unsubscribe honoured.
+**Decision D9: in-app only. No email.** No new notification kind, no
+`enqueue_due_notifications` change, no Resend template, no cron job, no
+unsubscribe handling, no new table. Everything below is derived at read time
+from `appointments.scheduled_for` + `status`, which Phase B already
+guarantees.
 
-**Revert:** unschedule the kind; no schema dependency.
+This is materially cheaper than the email version and removes the whole
+P14a per-kind unsubscribe surface from scope.
+
+**What exists today:** no in-app notification centre. The only persistent
+in-app surface is `AnnouncementBanner` (admin-authored, platform-wide, not
+per-agent). `sonner` toasts are transient. `/sw.js` is registered but has no
+push handler.
+
+**What gets built:**
+
+1. **My Day shows appointments before the day they fall on.** Today
+   `my_followups` filters `appointment_at::date <= p_as_of`, so an
+   appointment is invisible until its own date. Widen that to a forward
+   window and band the queue:
+   - **Starting soon** — within the next 2 hours, pinned at the top with a
+     distinct treatment. This replaces what the "2h before" email would have
+     done.
+   - **Today** — the rest of today, with times.
+   - **Tomorrow**, then **Later this week**, collapsed by default.
+   - **Needs an outcome** — `scheduled_for` in the past, status still
+     `scheduled`. This is the nag that stops stale appointments accumulating
+     and quietly diluting the no-show rate (§1 F3/F10 context).
+2. **Count badge** on the My Day item in `rail-nav.tsx` and `tab-bar.tsx` —
+   unresolved items due today plus anything in "Needs an outcome", so the
+   number is actionable rather than decorative.
+3. **Empty states** per band, per `10-journeys.md`.
+
+**Accepted limitation, stated plainly:** an in-app reminder only reaches the
+agent when they open the app. An 8am appointment gets no 6pm-the-night-before
+nudge unless they happen to open Kautis that evening. This is a deliberate
+trade (no inbox noise, no email infrastructure, no unsubscribe compliance
+surface) and it still fixes the core defect — the appointment is *visible in
+advance* instead of invisible until the day. If reach-while-closed is wanted
+later, web push through the already-registered service worker is the natural
+add-on and is a self-contained follow-up; it does not change anything in this
+phase.
+
+**Revert:** app-only. Revert the deploy; the banding is a read-time concern
+with no stored state.
 
 ---
 
@@ -511,8 +550,9 @@ Part of each phase's DoD, not a cleanup pass afterwards.
 | `05-testing.md` | `007` suite; **fix the stale CI paragraph** (vitest blocks, `ci.yml:74`); record that `002` covers calls only | 0, A |
 | `06-build-phases.md` | P25 entry, phases A–E with tick boxes | A |
 | `08-screen-specs.md` | Upcoming section, resolve sheet, corrected no-show formula, Open Pipeline, the E2 cycle caveat | C |
-| `10-journeys.md` | Book → remind → resolve; the reschedule journey; overdue-unresolved empty state | C |
-| `03-ui.md` | Resolve sheet component + tokens | C |
+| `10-journeys.md` | Book → remind → resolve; the reschedule journey; per-band empty states | C, D |
+| `03-ui.md` | Resolve sheet component + tokens; My Day band treatments; nav count badge | C, D |
+| `08-screen-specs.md` | My Day bands (Starting soon / Today / Tomorrow / Later / Needs an outcome) and the badge rule | D |
 | `01-requirements.md` | Appointment lifecycle user stories | C |
 | `00-open-questions.md` | Record D1–D8 as decided, with dates | A |
 | `11-incident-response.md` | Runbook for a bad backfill: snapshot → re-mark dirty → drain | A |
@@ -546,7 +586,7 @@ Phase A  metrics integrity (F1,F2,F3,F4,F5)       — DB + import, no UI      �
 Phase B  additive schema + dual write (F8,E3)     — DB + actions, no UI
 Phase C  single record + lifecycle UI             — the visible change
          (F6,F7,F9,F10,F11,F12,F15,F16)
-Phase D  reminders (F13)                          — notifications
+Phase D  in-app reminders (F13)                   — My Day bands + badge
 Phase E  contract                                 — after one clean cycle
 ```
 
