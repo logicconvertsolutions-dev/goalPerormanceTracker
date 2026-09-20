@@ -430,7 +430,7 @@ org filter, a date range for the two aggregate types, CSV export, and named
 saved report definitions (`report_definitions`, config only — always re-run
 against live data on load).
 
-## P25 — Appointment lifecycle remediation (in progress)
+## P25 — Appointment lifecycle remediation (in progress — Phases 0/A/B/C done)
 
 Full plan: `.github/Spec Sheets/12-appointment-lifecycle-remediation.md`.
 Five phases, each independently shippable and revertible.
@@ -519,13 +519,39 @@ Five phases, each independently shippable and revertible.
       - `appointments_source_call_log_idx` is now UNIQUE, so "one call
         produces at most one appointment" is a table invariant, not just a
         server-action convention (E16).
-- [ ] **Phase C2 — lifecycle UI.** Resolve sheet (Held's premium /
-      referrals / notes / log-as-sale, and Reschedule's successor picker),
-      Upcoming section on `/appointments`, Open Pipeline, the corrected
-      no-show formula, the linked-sale delete guard. F6, F7, F9, F10, F15,
-      F16 — and F14's remaining half, the appointment form submitting its
-      own booking date so an offline replay doesn't bucket on the sync day
-      (the call form's half is done in C1).
+- [x] **Phase C2 — lifecycle UI**
+      (`20260920150000_p25c2_reschedule_and_overdue.sql`). The visible half.
+      With C1, **Phase C is complete**.
+      - F9/D1 — reschedule was undefined; both plausible agent behaviours
+        gave different numbers. It now terminates the original and creates
+        a linked successor, which carries its own `set_on` (D2) and the
+        predecessor's premium. Idempotent, and the successor is rolled back
+        if the link-up fails.
+      - E11 — a unique index makes the chain a list; a trigger rejects
+        cycles and caps depth at ten.
+      - F7 — Open Pipeline was structurally $0: the premium input was
+        hidden on exactly the status the metric sums. Shown and submitted
+        for both now.
+      - F10 — three different no-show rates became one, in
+        `noShowRateFrom`, with the §3/D3 denominator (outcomes only). **This
+        is the restatement to announce.**
+      - F6 — the edit form read `appointment_at` and fell back to *today*,
+        so editing an imported appointment's notes moved it. It reads
+        `scheduled_for` and falls back to the row's own date.
+      - F15 — a linked sale took the date the page loaded with, not the one
+        submitted.
+      - F16 — deleting an appointment with a linked sale now names the
+        premium at stake and offers *Keep it* / *Delete both*.
+      - F14 — the appointment form submits its own booking day, clamped
+        server-side. Both halves of F14 are now done.
+      - Upcoming section on `/appointments`, outside the period filter,
+        with a **Needs an outcome** band for pending appointments whose
+        slot has passed.
+      - **Deviation:** the "sheet" is built on the existing Dialog. The app
+        has no sheet primitive and rule 11 forbids adding a dependency
+        unasked, so on a phone it is a centred modal.
+      - **Deviation:** the full form's Date field now writes `resolved_on`.
+        It had been silently inert on a resolved row since Phase B.
 - [ ] **Phase D — in-app bands + Web Push.** Reusable push channel
       (`web-push`, approved under rule 11); appointment reminders are its
       first consumer. No email.

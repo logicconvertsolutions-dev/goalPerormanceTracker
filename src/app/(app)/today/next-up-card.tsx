@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Phone, CalendarClock, MoreVertical } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useFollowUpActions, isResolvable, RESOLVE_OPTIONS, type DueItemKind } from './use-follow-up-actions';
+import { ResolveAppointmentDialog, type ResolveMode } from '../appointments/resolve-appointment-dialog';
 import { useLogActivityDialog } from '@/components/shell/log-activity-dialog';
 import { formatDisplayTime } from '@/lib/dates';
 
@@ -40,6 +42,7 @@ export function NextUpCard({
   timeZone: string | null;
 }) {
   const { pending, handleSnooze, handleMarkDone, handleResolve } = useFollowUpActions(kind, rowId);
+  const [resolveMode, setResolveMode] = useState<ResolveMode | null>(null);
   const { open: openLog } = useLogActivityDialog();
   const overdue = daysLate > 0;
   const isAppointment = kind === 'appointment' || kind === 'call_appointment';
@@ -85,15 +88,18 @@ export function NextUpCard({
             <DropdownMenuItem onClick={() => handleSnooze(1)}>Snooze 1 day</DropdownMenuItem>
             <DropdownMenuItem onClick={() => handleSnooze(7)}>Snooze 1 week</DropdownMenuItem>
             {/* See TodayRow -- a pending appointment records an outcome
-                instead of being marked done (P25 C1, F11). */}
+                instead of being marked done (P25 C1, F11), and the two
+                outcomes that need more than a tap open the sheet (C2). */}
             {resolvable ? (
               <>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setResolveMode('held')}>Held…</DropdownMenuItem>
                 {RESOLVE_OPTIONS.map((o) => (
                   <DropdownMenuItem key={o.value} onClick={() => handleResolve(o.value)}>
                     {o.label}
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuItem onClick={() => setResolveMode('rescheduled')}>Reschedule…</DropdownMenuItem>
               </>
             ) : (
               <DropdownMenuItem onClick={handleMarkDone}>Mark done</DropdownMenuItem>
@@ -101,6 +107,15 @@ export function NextUpCard({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {resolvable && (
+        <ResolveAppointmentDialog
+          mode={resolveMode}
+          appointmentId={rowId}
+          contactName={contactName}
+          onOpenChange={(open) => !open && setResolveMode(null)}
+        />
+      )}
     </div>
   );
 }

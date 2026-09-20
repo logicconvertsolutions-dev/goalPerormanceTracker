@@ -6,6 +6,7 @@ import {
   conversionFunnel,
   currentStreak,
   pipelineValueOpenAppts,
+  noShowRateFrom,
   type DailyMetricsRow,
   type FunnelResult,
 } from '@/lib/metrics';
@@ -106,11 +107,16 @@ export function buildDashboardViewModel(input: {
   );
 
   const dialToConnect = t2 && t2.calls_made > 0 ? t2.out_connected / t2.calls_made : 0;
+  // P25 C2 (F10): one definition, shared with /appointments and the SMD
+  // drill-down. This used to inline a different denominator from the one
+  // lib/metrics.ts used, so the dashboard and the appointments page
+  // disagreed mid-cycle.
   const noShow = t2
-    ? (() => {
-        const denom = t2.appt_scheduled + t2.appt_held + t2.appt_no_show + t2.appt_rescheduled + t2.appt_cancelled;
-        return denom === 0 ? 0 : t2.appt_no_show / denom;
-      })()
+    ? noShowRateFrom({
+        apptHeld: t2.appt_held,
+        apptNoShow: t2.appt_no_show,
+        apptCancelled: t2.appt_cancelled,
+      })
     : 0;
 
   const pipelineValueCents = pipelineValueOpenAppts(openAppointments);

@@ -288,7 +288,23 @@ create unique index appointments_source_call_log_idx on public.appointments (sou
 A terminal row is never reopened implicitly; returning one to `scheduled`
 clears `resolved_on` (E7). Resolving stamps `resolved_on` with the day the
 outcome was *recorded*, not the day the appointment was for (E6) — so a
-late-recorded outcome can never reach back and change a closed cycle.
+late-recorded outcome can never reach back and change a closed cycle. Only
+the `scheduled → terminal` transition stamps it: re-recording the details
+of an already-resolved appointment is a correction to the same outcome
+event and keeps the day it was first recorded on.
+
+**Reschedule lineage (P25 C2).** `rescheduled` is not a date change. The
+original terminates and a successor is created, linked by
+`rescheduled_to_id`; the successor carries its own `set_on`, so a rebooking
+counts as a new Appts Set (D2). Three guards keep the chain honest:
+`appointments_rescheduled_to_idx` (unique — one predecessor per successor,
+so the chain is a list rather than a graph), Phase B's
+`appointments_links_valid` (no self-reference, no crossing an agent or
+org), and `private.appointments_reschedule_chain_valid` (no cycles, depth
+capped at ten). A row with `status='rescheduled'` and no successor is
+legal: rows predating C2 were marked by hand, and a successor deleted later
+nulls its predecessor's pointer (E10). Neither can re-enter the no-show
+denominator, because `rescheduled` is not in it.
 
 **Metric contract** (`.github/Spec Sheets/12-appointment-lifecycle-remediation.md` §3
 is the source of truth; restated here because this is where people look):
@@ -304,11 +320,25 @@ appt_held(day)      = appointments where status='held'      and resolved_on = da
    (same shape for no_show / cancelled / rescheduled)
 ```
 
+```
+no_show_rate(period) = appt_no_show / (appt_held + appt_no_show + appt_cancelled)
+```
+
 The second `appts_set` term matches **legacy rows only** since P25 C1: the
 call form creates the appointment and stamps the link, so a new call always
 has one. An event count is never a filter on current state — that is what
 F3 got wrong, and why `appts_set` counts rows that *entered* `scheduled`
 rather than rows currently *in* it.
+
+The no-show denominator is **outcomes only** (D3). `scheduled` is excluded
+because a pending appointment has no outcome yet — including it makes the
+rate drift upward through a cycle as appointments resolve, so no two
+readings of the same period agree. `rescheduled` is excluded because that
+prospect is continued by a successor which is counted in its own right;
+including both charges one prospect to the denominator twice. This formula
+has exactly one implementation, `noShowRateFrom` in `src/lib/metrics.ts`;
+`/appointments`, the agent dashboard and the SMD drill-down all call it
+(P25 C2, F10).
 
 -- NEVER SHIPPED: the original design's `client_name text not null`. Sales
 -- link to an existing contact/appointment instead of duplicating a free-text

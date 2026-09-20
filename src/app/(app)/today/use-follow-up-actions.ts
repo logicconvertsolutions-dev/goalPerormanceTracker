@@ -32,7 +32,13 @@ export function isResolvable(kind: DueItemKind): boolean {
   return kind === 'appointment';
 }
 
-export const RESOLVE_OPTIONS = RESOLVABLE_STATUSES;
+/**
+ * The outcomes a row menu offers directly. Held and Rescheduled are NOT
+ * here — P25 C2 routes both through the resolve dialog, because each needs
+ * something the menu cannot ask for (the premium/referrals/sale a held
+ * appointment produced; the new slot a reschedule moves to).
+ */
+export const RESOLVE_OPTIONS = RESOLVABLE_STATUSES.filter((o) => o.value !== 'held');
 
 const SNOOZE: Record<DueItemKind, (id: string, days: number) => Promise<{ ok: boolean }>> = {
   follow_up: snoozeFollowUpAction,

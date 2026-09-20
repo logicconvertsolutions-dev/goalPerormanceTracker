@@ -13,12 +13,13 @@ built.** What's actually implemented, verified against the live repo:
 > asserted the opposite.
 
 - **pgTAP (§1)** — implemented and it's the one gate that's genuinely
-  blocking: `supabase/tests/*.sql` (9 files) covers RLS/hierarchy, the
+  blocking: `supabase/tests/*.sql` (10 files) covers RLS/hierarchy, the
   `daily_metrics` pipeline, notifications, pilot instrumentation, the bulk
-  notification pipeline, admin reports, and the three P25 appointment
+  notification pipeline, admin reports, and the four P25 appointment
   suites — **lifecycle metrics** (`007_appointment_lifecycle.sql`, Phase 0),
-  **identity invariants** (`008_appointment_identity.sql`, Phase B) and the
-  **call↔appointment link** (`009_appointment_call_link.sql`, Phase C1). Runs
+  **identity invariants** (`008_appointment_identity.sql`, Phase B), the
+  **call↔appointment link** (`009_appointment_call_link.sql`, Phase C1) and
+  **reschedule lineage** (`010_appointment_reschedule.sql`, Phase C2). Runs
   in CI as `npm run test:rls`, not `continue-on-error`. **Gap: no pgTAP
   coverage yet for P11's schema changes** — `agents_org_required_unless_admin`
   / `agents_admin_no_upline` / `invitations_org_required_unless_admin`
@@ -174,6 +175,24 @@ pipeline stage.
   booking event
 - **F12 closed**: a follow-up set on a resolved appointment reaches My Day,
   and marking it done removes it
+
+### Reschedule lineage (`010_appointment_reschedule.sql`, P25 Phase C2)
+- The original terminates as `rescheduled` on the day the move was
+  recorded; the successor is created for the new slot and the two are
+  linked
+- **D2**: the original keeps its own Appts Set on the day it was booked,
+  and the successor counts a *new* one on the day it was rebooked — a
+  reschedule is real work, not a correction
+- **D3**: a reschedule contributes nothing to the no-show denominator
+- **F8 still holds**: the original still knows the slot it was actually
+  for after being rescheduled
+- **E11**: two appointments cannot reschedule into the same successor; a
+  cycle (A→B→A) is rejected; a chain of exactly ten builds, and an
+  eleventh link does not
+- **E10**: deleting a successor nulls the predecessor's link and leaves it
+  terminal, so it never re-enters the denominator
+- **E5**: an appointment entered today for last month is 0 days late, not
+  30 — but it is still in the queue, and it ages normally from there
 
 **Characterization-test discipline.** This file was introduced asserting the
 behaviour as it was *then*, bugs included, and flipped to the assertions above

@@ -61,10 +61,24 @@ and on `/appointments` immediately. **The agent never has to log the same
 appointment twice**, which is the whole point: before C1 they either logged
 the call and lost the appointment, or logged both and had it counted twice.
 
-**After one:** the appointment sits in `/today` until it has an outcome —
-*Held · No-show · Cancelled* on the row's own menu, or *Snooze* if it
-moved. It does not quietly disappear; an appointment with no outcome is a
-number nobody can trust.
+**After one:** the appointment sits in `/today` until it has an outcome.
+*No-show* and *Cancelled* are a tap. *Held…* opens a short sheet — type,
+what it's worth, referrals given, notes, and "Log as a Sale" if it was an
+application — so the sale gets logged at the one moment the agent is
+actually thinking about it, rather than never. It does not quietly
+disappear; an appointment with no outcome is a number nobody can trust.
+
+**When the prospect moves it (P25 C2):** *Reschedule…* asks for the new
+date and time. The old appointment closes as Rescheduled and a new one
+appears in the queue. **Both stay on the record** — the agent did the work
+of booking twice and is credited twice (D2), and neither row counts against
+the no-show rate, because nobody failed to show up (D3). Editing a pending
+appointment's date on the form is the other thing entirely: fixing a typo.
+
+**Catching up later:** logging an appointment today that was scheduled for
+last month is normal — it lands in *Needs an outcome*, not branded "30 days
+overdue" the moment it is saved. It ages from the day the agent actually
+got it (E5).
 
 **Evening:** batch entry. Many agents log nothing until 8 PM. `/log` must accept a
 back-date without friction — a date chip at the top reading *Today* that opens

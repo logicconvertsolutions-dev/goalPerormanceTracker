@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { MoreVertical } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useFollowUpActions, isResolvable, RESOLVE_OPTIONS, type DueItemKind } from './use-follow-up-actions';
+import { ResolveAppointmentDialog, type ResolveMode } from '../appointments/resolve-appointment-dialog';
 import { useLogActivityDialog } from '@/components/shell/log-activity-dialog';
 import { formatDisplayTime } from '@/lib/dates';
 
@@ -44,6 +46,7 @@ export function TodayRow({
   overdue?: boolean;
 }) {
   const { pending, handleSnooze, handleMarkDone, handleResolve } = useFollowUpActions(kind, rowId);
+  const [resolveMode, setResolveMode] = useState<ResolveMode | null>(null);
   const { open: openLog } = useLogActivityDialog();
   const resolvable = isResolvable(kind);
   const subtitle = appointmentAt
@@ -74,21 +77,34 @@ export function TodayRow({
           <DropdownMenuItem onClick={() => handleSnooze(7)}>Snooze 1 week</DropdownMenuItem>
           {/* A pending appointment leaves the queue by recording what
               happened, not by being ticked off -- see useFollowUpActions.
-              Rescheduled needs the successor picker and lands in C2. */}
+              Held and Rescheduled open the sheet because each needs
+              something a menu item cannot ask for; the other two are a
+              tap, because there is nothing to ask. */}
           {resolvable ? (
             <>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setResolveMode('held')}>Held…</DropdownMenuItem>
               {RESOLVE_OPTIONS.map((o) => (
                 <DropdownMenuItem key={o.value} onClick={() => handleResolve(o.value)}>
                   {o.label}
                 </DropdownMenuItem>
               ))}
+              <DropdownMenuItem onClick={() => setResolveMode('rescheduled')}>Reschedule…</DropdownMenuItem>
             </>
           ) : (
             <DropdownMenuItem onClick={handleMarkDone}>Mark done</DropdownMenuItem>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {resolvable && (
+        <ResolveAppointmentDialog
+          mode={resolveMode}
+          appointmentId={rowId}
+          contactName={contactName}
+          onOpenChange={(open) => !open && setResolveMode(null)}
+        />
+      )}
     </div>
   );
 }

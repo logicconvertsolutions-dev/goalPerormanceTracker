@@ -8,7 +8,9 @@ import { PageHeader } from '@/components/shell/page-header';
 import { KpiCard } from '@/components/shell/kpi-card';
 import { FilterBar, type FilterChip } from '@/components/shell/filter-bar';
 import { isPeriodPreset, resolvePeriod, todayIso, type PeriodPreset } from '@/lib/dates';
+import { noShowRateFrom } from '@/lib/metrics';
 import { AppointmentRow } from './appointment-row';
+import { UpcomingSection, type UpcomingAppointment } from './upcoming-section';
 
 const STATUSES = ['scheduled', 'held', 'no_show', 'rescheduled', 'cancelled'] as const;
 
@@ -53,11 +55,40 @@ export default async function AppointmentsPage({
   const { data: appointments } = await query.order('appt_date', { ascending: false });
   const rows = appointments ?? [];
 
+  // P25 C2 (F13/F5 in the screen sense): everything still pending, read
+  // OUTSIDE the period filter. The table below answers "what happened in
+  // this cycle", which is the wrong question for an appointment that has
+  // not happened yet — with the filter on the current cycle, next week's
+  // appointment was invisible on this page entirely.
+  const { data: pendingRows } = await supabase
+    .from('appointments')
+    .select('id, appt_date, scheduled_for, appt_type, contacts(full_name)')
+    .eq('agent_id', session.agent!.id)
+    .eq('status', 'scheduled')
+    .order('appt_date', { ascending: true });
+
+  const pending: UpcomingAppointment[] = (pendingRows ?? []).map((a) => ({
+    id: a.id,
+    apptDate: a.appt_date,
+    scheduledFor: a.scheduled_for,
+    apptType: a.appt_type,
+    contactName: (a.contacts as { full_name: string } | null)?.full_name ?? '—',
+  }));
+  // Split on the calendar day, not the instant: an appointment at 2pm today
+  // belongs under "Upcoming" all morning and is not "overdue" at 2:01.
+  const overdue = pending.filter((a) => a.apptDate < today);
+  const upcoming = pending.filter((a) => a.apptDate >= today);
+
   const held = rows.filter((r) => r.status === 'held').length;
   const noShows = rows.filter((r) => r.status === 'no_show').length;
+  const cancelled = rows.filter((r) => r.status === 'cancelled').length;
   const scheduled = rows.filter((r) => r.status === 'scheduled');
-  const statusesLogged = rows.length;
-  const noShowRatePct = statusesLogged === 0 ? 0 : Math.round((100 * noShows) / statusesLogged);
+  // F10: the one definition, shared with the dashboards. This used to be
+  // no-shows over EVERY row in the period, which disagreed with the
+  // dashboard's own formula and drifted as pending appointments resolved.
+  const noShowRatePct = Math.round(
+    100 * noShowRateFrom({ apptHeld: held, apptNoShow: noShows, apptCancelled: cancelled })
+  );
   const openPremium = scheduled.reduce((acc, r) => acc + r.expected_premium_cents, 0);
 
   const chips: FilterChip[] = [];
@@ -74,6 +105,8 @@ export default async function AppointmentsPage({
           </Button>
         }
       />
+
+      <UpcomingSection overdue={overdue} upcoming={upcoming} timeZone={session.agent!.time_zone} />
 
       <FilterBar preset={preset} customFrom={params.from} customTo={params.to} chips={chips}>
         <form action="/appointments" className="flex items-center gap-2">
@@ -120,7 +153,7 @@ export default async function AppointmentsPage({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <KpiCard label="Scheduled" value={String(scheduled.length)} />
             <KpiCard label="Held" value={String(held)} />
-            <KpiCard label="No-show rate" value={`${noShowRatePct}%`} />
+            <KpiCard label="No-show rate" value={`${noShowRatePct}%`} hint={`${noShows} of ${held + noShows + cancelled} resolved`} />
             <KpiCard label="Open premium" value={`$${(openPremium / 100).toLocaleString('en-CA')}`} />
           </div>
 

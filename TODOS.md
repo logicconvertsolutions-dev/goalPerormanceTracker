@@ -646,19 +646,24 @@ Finding numbers (F1–F17) are defined in its §1.
 - F14 half done — the call form's half. `/appointments/new` still stamps the
   sync day on an offline replay; that's a form change, so it rides with C2.
 
-## Phase C2 (the visible change)
-- F6 editing an imported appointment silently moves it to today
-- F7 Open Pipeline is structurally always $0 — the premium field is hidden on
-  scheduled appointments but the metric only sums scheduled ones
-- F9 reschedule is undefined; both plausible user behaviours give different
-  numbers. C1 deliberately omits **Rescheduled** from the My Day menu for
-  this reason — it needs the successor picker (D1).
-- F10 two different no-show rates between `/appointments` and the dashboard
-- F15 linked sale can drift from its appointment's date
-- F16 deleting an appointment orphans its sale
-- The resolve **sheet** proper: Held's premium / referrals / notes /
-  log-as-a-sale. C1 gives the three outcomes as bare one-tap items.
-- F14's remaining half (see above)
+## Done — Phase C2 (lifecycle UI) (2026-09-20)
+Phase C is complete.
+- F6 editing an imported appointment silently moved it to today — **closed**
+- F7 Open Pipeline was structurally always $0 — **closed.** The premium
+  input is shown and submitted for a scheduled appointment, which is the
+  status the metric sums.
+- F9 reschedule was undefined — **closed** per D1/D2: terminate the
+  original, create a linked successor with its own `set_on`. E11's cycle
+  guard and depth cap ship with it.
+- F10 three disagreeing no-show rates — **closed.** One `noShowRateFrom`,
+  denominator = held + no_show + cancelled (D3). **This is the restatement
+  to announce (§9).**
+- F15 a linked sale drifted from its appointment's date — **closed**
+- F16 deleting an appointment orphaned its sale — **closed.** Named premium,
+  Keep it / Delete both.
+- F14's remaining half — **closed.** The appointment form submits its own
+  booking day, clamped server-side.
+- Resolve sheet, Upcoming section, Needs-an-outcome band — shipped.
 
 ## Phase D
 - F13 no appointment reminders at all — in-app bands + Web Push
