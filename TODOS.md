@@ -605,3 +605,47 @@ inline so nobody trusts it by accident in the meantime.
 design direction — the direction here is already locked (the live app), so
 this could also just be `/design-html` fed screenshots of the real app rather
 than a fresh mockup exploration.
+
+---
+
+# P25 — Appointment lifecycle remediation
+
+Plan: `.github/Spec Sheets/12-appointment-lifecycle-remediation.md`.
+Finding numbers (F1–F17) are defined in its §1.
+
+## Done — Phase 0 + A (2026-09-20)
+- F1 delete guard dropped appointment-only days (data loss) — fixed
+- F2 retention purge destroyed historical metrics (data loss) — fixed
+- F3 `appts_set` eroded when an appointment was resolved — fixed
+- F5 imported appointments counted on the import day — fixed
+- `007_appointment_lifecycle.sql` + snapshot/damage scripts — added
+
+## Next — Phase B (additive schema, no UI change)
+- F4 double counting across `call_logs` and `appointments` — **deferred here
+  deliberately**; needs `source_call_log_id`. A test currently pins the
+  double count; flip it to 1 when this lands.
+- F8 resolution rewrites `appt_date` and nulls `appointment_at`, so a held
+  appointment's real date/time is unrecoverable, and the quick dropdown and
+  the edit form leave different rows
+- E3 time-zone drift — `set_on` as a stored date makes history immutable
+- `min_calls_per_day = 0` streak edge case
+
+## Phase C (the visible change)
+- F6 editing an imported appointment silently moves it to today
+- F7 Open Pipeline is structurally always $0 — the premium field is hidden on
+  scheduled appointments but the metric only sums scheduled ones
+- F9 reschedule is undefined; both plausible user behaviours give different
+  numbers
+- F10 two different no-show rates between `/appointments` and the dashboard
+- F11 a call-booked appointment has no status and can never be resolved
+- F12 `appointments.follow_up_on` never reaches My Day
+- F15 linked sale can drift from its appointment's date
+- F16 deleting an appointment orphans its sale
+
+## Phase D
+- F13 no appointment reminders at all — in-app bands + Web Push
+
+## Standing
+- F17 `002_daily_metrics_pipeline.sql` asserts only through
+  `call_logs`/`calls_made`. When a metric gains a second source, add a case
+  per source.
