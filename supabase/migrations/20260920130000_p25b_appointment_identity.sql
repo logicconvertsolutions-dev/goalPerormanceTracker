@@ -263,13 +263,29 @@ CREATE OR REPLACE FUNCTION "private"."appointments_links_valid"() RETURNS "trigg
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
+declare v_org uuid;
 begin
+  -- Resolve the org from the AGENT, never from new.org_id.
+  --
+  -- Postgres fires BEFORE triggers in alphabetical order, and on this table
+  -- that is: appointments_identity, appointments_links_valid,
+  -- appointments_org. public.set_org_from_agent() -- which populates
+  -- org_id -- therefore runs AFTER this one, so new.org_id is still null on
+  -- any insert that lets the trigger derive it (which is every insert in
+  -- the pgTAP suites, and any caller that omits the column). Comparing
+  -- against it rejected perfectly valid same-agent links.
+  --
+  -- Reading the agent's org keeps CLAUDE.md rule 8's two independent
+  -- fences -- same agent AND same org -- without depending on the order
+  -- two triggers happen to run in.
+  select a.org_id into v_org from public.agents a where a.id = new.agent_id;
+
   if new.source_call_log_id is not null then
     if not exists (
       select 1 from public.call_logs cl
       where cl.id = new.source_call_log_id
         and cl.agent_id = new.agent_id
-        and cl.org_id = new.org_id
+        and cl.org_id is not distinct from v_org
     ) then
       raise exception 'appointments.source_call_log_id must reference a call log belonging to the same agent and org';
     end if;
@@ -283,7 +299,7 @@ begin
       select 1 from public.appointments ap
       where ap.id = new.rescheduled_to_id
         and ap.agent_id = new.agent_id
-        and ap.org_id = new.org_id
+        and ap.org_id is not distinct from v_org
     ) then
       raise exception 'appointments.rescheduled_to_id must reference an appointment belonging to the same agent and org';
     end if;

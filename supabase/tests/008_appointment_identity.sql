@@ -152,6 +152,13 @@ values ('00000000-0000-0000-0000-0000000000d5', '00000000-0000-0000-0000-0000000
         '00000000-0000-0000-0000-0000000000d2', current_date, 'warm_market', 'appointment_set',
         now() + interval '2 days');
 
+-- NOTE: org_id is deliberately NOT supplied here, and must stay that way.
+-- Postgres fires BEFORE triggers alphabetically, so appointments_org (which
+-- derives org_id from the agent) runs AFTER appointments_links_valid. The
+-- first version of the Phase B migration compared the link against
+-- new.org_id, which is still null at that point, and rejected this
+-- perfectly valid same-agent link. CI caught it here. Supplying org_id
+-- explicitly would hide that whole class of trigger-ordering bug.
 insert into public.appointments (id, agent_id, contact_id, appt_date, appt_type, status, appointment_at,
                                  source_call_log_id)
 values ('00000000-0000-0000-0000-0000000000d6', '00000000-0000-0000-0000-0000000000d1',
