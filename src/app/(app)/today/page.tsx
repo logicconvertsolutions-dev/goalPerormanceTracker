@@ -12,6 +12,7 @@ import { NextUpCard } from './next-up-card';
 import { TodayRow } from './today-row';
 import { ActivityRow } from './activity-row';
 import type { ActivityKind } from '@/components/shell/activity-icons';
+import type { DueItemKind } from './use-follow-up-actions';
 
 const ACTIVITY_EDIT_PATH: Record<ActivityKind, string> = {
   call: '/log',
@@ -38,7 +39,10 @@ export default async function TodayPage() {
   });
   // Already ordered by due date ascending (most overdue first) by the RPC --
   // follow-ups and appointments due are interleaved into one queue.
-  const rows = followUps ?? [];
+  // `kind` is only ever 'follow_up'/'appointment' (it's a SQL literal in
+  // my_followups), but generated RPC return types type it as a plain
+  // string -- narrowed here once instead of casting at every prop site.
+  const rows = (followUps ?? []).map((r) => ({ ...r, kind: r.kind as DueItemKind }));
   const [nextUp, ...remaining] = rows;
 
   const { count: callsToday } = await supabase

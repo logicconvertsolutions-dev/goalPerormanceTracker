@@ -242,7 +242,7 @@ export async function updateAppointmentStatusAction(id: string, status: (typeof 
   // it to any other status here means "as of today", so appt_date needs to
   // move off that future date, or Appts Held/No-show/etc would land on a
   // day that hasn't happened yet instead of today.
-  const update: { status: string; appt_date?: string } = { status };
+  const update: { status: (typeof APPT_STATUSES)[number]; appt_date?: string } = { status };
   if (appt?.status === 'scheduled' && status !== 'scheduled' && appt.appt_date > today) {
     update.appt_date = today;
   }
