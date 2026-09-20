@@ -5,9 +5,18 @@ annoyance; a wrong policy is a privacy incident.
 
 **Status as of 2026-08-31 — this file is the target, not a report of what's
 built.** What's actually implemented, verified against the live repo:
+> **Correction, 2026-09-20.** Two claims below were stale and are fixed in
+> place: there are now **7** pgTAP files, not 4, and **vitest blocks in CI** —
+> `.github/workflows/ci.yml:74-75` runs `npm test -- --run` with no
+> `continue-on-error`. Only the Playwright job still reports rather than
+> gates. The §2/§5 text below has been left as written except where it
+> asserted the opposite.
+
 - **pgTAP (§1)** — implemented and it's the one gate that's genuinely
-  blocking: `supabase/tests/*.sql` (4 files) covers RLS/hierarchy, the
-  `daily_metrics` pipeline, notifications, and pilot instrumentation. Runs
+  blocking: `supabase/tests/*.sql` (7 files) covers RLS/hierarchy, the
+  `daily_metrics` pipeline, notifications, pilot instrumentation, the bulk
+  notification pipeline, admin reports, and — new in P25 Phase 0 —
+  **appointment lifecycle metrics** (`007_appointment_lifecycle.sql`). Runs
   in CI as `npm run test:rls`, not `continue-on-error`. **Gap: no pgTAP
   coverage yet for P11's schema changes** — `agents_org_required_unless_admin`
   / `agents_admin_no_upline` / `invitations_org_required_unless_admin`
@@ -22,6 +31,8 @@ built.** What's actually implemented, verified against the live repo:
   `lib/dates.ts` DST/streak test file was found). Runs in CI via `npm test`
   but the step is **`continue-on-error: true`** — a red vitest run does not
   currently block a merge, contrary to this file's own CI-gates line below.
+  (Superseded in part: the "step is `continue-on-error: true`" claim above is
+  no longer true — see the 2026-09-20 correction at the top.)
   `window.test.ts` gained coverage for P11's `isRosterReminderWindow()`
   (Wed/Sat 09:00–09:14 local); the roster-reminder cron pass itself
   (`sendDueRosterReminders` in the notifications cron route) has no test —
@@ -113,6 +124,36 @@ Hierarchy and RPC tests:
 - Fuzz: 500 random insert/update/delete operations, then assert
   `daily_metrics` equals a from-scratch recompute over raw logs. This one test
   is worth more than the rest of the suite combined.
+
+**Every bullet above runs through `call_logs`/`calls_made` only**
+(`002_daily_metrics_pipeline.sql`). That was the coverage gap that let P23 and
+P24 each redefine `appts_set` and ship green while breaking it. When a metric
+gains a second source, the suite needs a case per source — not just per
+pipeline stage.
+
+### Appointment lifecycle (`007_appointment_lifecycle.sql`, P25)
+- Booking an appointment counts once, on the day it was booked
+- **Resolving it to any terminal status never reduces `appts_set`** — the
+  invariant P24 violated
+- A day whose only activity is a resolved appointment keeps its row, with
+  `appt_held` and `referrals_given` intact
+- …but a day whose counters are genuinely all zero still loses its row, so
+  the fix above can't over-correct into leaving empty rows behind
+- An imported appointment counts on its own date, not the import day
+- Purging an aged call log leaves that day's `daily_metrics` row intact
+- Fuzz: random insert/update/delete over `appointments`, then assert
+  `appts_set` equals a from-scratch count over **both** sources for every
+  touched day
+
+**Characterization-test discipline.** This file was introduced asserting the
+behaviour as it was *then*, bugs included, and flipped to the assertions above
+by the same migration that fixed them. The diff between those two revisions is
+the record of exactly which numbers moved. Before changing a metric
+definition, `git log -p` this file; when you do change one, make the assertion
+flip part of the same commit as the migration, so a reviewer sees the
+before/after rather than taking the claim on trust. Pair it with
+`scripts/metrics-snapshot.sql` for the production-data half of the same
+evidence.
 
 ## 2. Unit — Vitest
 - `lib/dates.ts`: Monday week start across DST and year boundaries; the

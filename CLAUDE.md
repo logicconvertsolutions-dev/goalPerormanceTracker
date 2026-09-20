@@ -71,6 +71,16 @@ if your local branch was stale — always `git pull` before merging).
     aggregating `call_logs` in a dashboard query, stop — you are bypassing the
     read model.
 11. No new dependency without asking.
+12. **An event count is never a filter on current state.** `appts_set` counts
+    appointments by the day they were *booked*, whatever status they later
+    reach. P24 counted rows still in `status='scheduled'`, so resolving an
+    appointment retroactively erased the booking that created it — Appts Held
+    could exceed Appts Set and closed cycles changed after the fact. Same rule
+    for any future "how many X happened" metric.
+13. **A read model must outlive the raw rows.** `purge_old_call_logs` deletes
+    aged `call_logs`; `enqueue_metrics` skips re-marking during a purge
+    (`kautis.purging` GUC) so the aggregate survives. Never let a retention or
+    cleanup job trigger a recompute of the window it just emptied.
 
 ## Database changes — mandatory workflow
 Never modify the Supabase schema or data directly. `apply_migration` and
@@ -163,6 +173,25 @@ check `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
 `SUPABASE_SERVICE_ROLE_KEY` against the branch's actual current `Settings →
 API` values, don't assume they carried over.
 
+
+**`recompute_day`'s trailing DELETE must cover every counter column.** It
+drops a `daily_metrics` row whose counters are all zero. It used to hand-list
+five of them, so a day whose only activity was a *resolved* appointment — all
+five at zero — had its row inserted and then deleted again in the same call,
+losing `appt_held`/`appt_cancelled` and any `referrals_given`. It is now
+driven off the row's own shape (`jsonb_each(to_jsonb(d))`, skipping identity
+and `updated_at`) so a counter added later is covered automatically. If you
+add a numeric column to `daily_metrics` that is *not* a counter, check this
+guard before assuming it is fine.
+
+**A backfill must not be a second definition of the metric.** P23 and P24 each
+paired a new `recompute_day` with a hand-written `UPDATE daily_metrics ...`
+that restated the same rule in different SQL — two definitions that can drift.
+Backfill by marking agent-days dirty (`private.metrics_dirty`) and letting
+`drain_metrics` rebuild them through `recompute_day` itself. One definition,
+and the rebuild runs at the cron's existing rate instead of in one long
+locking transaction. `scripts/metrics-snapshot.sql` before/after is the review
+artifact; `scripts/metrics-damage-report.sql` quantifies what a past bug ate.
 
 `supabase/migrations_old/` is a historical archive from a baseline reset.
 Never copy files from it back into `supabase/migrations/` — those changes are

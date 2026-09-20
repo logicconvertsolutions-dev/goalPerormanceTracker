@@ -205,10 +205,31 @@ assertions in the same commit that fixes them — that inversion is the proof.
 
 ---
 
-### Phase A — Stop the bleeding (DB only, no app change)
+### Phase A — Stop the bleeding (DB only, no app change) ✅ IMPLEMENTED
 
-Fixes F1, F2, F3, F4, F5. This is the urgent one — F1 and F2 lose data every
-day they ship.
+Shipped as `20260920120000_p25a_metrics_integrity.sql`. Fixes **F1, F2, F3,
+F5**. Two deviations from this section as originally written, both decided
+during implementation and recorded in the migration header:
+
+- **F4 is deferred to Phase B.** Deduping the two sources needs
+  `appointments.source_call_log_id`. The only Phase-A alternative was matching
+  heuristically on `(contact, appointment_at)` — rejected because
+  `updateAppointmentAction` nulls `appointment_at` on resolution (F8), so the
+  match would break on resolve and `appts_set` would flap between 2 and 1 as
+  an appointment moved through its lifecycle. A stable wrong number beats an
+  unstable one. Pinned by an explicit test so it cannot be forgotten.
+- **F5 is fixed in the metric, not by rewriting `created_at`.** Imported rows
+  are bucketed by `appt_date`. Mutating `created_at` would destroy the record
+  of when the import ran and make the migration irreversible; as written,
+  Phase A stays a pure function swap with **no app change at all**, and Phase
+  B's `set_on` backfill reuses the same rule.
+
+Also revised: the rebuild is driven by marking agent-days dirty rather than a
+hand-written `UPDATE`. See REBUILD STRATEGY in the migration header — a
+hand-written backfill is a second definition of the metric that can drift from
+`recompute_day`, which is exactly how P23 and P24 went wrong.
+
+Original scope as planned, for reference:
 
 **Migration `2026MMDD000000_p25a_metrics_integrity.sql`:**
 

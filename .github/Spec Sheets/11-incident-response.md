@@ -64,3 +64,47 @@ service-key grep clean, MFA enforced for leaders, privacy notice live, and
 one restore drill actually run against a real backup — not simulated. None
 of that is a substitute for this document; all of it has to be true before
 this document is more than aspirational.
+
+## Runbook — a metric backfill went wrong
+
+Added with P25 Phase A. Applies to any change that redefines a `daily_metrics`
+column or rebuilds the read model.
+
+**Symptom:** dashboard numbers moved in a direction nobody predicted, or an
+agent reports a period that "used to say something else."
+
+1. **Do not hand-edit `daily_metrics`.** It is derived. Every fix goes through
+   `private.recompute_day`, or the next rebuild silently reverts it.
+2. **Establish what changed.** Diff the snapshots taken either side of the
+   migration (`scripts/metrics-snapshot.sql`; §6 of
+   `12-appointment-lifecycle-remediation.md` requires one before promotion).
+   No before-snapshot means no baseline — take one now so the *next* step is
+   measurable, and say so in the incident note.
+3. **Check whether the rebuild simply hasn't finished.** A backfill marks
+   agent-days dirty and lets the cron drain them at 1000/minute, so numbers
+   are legitimately mid-flight for a while:
+   ```sql
+   select count(*) from private.metrics_dirty;   -- 0 = rebuild complete
+   select public.drain_metrics(10000);           -- finish it now; repeat until 0
+   ```
+4. **Rebuild a specific window** once the function body is correct:
+   ```sql
+   insert into private.metrics_dirty (agent_id, activity_date)
+   select id, d::date from public.agents
+   cross join generate_series('<from>'::date, '<to>'::date, interval '1 day') d
+   on conflict do nothing;
+   ```
+5. **If the function body itself is wrong**, revert it — migrations carry the
+   previous definition verbatim in their header for exactly this — then
+   re-mark the affected window and drain. Reverting the function alone does
+   nothing until the rows are recomputed.
+6. **Know what cannot be rebuilt.** `daily_metrics` is derived from raw rows,
+   so any day whose source rows were purged by
+   `private.purge_old_call_logs()` cannot be reconstructed. Run
+   `scripts/metrics-damage-report.sql` to size that loss and **name it** in
+   the incident note and any agent-facing announcement rather than leaving
+   the days as silent zeroes.
+7. **Announce a restatement.** If published numbers changed, say so via
+   `announcements` — what moved, which direction, and that the new values are
+   the correct ones. An unannounced restatement reads as a bug and costs more
+   trust than the original defect.

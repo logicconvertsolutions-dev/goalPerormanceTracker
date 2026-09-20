@@ -430,6 +430,44 @@ org filter, a date range for the two aggregate types, CSV export, and named
 saved report definitions (`report_definitions`, config only — always re-run
 against live data on load).
 
+## P25 — Appointment lifecycle remediation (in progress)
+
+Full plan: `.github/Spec Sheets/12-appointment-lifecycle-remediation.md`.
+Five phases, each independently shippable and revertible.
+
+- [x] **Phase 0 — characterization tests.** `007_appointment_lifecycle.sql`
+      pinning the *then-current* behaviour, bugs included, plus
+      `scripts/metrics-snapshot.sql` and `scripts/metrics-damage-report.sql`
+      as the before/after review artifacts.
+- [x] **Phase A — metrics integrity** (`20260920120000_p25a_metrics_integrity.sql`).
+      DB only: no schema change, no app change, no UI change.
+      - F1 — `recompute_day`'s delete guard hand-listed five counters, so a
+        day whose only activity was a resolved appointment was inserted and
+        immediately deleted again. Now driven off the row's own shape.
+      - F2 — `purge_old_call_logs` re-marked purged days dirty, so retention
+        rewrote history to zero. Now guarded by a transaction-local GUC.
+      - F3 — `appts_set` counted rows *currently* `status='scheduled'`, so
+        resolving an appointment erased the booking. Now counts the event.
+      - F5 — imported appointments counted on the import day. Now bucketed by
+        `appt_date` for imported rows, in the metric rather than by rewriting
+        `created_at`.
+      - **F4 deliberately deferred to Phase B** — deduping the two sources
+        needs `appointments.source_call_log_id`; the heuristic alternative
+        would flap as appointments resolve. Pinned by a test so it can't be
+        forgotten.
+      - Rebuild by marking agent-days dirty and letting `drain_metrics` run,
+        never a hand-written `UPDATE` (that is what let P23/P24 drift).
+- [ ] **Phase B — additive schema + dual write.** `set_on`, `scheduled_for`,
+      `resolved_on`, `source_call_log_id`, `rescheduled_to_id`; fixes F4 and
+      F8. No UI change.
+- [ ] **Phase C — single record + lifecycle UI.** Call creates the
+      appointment; resolve sheet; Upcoming view. F6, F7, F9, F10, F11, F12,
+      F15, F16.
+- [ ] **Phase D — in-app bands + Web Push.** Reusable push channel
+      (`web-push`, approved under rule 11); appointment reminders are its
+      first consumer. No email.
+- [ ] **Phase E — contract.** After one clean cycle on `master`.
+
 ---
 
 ## Working with Claude Code on this repo (token discipline)
