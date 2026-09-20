@@ -47,3 +47,31 @@ confirms otherwise.
 10. Does the SMD need CSV/PDF export for their own upline reporting?
 11. Pricing model — per seat per month, or flat per team? Not needed until P6.
 12. Mobile web PWA assumed. Confirm no native app expectation.
+
+## Resolved — P25 appointment lifecycle (2026-09-20)
+
+Decided during the P25 review; full rationale and reversal cost in
+`12-appointment-lifecycle-remediation.md` §4. Recorded here so they are not
+re-litigated.
+
+- **D1/D2** Reschedule creates a successor row (`rescheduled_to_id` lineage);
+  the old row is terminal. A successor counts as a new Appts Set — re-booking
+  is real work. Editing a `scheduled` row's date is *not* a reschedule.
+- **D3** `scheduled` and `rescheduled` leave the no-show denominator. A
+  pending or continued appointment has no outcome yet.
+- **D4** Legacy call-log appointments are not backfilled into `appointments`.
+  Their outcome was never recorded; fabricating `held` would inflate target
+  attainment and fabricating `scheduled` would poison the denominator.
+- **D5** Appointment type stays required at create; the call form gets it as
+  an optional select. The call form is the hot path.
+- **D6** Call notes and appointment notes stay separate, not copied.
+- **D7** A call-created appointment binds to the called contact; no contact
+  picker on the call form.
+- **D8** Historical `appts_set` changes again under the corrected definition,
+  and must be announced before promotion (§9).
+- **D9** Reminders are in-app + Web Push. No email.
+- **D10** `web-push` approved as a new production dependency (rule 11),
+  server-only.
+- **D11** `notification_log` is not touched. Its `UNIQUE (agent_id, kind,
+  local_date)` is right for daily digests and wrong for per-entity events, so
+  new kinds use `notification_deliveries` + `notification_channel_prefs`.
