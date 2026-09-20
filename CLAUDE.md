@@ -81,6 +81,10 @@ if your local branch was stale — always `git pull` before merging).
     aged `call_logs`; `enqueue_metrics` skips re-marking during a purge
     (`kautis.purging` GUC) so the aggregate survives. Never let a retention or
     cleanup job trigger a recompute of the window it just emptied.
+    `set_config(..., is_local => true)` is **transaction**-local, not
+    function-local — clear such a flag explicitly at the end of the function,
+    or every later statement in the same transaction inherits it. A pgTAP
+    file is one transaction, which is how this was caught.
 
 ## Database changes — mandatory workflow
 Never modify the Supabase schema or data directly. `apply_migration` and

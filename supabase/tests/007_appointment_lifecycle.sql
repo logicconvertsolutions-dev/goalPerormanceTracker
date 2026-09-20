@@ -26,7 +26,7 @@ create schema if not exists tests;
 -- disagree.
 set local time zone 'UTC';
 
-select plan(9);
+select plan(10);
 
 -- Seeding mirrors 002: handle_new_user() rejects an auth.users insert with
 -- no matching open invitation, so seed org + invitation first and let the
@@ -213,6 +213,35 @@ select is(
 -- Restore the default so the fuzz pass below can't trip the purge.
 update public.organizations set call_log_retention_months = 24
  where id = '00000000-0000-0000-0000-00000000ee07';
+
+
+-- ---------------------------------------------------------------------
+-- 7b. The purge's suppression flag must not outlive the purge.
+--
+--     F2's fix works by having purge_old_call_logs set `kautis.purging`
+--     so enqueue_metrics skips re-marking the days it empties. That
+--     setting is transaction-local -- and transaction-local is NOT
+--     function-local. A pgTAP file wraps its whole suite in a single
+--     BEGIN...ROLLBACK, so the first version of this migration left the
+--     flag on for every statement after test 7, silently suppressing all
+--     metric marking: tests 8 and 9 below failed with appts_set = 0.
+--
+--     That was a real defect, not a test artifact -- any caller running
+--     the purge inside a larger transaction would have hit it. The
+--     function now clears the flag explicitly. This asserts the behaviour
+--     that matters (marking resumes), not the flag itself.
+-- ---------------------------------------------------------------------
+insert into public.call_logs (id, agent_id, contact_id, call_date, source, outcome)
+values ('00000000-0000-0000-0000-0000000000aa', '00000000-0000-0000-0000-0000000000a1',
+        '00000000-0000-0000-0000-0000000000a2', current_date - 60, 'referral', 'connected');
+
+select public.drain_metrics(1000);
+
+select is(
+  coalesce((select calls_made from public.daily_metrics
+    where agent_id = '00000000-0000-0000-0000-0000000000a1' and activity_date = current_date - 60), 0),
+  1, 'F2: metric marking resumes after a purge — the suppression flag does not leak into the rest of the transaction'
+);
 
 
 -- ---------------------------------------------------------------------

@@ -173,8 +173,17 @@ CREATE OR REPLACE FUNCTION "private"."purge_old_call_logs"() RETURNS integer
     AS $$
 declare v_count int;
 begin
-  -- Transaction-local (third argument true): cannot leak to another session,
-  -- and is cleared when this function's transaction ends.
+  -- Scoped to this function's own work: set before the delete, cleared
+  -- immediately after it.
+  --
+  -- `is_local => true` keeps the setting inside the current transaction so
+  -- it can never leak to another session -- but transaction-local is NOT
+  -- function-local. pg_cron calls this in a transaction of its own, so the
+  -- flag would die with it there; any caller that runs the purge inside a
+  -- LARGER transaction (a pgTAP file, which wraps the whole suite in
+  -- BEGIN...ROLLBACK, or any future batch job) would otherwise have metrics
+  -- marking suppressed for every statement that followed. Clearing it
+  -- explicitly keeps the suppression to the rows this function deletes.
   perform set_config('kautis.purging', 'on', true);
 
   with doomed as (
@@ -189,6 +198,8 @@ begin
     returning cl.id
   )
   select count(*) into v_count from doomed;
+
+  perform set_config('kautis.purging', 'off', true);
 
   insert into public.audit_log (action, entity, metadata)
   values ('retention.call_logs_purged', 'call_logs', jsonb_build_object('rows_deleted', v_count));
