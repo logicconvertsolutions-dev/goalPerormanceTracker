@@ -661,6 +661,43 @@ already blocks on vitest — `05-testing.md` says otherwise and is stale.
 
 ---
 
+## 9a. What Phase A actually did — production record (2026-09-20)
+
+Kept so a future "why did my number change on that day?" is answerable
+without re-deriving it.
+
+**Nothing was lost.** `metrics-damage-report.sql` before the migration:
+F1 = 0 and F2 = 0 across all five orgs, oldest call anywhere `2026-08-08`
+against a `2024-09-20` purge horizon. Production's call volume happened to
+keep appointment days alive; **staging was not so lucky and had lost one
+agent-day**, which is the same bug landing for real.
+
+**Seven agent-days were restated, every one upward** (all `F3 restore`; no
+`F5` rows, since production carries no imported appointments):
+
+| Agent | Date | Was | Now |
+|---|---|---|---|
+| Abhinav Kamsali | 2026-09-03 | 0 | 1 |
+| Harkaran Singh | 2026-09-15 | 0 | 1 |
+| Srinath Reddy Yellugari | 2026-09-09 | 0 | 1 |
+| Srinath Reddy Yellugari | 2026-09-16 | 0 | 1 |
+| Sukhvir Singh | 2026-09-16 | 0 | 2 |
+| *Sample Associate One* (demo) | 2026-08-24 | 1 | 2 |
+| *Sample SMD* (demo) | 2026-08-29 | 0 | 1 |
+
+Four real agents, five days, +6 Appts Set.
+
+**`daily_metrics` went 124 → 122.** Not a loss. The migration re-marked
+every row dirty, so rows whose counters had long since dropped to zero —
+and which nothing had re-marked since — were finally cleaned up. The new
+guard deletes *fewer* rows than the old one (it requires every counter to
+be zero, not five of them), so a drop cannot come from over-deleting.
+Confirmed after the fact: zero days with real source activity lack a row,
+and zero all-zero rows remain.
+
+Post-migration verification, production and staging both: F1 recoverable
+agent-days 0, `appts_set` mismatches 0, `metrics_dirty` 0.
+
 ## 9. Communicating the metric restatement
 
 `appts_set` and the no-show rate change for **historical** periods (D8, D3).
