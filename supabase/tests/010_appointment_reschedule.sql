@@ -157,36 +157,41 @@ select throws_ok(
 -- not over it. If any link here raised, the do-block would abort the
 -- transaction and every assertion below would fail, which is the control.
 do $$
-declare i int; prev uuid; cur uuid; head uuid;
+declare i int; prev uuid; cur uuid;
 begin
+  -- Every id is kept, not just the head: the control assertion below has
+  -- to count links WITHIN this chain. Counting every linked row in the
+  -- table instead would also pick up the e3 -> e4 pair from section 1,
+  -- which is how this assertion was wrong the first time.
+  create temp table chain(id uuid, ord int);
   prev := null;
   for i in 1..10 loop
     cur := gen_random_uuid();
     insert into public.appointments (id, agent_id, contact_id, appt_type, status, set_on, appt_date)
     values (cur, '00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000e2',
             'follow_up', 'scheduled', current_date, current_date + i);
-    if prev is null then head := cur; else
+    insert into chain values (cur, i);
+    if prev is not null then
       update public.appointments set rescheduled_to_id = cur where id = prev;
     end if;
     prev := cur;
   end loop;
-  -- The HEAD, not the tail: prepending an eleventh link is the case that
-  -- must be rejected. Pointing at the tail instead would trip the unique
-  -- index (A9 already points there) and prove nothing about the cap.
-  create temp table chain_head(id uuid);
-  insert into chain_head values (head);
 end $$;
 
 select is(
-  (select count(*)::int from public.appointments
-    where agent_id = '00000000-0000-0000-0000-0000000000e1' and rescheduled_to_id is not null),
+  (select count(*)::int from public.appointments ap
+     join chain c on c.id = ap.id
+    where ap.rescheduled_to_id is not null),
   9, 'control: a chain of exactly ten appointments builds without complaint'
 );
 
+-- Prepend, do not append. The HEAD is the only end that can take another
+-- link: pointing at the tail would trip the unique index (the ninth row
+-- already points there) and prove nothing about the depth cap.
 select throws_ok(
   format(
     $$update public.appointments set rescheduled_to_id = %L where id = %L$$,
-    (select id from chain_head),
+    (select id from chain where ord = 1),
     '00000000-0000-0000-0000-0000000000e5'
   ),
   null,

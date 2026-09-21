@@ -33,7 +33,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 create schema if not exists tests;
 
-select plan(93);
+select plan(96);
 
 -- ---------------------------------------------------------------------
 -- Seed
@@ -272,6 +272,19 @@ select is(
 
 -- /today query shape: my_followups returns only rows due for the calling
 -- agent, where follow_up_on <= today and follow_up_done_at is null.
+--
+-- P25 C1 CHARACTERIZATION FLIP. The three count assertions below were
+-- written when My Day's queue was call_logs and nothing else, so they read
+-- the TOTAL row count as if it could only be follow-ups. The seed above
+-- gives assoc_1 and assoc_2 one `scheduled` appointment each, dated today,
+-- and those now appear in their owner's queue -- which is the entire point
+-- of C1 (F11: an appointment nobody could resolve, on no screen).
+--
+-- So the counts are narrowed to `kind = 'follow_up'`, which is what each
+-- assertion was actually testing, and the new rows are asserted
+-- separately rather than silently absorbed. 009/010 cover the appointment
+-- branches in depth; what belongs HERE is the own-data question: does an
+-- agent see their own appointment and only their own.
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a2'); -- assoc_1
 select lives_ok(
   $$insert into public.call_logs (agent_id, contact_id, source, outcome, follow_up_on)
@@ -288,18 +301,35 @@ select lives_ok(
   'assoc_1 logs a second call with a not-yet-due follow-up'
 );
 select is(
-  (select count(*)::int from public.my_followups()),
-  1, 'my_followups returns exactly the one due-or-overdue row, not the future one'
+  (select count(*)::int from public.my_followups() where kind = 'follow_up'),
+  1, 'my_followups returns exactly the one due-or-overdue follow-up, not the future one'
 );
 select ok(
-  (select days_late > 0 from public.my_followups() limit 1),
+  (select days_late > 0 from public.my_followups() where kind = 'follow_up' limit 1),
   'the returned follow-up is reported as overdue (days_late > 0)'
+);
+-- P25 C1: the seeded appointment, due today, joins the same queue.
+select is(
+  (select count(*)::int from public.my_followups() where kind = 'appointment'),
+  1, 'assoc_1''s own scheduled appointment appears in the queue (P25 C1)'
 );
 
 select tests.authenticate_as('00000000-0000-0000-0000-0000000000a4'); -- assoc_2
 select is(
-  (select count(*)::int from public.my_followups()), 0,
-  'my_followups for assoc_2 (no follow-ups of their own) returns 0 rows'
+  (select count(*)::int from public.my_followups() where kind = 'follow_up'), 0,
+  'my_followups for assoc_2 (no follow-ups of their own) returns 0 follow-ups'
+);
+-- The own-data fence, restated for the branch C1 added: assoc_2 sees their
+-- OWN appointment and nothing of assoc_1's, even though my_followups is
+-- SECURITY DEFINER and reads past RLS.
+select is(
+  (select count(*)::int from public.my_followups()), 1,
+  'assoc_2 sees exactly one row -- their own appointment'
+);
+select is(
+  (select contact_id from public.my_followups()),
+  '00000000-0000-0000-0000-0000000000c2'::uuid,
+  'and it is assoc_2''s own contact, never assoc_1''s'
 );
 
 -- Snooze moves the date; mark-done sets follow_up_done_at and removes it
@@ -311,8 +341,8 @@ select lives_ok(
   'snooze: moving follow_up_on forward 7 days succeeds'
 );
 select is(
-  (select count(*)::int from public.my_followups()), 0,
-  'after snoozing past today, my_followups returns 0 rows'
+  (select count(*)::int from public.my_followups() where kind = 'follow_up'), 0,
+  'after snoozing past today, my_followups returns 0 follow-ups'
 );
 select lives_ok(
   $$update public.call_logs set follow_up_done_at = now()
