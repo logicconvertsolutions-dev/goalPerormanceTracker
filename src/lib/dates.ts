@@ -249,6 +249,17 @@ export function previousCycleBounds(date: Date): { from: string; to: string } {
   return cycleBounds(new Date(addDays(current.from, -1) + 'T00:00:00Z'));
 }
 
+/** Compact day-in-month label, e.g. "Sep 18" -- for the cycle digest's
+ * per-agent "last active" column, where formatDisplayDate's weekday prefix
+ * would not fit the table cell. */
+export function formatShortDate(iso: string): string {
+  return new Date(iso + 'T00:00:00Z').toLocaleDateString('en-CA', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  });
+}
+
 /**
  * Human label for an inclusive cycle range, e.g. "Sep 11-20" -- for copy
  * that has to name *which* cycle it is reporting (the cycle digest email).
