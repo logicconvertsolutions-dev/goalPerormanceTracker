@@ -1,7 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../../types/database';
-import { addDays, cycleBounds, previousCycleBounds, nextCycleStart } from '@/lib/dates';
+import { addDays, cycleBounds, previousCycleBounds, nextCycleStart, formatCycleRange } from '@/lib/dates';
 import { currentStreak } from '@/lib/metrics';
 import { localParts, resolveTimeZone } from './window';
 import {
@@ -141,20 +141,37 @@ export async function composeCycleSummary(
   };
 }
 
-/** Cycle digest -- 8am local on the cycle's first day, team roster summary for the SMD. */
+/**
+ * Cycle digest -- 8am local on the cycle's first day, team roster summary
+ * for the SMD. It reports the cycle that just *closed*, not the one that
+ * opened a few hours earlier.
+ *
+ * A digest anchored to the cycle containing `localDateIso` is structurally
+ * empty: it fires at 08:00 on day 1/11/21, so that cycle is at most eight
+ * hours old -- every total reads ~0 against a full cycle's target, every
+ * agent lands in `quietAgentNames`, and no per-agent delta can be positive
+ * so `moverNames` is always empty. It shipped that way in P14a (8am Monday,
+ * summarising the week that started that morning) and P18 carried the same
+ * off-by-one-cycle window over to the 10-day cadence verbatim. Totals-vs-
+ * target, a quiet list and biggest movers are all retrospective by nature,
+ * so the only window where they mean anything is the cycle that ended
+ * yesterday -- with the cycle before that as the movers' baseline.
+ */
 export async function composeCycleDigest(
   admin: AdminClient,
   leader: NotifiableAgent,
   localDateIso: string
 ): Promise<{ to: string; content: EmailContent } | null> {
-  const cycle = cycleBounds(new Date(`${localDateIso}T00:00:00Z`));
-  const lastCycle = previousCycleBounds(new Date(`${localDateIso}T00:00:00Z`));
+  // The cycle being reported: the one that ended the day before this fires.
+  const cycle = previousCycleBounds(new Date(`${localDateIso}T00:00:00Z`));
+  // Its predecessor, used only as the baseline for per-agent call deltas.
+  const priorCycle = previousCycleBounds(new Date(`${cycle.from}T00:00:00Z`));
 
-  const [{ data: thisCycle }, { data: lastCycleData }] = await Promise.all([
+  const [{ data: cycleData }, { data: priorCycleData }] = await Promise.all([
     admin.rpc('system_team_period_summary', { p_leader_id: leader.id, p_from: cycle.from, p_to: cycle.to }),
-    admin.rpc('system_team_period_summary', { p_leader_id: leader.id, p_from: lastCycle.from, p_to: lastCycle.to }),
+    admin.rpc('system_team_period_summary', { p_leader_id: leader.id, p_from: priorCycle.from, p_to: priorCycle.to }),
   ]);
-  const roster: TeamPeriodSummaryRow[] = thisCycle ?? [];
+  const roster: TeamPeriodSummaryRow[] = cycleData ?? [];
   if (roster.length === 0) return null;
 
   const totalCalls = roster.reduce((sum: number, r) => sum + r.calls_made, 0);
@@ -163,10 +180,10 @@ export async function composeCycleDigest(
 
   const quietAgentNames = roster.filter((r) => r.calls_made === 0).map((r) => r.full_name);
 
-  const lastCycleRoster: TeamPeriodSummaryRow[] = lastCycleData ?? [];
-  const lastCycleByAgent = new Map(lastCycleRoster.map((r) => [r.agent_id, r.calls_made]));
+  const priorCycleRoster: TeamPeriodSummaryRow[] = priorCycleData ?? [];
+  const priorCycleByAgent = new Map(priorCycleRoster.map((r) => [r.agent_id, r.calls_made]));
   const moverNames = roster
-    .map((r) => ({ name: r.full_name, delta: r.calls_made - (lastCycleByAgent.get(r.agent_id) ?? 0) }))
+    .map((r) => ({ name: r.full_name, delta: r.calls_made - (priorCycleByAgent.get(r.agent_id) ?? 0) }))
     .filter((m) => m.delta > 0)
     .sort((a, b) => b.delta - a.delta)
     .slice(0, 3)
@@ -177,6 +194,7 @@ export async function composeCycleDigest(
     content: cycleDigestEmail({
       agentId: leader.id,
       fullName: leader.full_name,
+      cycleLabel: formatCycleRange(cycle.from, cycle.to),
       totalCalls,
       totalCallsTarget,
       totalPremiumCents,
