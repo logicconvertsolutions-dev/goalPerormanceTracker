@@ -26,10 +26,19 @@
 --    any non-zero counter, cast to midnight UTC so the column type and
 --    every existing `.slice(0, 10)` consumer are unchanged.
 --
--- Signature and return type are untouched, so no consumer needs a code
--- change and no regenerated types are required -- only the values change.
+-- Signature and return type are otherwise untouched, so no consumer needs a
+-- code change and no regenerated types are required -- only the values change.
+--
+-- NOTE for the next person editing this function: build on the CURRENT
+-- definition, not on 00000000000000_baseline.sql. The baseline predates
+-- 20260907150000_p20d, which inserted `min_calls_target` into the middle of
+-- the RETURNS TABLE. A first cut of this migration was written from the
+-- baseline, dropped that column, and Postgres rejected the whole thing with
+-- "cannot change return type of existing function" -- CREATE OR REPLACE
+-- cannot alter a function's output columns. Verify against
+-- pg_get_functiondef() before rewriting a function body here.
 
-CREATE OR REPLACE FUNCTION "private"."team_period_summary_for"("p_leader_id" "uuid", "p_from" "date", "p_to" "date") RETURNS TABLE("agent_id" "uuid", "full_name" "text", "depth" integer, "calls_made" integer, "appts_set" integer, "appts_held" integer, "premium_cents" bigint, "calls_target" integer, "appts_held_target" integer, "premium_cents_target" bigint, "pct_calls" numeric, "streak_days" integer, "last_logged_at" timestamp with time zone, "has_override" boolean)
+CREATE OR REPLACE FUNCTION "private"."team_period_summary_for"("p_leader_id" "uuid", "p_from" "date", "p_to" "date") RETURNS TABLE("agent_id" "uuid", "full_name" "text", "depth" integer, "calls_made" integer, "appts_set" integer, "appts_held" integer, "premium_cents" bigint, "calls_target" integer, "appts_held_target" integer, "premium_cents_target" bigint, "min_calls_target" integer, "pct_calls" numeric, "streak_days" integer, "last_logged_at" timestamp with time zone, "has_override" boolean)
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -43,7 +52,7 @@ CREATE OR REPLACE FUNCTION "private"."team_period_summary_for"("p_leader_id" "uu
            sum(m.appt_held)::int aheld, sum(m.premium_cents)::bigint prem,
            -- Last day in the window that actually carried activity. Mirrors
            -- enqueue_due_notifications()'s own "did this agent log anything"
-           -- test, plus the two appointment/referral counters a day can hold
+           -- test, plus the appointment/referral counters a day can hold
            -- without any call being made.
            max(m.activity_date) filter (
              where m.calls_made > 0 or m.appts_set > 0 or m.sales_count > 0
@@ -63,6 +72,7 @@ CREATE OR REPLACE FUNCTION "private"."team_period_summary_for"("p_leader_id" "uu
          round(t.calls_per_cycle * c.n)::int,
          round(t.appts_held_per_cycle * c.n)::int,
          round(t.premium_cents_per_cycle * c.n)::bigint,
+         t.min_calls_per_day,
          round(100.0 * coalesce(g.calls,0) / nullif(round(t.calls_per_cycle * c.n), 0), 1),
          st.streak,
          -- date -> timestamptz at midnight UTC, explicitly rather than via a
@@ -101,7 +111,7 @@ $$;
 
 ALTER FUNCTION "private"."team_period_summary_for"("p_leader_id" "uuid", "p_from" "date", "p_to" "date") OWNER TO "postgres";
 
--- Service-role-only, same as the original. REVOKE names anon/authenticated
+-- Service-role-only, same as before. REVOKE names anon/authenticated
 -- explicitly (CLAUDE.md rule 4 -- REVOKE ... FROM PUBLIC does not undo an
 -- ALTER DEFAULT PRIVILEGES grant made directly to those roles).
 REVOKE ALL ON FUNCTION "private"."team_period_summary_for"("p_leader_id" "uuid", "p_from" "date", "p_to" "date") FROM PUBLIC, "anon", "authenticated";
