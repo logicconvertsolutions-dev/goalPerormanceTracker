@@ -22,10 +22,14 @@ export interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
+  /** When set, this item can carry a count badge, and the shell supplies
+   *  the number (P25 D-1). Only My Day has one: a badge on every item is
+   *  wallpaper, and the point of this one is that it goes to zero. */
+  badge?: 'due';
 }
 
 export const PRIMARY_NAV: NavItem[] = [
-  { href: '/today', label: 'My Day', icon: CalendarDays },
+  { href: '/today', label: 'My Day', icon: CalendarDays, badge: 'due' },
   { href: '/logs', label: 'Activity Logs', icon: ListChecks },
   { href: '/contacts', label: 'Contacts', icon: Users },
   { href: '/dashboard', label: 'My Dashboard', icon: LayoutDashboard },

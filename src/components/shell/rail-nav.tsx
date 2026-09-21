@@ -13,8 +13,9 @@ import {
   type NavItem,
 } from './nav-items';
 import { useLogActivityDialog } from './log-activity-dialog';
+import { NavBadge } from './nav-badge';
 
-function NavLink({ item, current }: { item: NavItem; current: boolean }) {
+function NavLink({ item, current, dueCount }: { item: NavItem; current: boolean; dueCount?: number }) {
   const Icon = item.icon;
   const { open: openLog } = useLogActivityDialog();
   const className = cn(
@@ -26,6 +27,7 @@ function NavLink({ item, current }: { item: NavItem; current: boolean }) {
     <>
       <Icon className={cn('h-4 w-4 shrink-0', current && 'text-acc')} aria-hidden="true" />
       {item.label}
+      {item.badge === 'due' && dueCount !== undefined && <NavBadge count={dueCount} className="ml-auto" />}
     </>
   );
 
@@ -46,7 +48,7 @@ function NavLink({ item, current }: { item: NavItem; current: boolean }) {
 
 type AppRole = 'associate' | 'leader' | 'admin';
 
-export function RailNav({ role }: { role: AppRole }) {
+export function RailNav({ role, dueCount }: { role: AppRole; dueCount?: number }) {
   const pathname = usePathname();
 
   if (role === 'admin') {
@@ -74,7 +76,7 @@ export function RailNav({ role }: { role: AppRole }) {
       aria-label="Primary"
     >
       {items.map((item) => (
-        <NavLink key={item.href} item={item} current={pathname.startsWith(item.href)} />
+        <NavLink key={item.href} item={item} current={pathname.startsWith(item.href)} dueCount={dueCount} />
       ))}
 
       <div className="my-2 border-t border-line" />

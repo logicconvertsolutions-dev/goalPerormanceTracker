@@ -430,7 +430,7 @@ org filter, a date range for the two aggregate types, CSV export, and named
 saved report definitions (`report_definitions`, config only — always re-run
 against live data on load).
 
-## P25 — Appointment lifecycle remediation (in progress — Phases 0/A/B/C done)
+## P25 — Appointment lifecycle remediation (in progress — Phases 0/A/B/C/D-1 done)
 
 Full plan: `.github/Spec Sheets/12-appointment-lifecycle-remediation.md`.
 Five phases, each independently shippable and revertible.
@@ -552,9 +552,52 @@ Five phases, each independently shippable and revertible.
         unasked, so on a phone it is a centred modal.
       - **Deviation:** the full form's Date field now writes `resolved_on`.
         It had been silently inert on a resolved row since Phase B.
-- [ ] **Phase D — in-app bands + Web Push.** Reusable push channel
-      (`web-push`, approved under rule 11); appointment reminders are its
-      first consumer. No email.
+- [x] **Phase D-1 — My Day looks a week ahead**
+      (`20260921100000_p25d1_my_day_forward_window.sql`). Read-time only:
+      no new table, no cron, no dependency, no stored state. **The first
+      P25 phase that moves no number at all** — `my_followups` feeds one
+      screen's queue and nothing else reads it, so there is nothing to
+      restate and nothing to announce.
+      - F13 — an appointment booked for next week was invisible in the
+        product until the day it happened. The two *appointment* branches
+        now return everything due through `p_as_of + 7`.
+      - The two **follow-up** branches were deliberately NOT widened. A
+        follow-up dated next Tuesday is a task the agent dated on purpose;
+        pulling it forward turns the callback queue into a to-do list and
+        undoes snoozing (`001` already asserts exactly that).
+      - Seven rolling days, not "the rest of this week" — a week-anchored
+        horizon gives six days of warning on a Monday and none on a
+        Saturday, which is backwards.
+      - The queue is banded: Starting soon (2h) · Needs an outcome ·
+        Overdue follow-ups · Later today · Tomorrow · Later (collapsed).
+        Banding is not polish on top of the widened window, it is what
+        keeps the page honest — `days_late` goes negative for a future row,
+        and the Next Up badge reads anything not overdue as "Due today", so
+        a flat list would have featured next Friday's appointment under a
+        badge claiming it was due now. `bandQueue` refuses to promote a
+        forward-dated row into that card.
+      - Nav count badge on My Day (rail + tab bar): due today plus needs an
+        outcome, never forward-dated rows. A badge that cannot reach zero
+        is decoration.
+      - **One definition of "due".** The shell reads the *same*
+        `my_followups` call the page does, memoized per request with
+        `cache()`, rather than a second count-only RPC that would restate
+        four branches in different SQL — the drift §6 and CLAUDE.md warn
+        about.
+      - KPI tiles needed no change: a forward-dated row has a negative
+        `days_late`, so it satisfies neither "Due today" nor "Overdue".
+      - New pgTAP suite `011_my_day_forward_window.sql` (14 assertions,
+        including the `+7`/`+8` boundary and the own-data fence re-asserted
+        at distance) and `today/day-bands.test.ts` (18 tests).
+      - **Not verified locally:** pgTAP cannot run in this environment
+        (Docker unavailable). `007`–`011` run in CI as `npm run test:rls`;
+        treat CI as the gate. Typecheck, ESLint, `next build` and the
+        138-test vitest suite are green.
+- [ ] **Phase D-2 — Web Push.** Reusable push channel (`web-push`,
+      approved under rule 11); appointment reminders are its first
+      consumer. No email. Needs VAPID keys provisioned in Vercel and a
+      real-device pass (iOS requires install-to-Home-Screen) before it can
+      be called done.
 - [ ] **Phase E — contract.** After one clean cycle on `master`.
 
 ---

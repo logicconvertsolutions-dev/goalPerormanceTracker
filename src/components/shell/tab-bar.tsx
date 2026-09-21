@@ -5,10 +5,11 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { PRIMARY_NAV, LEADER_NAV, ADMIN_NAV } from './nav-items';
 import { useLogActivityDialog } from './log-activity-dialog';
+import { NavBadge } from './nav-badge';
 
 type AppRole = 'associate' | 'leader' | 'admin';
 
-export function TabBar({ role }: { role: AppRole }) {
+export function TabBar({ role, dueCount }: { role: AppRole; dueCount?: number }) {
   const pathname = usePathname();
   const { open: openLog } = useLogActivityDialog();
   const items =
@@ -32,7 +33,12 @@ export function TabBar({ role }: { role: AppRole }) {
             {current && (
               <span className="absolute top-0 h-[3px] w-8 rounded-full bg-gold" aria-hidden="true" />
             )}
-            <Icon className={cn('h-5 w-5', current ? 'text-acc' : 'text-fg-3')} aria-hidden="true" />
+            <span className="relative">
+              <Icon className={cn('h-5 w-5', current ? 'text-acc' : 'text-fg-3')} aria-hidden="true" />
+              {item.badge === 'due' && dueCount !== undefined && (
+                <NavBadge count={dueCount} className="absolute -right-2.5 -top-1.5" />
+              )}
+            </span>
             {item.label}
           </>
         );

@@ -8,6 +8,9 @@ import { AnnouncementBanner } from '@/components/shell/announcement-banner';
 import { OfflineSync } from '@/components/shell/offline-sync';
 import { LogActivityDialogProvider } from '@/components/shell/log-activity-dialog';
 import { KautisMark } from '@/components/shell/kautis-logo';
+import { fetchDueQueue } from './today/due-queue';
+import { dueNowCount } from './today/day-bands';
+import { todayIso } from '@/lib/dates';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireAgent();
@@ -43,10 +46,23 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const dismissedIds = new Set((dismissed ?? []).map((d) => d.announcement_id));
   const visibleAnnouncements = (activeAnnouncements ?? []).filter((a) => !dismissedIds.has(a.id));
 
+  // P25 D-1: My Day's nav item carries a count, so the queue has to be
+  // known in the shell, not only on /today. This reads the SAME RPC the
+  // page does rather than a second count-only query -- one definition of
+  // what "due" means, per due-queue.ts -- and `cache()` collapses the two
+  // reads into one round trip when /today is the page being rendered.
+  //
+  // Admins are skipped entirely: they have no My Day (the route redirects
+  // them away) and ADMIN_NAV has no item to badge.
+  let dueCount: number | undefined;
+  if (role !== 'admin') {
+    dueCount = dueNowCount(await fetchDueQueue(todayIso(session.agent!.time_zone)));
+  }
+
   return (
     <LogActivityDialogProvider>
       <div className="flex min-h-screen bg-bg print:block">
-        <RailNav role={role} />
+        <RailNav role={role} dueCount={dueCount} />
         <div className="flex-1 flex flex-col min-w-0 print:block">
           <header className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-bg px-4 py-3 md:px-6 print:hidden">
             <Link
@@ -75,7 +91,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <AnnouncementBanner announcements={visibleAnnouncements} />
           <main className="flex-1 px-4 py-6 pb-24 md:px-6 md:pb-6 print:p-0">{children}</main>
         </div>
-        <TabBar role={role} />
+        <TabBar role={role} dueCount={dueCount} />
         <OfflineSync />
       </div>
     </LogActivityDialogProvider>

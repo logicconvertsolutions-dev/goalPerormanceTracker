@@ -80,15 +80,85 @@ shell section — `nav-items.ts` labels it "My Day"), route unchanged at
 **No period filters** — always "today," as originally specified.
 
 **KPI strip (3 tiles):** Calls logged (today) · Due today · Overdue
-(warn-styled when > 0).
+(warn-styled when > 0). Both queue tiles count only actionable rows — see
+"Bands" below for why the seven-day horizon does not inflate them.
 
-**Next Up card:** the single most-overdue/soonest-due follow-up, featured —
+**Next Up card:** the single most urgent **actionable** item, featured —
 contact name, last note (or "Called Nx" if no note), overdue/due-today
 badge. Tap opens the quick-log dialog pre-filled with that contact.
 
-**Rest of queue:** plain list below Next Up, same actions, revealed via
-"View all (n)". **Empty state:** "Nothing due today. Set a follow-up when you
-log a call and it'll show up here." — matches spec verbatim.
+"Actionable" is load-bearing since P25 D-1: the queue now reaches seven
+days ahead, and a forward-dated row is never promoted into this card. The
+badge reads anything not overdue as "Due today", so without that rule next
+Friday's appointment would have been featured under a badge saying it was
+due now. A **Starting soon** appointment outranks even a badly overdue
+follow-up for this slot — an appointment forty minutes away stops being
+possible soon; a follow-up that has waited twelve days can wait forty
+minutes.
+
+### Bands (P25 D-1, F13)
+
+Before D-1, `my_followups` filtered `due <= today`, so an appointment
+booked for next week was invisible on this screen until the morning it
+happened. The horizon is now **seven days**, and the queue below Next Up
+is banded rather than flat — a flat list would put next Friday in the same
+undifferentiated run as something twelve days overdue.
+
+| Band | Contents | Treatment |
+|---|---|---|
+| **Starting soon** | An appointment within the next 2 hours | `warn-dim`, pinned top |
+| **Needs an outcome** | An appointment past its slot, still `scheduled` | `bad-dim` |
+| **Overdue follow-ups** | A follow-up past the day it was set for | `bad-dim` |
+| **Later today** | The rest of today | `panel` |
+| **Tomorrow** | | `panel` |
+| **Later** | Days 2–7 | `panel`, **collapsed by default** |
+
+Empty bands render nothing. **Needs an outcome** is separated from
+**Overdue follow-ups** because they are different problems: a late
+follow-up is late work, a pending past appointment is a *missing fact*, and
+every outcome-based rate (the no-show rate above all) is computed without
+it until it is recorded.
+
+A row in **Tomorrow** or **Later** shows its date as well as its time —
+"Thu, Sep 24 · 2:30 PM", the same shape `/appointments`' Upcoming section
+uses. "2:30 PM" alone is a complete answer for today and an unreadable one
+for next Thursday.
+
+**Seven days, not "the rest of this week".** A rolling window gives the
+same horizon on a Saturday as on a Monday; a Monday-anchored week would
+give six days of warning on Monday and none on Saturday, which is backwards
+— the weekend is when someone checks what is coming. The app's Monday week
+still governs the trend chart; this is a lookahead horizon, not a reporting
+period.
+
+**The follow-up branches were NOT widened.** A follow-up dated next Tuesday
+is a task the agent scheduled for next Tuesday. Pulling it forward turns
+the callback queue into a to-do list, and it would undo snoozing.
+
+**Empty states** — three, because they are three different situations:
+
+| Situation | Copy |
+|---|---|
+| Queue completely empty | "Nothing due today. Set a follow-up, or log a call with an appointment set, and it'll show up here." |
+| Nothing due, but rows ahead | "You're clear for today — nothing left to chase. What's coming up is below." |
+| A band with no rows | Not rendered at all |
+
+### Nav count badge (P25 D-1)
+
+The My Day item in both the desktop rail and the mobile tab bar carries a
+count: **items due today plus everything needing an outcome** — never
+forward-dated rows, even though the screen now shows a week of them. A
+badge that cannot reach zero is decoration; this one is cleared by doing
+the work. Capped at `99+`. No other nav item has one.
+
+The shell reads the **same** `my_followups` call the page does, memoized
+per request, rather than a second count-only RPC — one definition of what
+"due" means. See `today/due-queue.ts`.
+
+**KPI tiles are unaffected by the widened window.** `days_late` goes
+negative for a forward-dated row, so it satisfies neither "Due today"
+(`= 0`) nor "Overdue" (`> 0`). That is why `days_late` is left free to go
+negative rather than clamped at zero.
 
 **Per-row menu (P25 C1).** The queue interleaves four kinds of item from
 two tables (`my_followups`' contract is in `02-data-model.md`), and the

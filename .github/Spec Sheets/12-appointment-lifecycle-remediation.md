@@ -588,7 +588,7 @@ harmless.
 
 ---
 
-### Phase D — In-app bands + Web Push (F13)
+### Phase D — In-app bands + Web Push (F13) — D-1 ✅ IMPLEMENTED, D-2 pending
 
 **Decision D9 (revised 2026-09-20): in-app reminders AND Web Push. No
 email.** Push is built as a **reusable channel**, not as appointment-specific
@@ -601,7 +601,98 @@ Rationale: VAPID ES256 signing plus ECDH/HKDF/aes128gcm payload encryption
 hand-rolled is ~300 lines of crypto that fails *silently on device* when
 subtly wrong. Update CLAUDE.md's locked-stack line when it lands.
 
-#### D-1. In-app bands (no new infrastructure)
+#### D-1. In-app bands ✅ IMPLEMENTED
+
+Shipped as `20260921100000_p25d1_my_day_forward_window.sql` plus the app
+changes below. Closes the in-app half of **F13**. Read-time only, exactly
+as this section planned: no table, no cron, no stored state, no dependency.
+
+**No number moves.** `my_followups` feeds one screen's queue; no dashboard,
+RPC or export reads it. This is the first P25 phase that cannot restate a
+historical figure even in principle, so §9's comms requirement does not
+apply — there is nothing an agent will see move.
+
+**What landed:**
+
+- **The horizon is `p_as_of + 7`**, on the two *appointment* branches only.
+  The two follow-up branches stay at `p_as_of`: a follow-up dated next
+  Tuesday is a task the agent dated deliberately, and pulling it forward
+  turns the callback queue into a to-do list. It would also have broken
+  `001`'s existing "snoozing past today clears it from the queue"
+  assertion — the product mistake already stated as a test.
+- **Seven rolling days, not "the rest of this week"** as the section below
+  words it. A Monday-anchored week gives six days of warning on a Monday
+  and none on a Saturday, which is backwards; the weekend is when someone
+  checks what is coming. The band is therefore labelled **Later** ("the
+  next seven days") rather than "Later this week". The app's Monday week
+  (CLAUDE.md) still governs the trend chart — this is a lookahead horizon,
+  not a reporting period, and it should not pretend to agree with one.
+- **Banding is not optional polish.** `days_late` goes negative for a
+  forward-dated row, and `next-up-card.tsx` renders `overdue ? "Nd
+  overdue" : "Due today"` — so widening the window on its own would have
+  featured next Friday's appointment under a badge saying it was due now.
+  `bandQueue` refuses to promote any forward-dated row into that card,
+  which is what preserves the "nothing due today" empty state. The two
+  changes are one commit for that reason.
+- **Six bands, not the five listed below.** "Needs an outcome" was split
+  from "Overdue follow-ups": a late follow-up is late work, a pending past
+  appointment is a *missing fact*, and every outcome-based rate is
+  computed without it until it is recorded. One band for both would have
+  buried the second inside the first.
+- **Starting soon outranks everything**, including a badly overdue
+  follow-up, for both the band order and the featured card. An appointment
+  forty minutes away stops being possible soon; a follow-up that has waited
+  twelve days can wait forty more minutes.
+- **Nav count badge** on My Day in both the rail and the tab bar — items
+  due today plus anything needing an outcome, never forward-dated rows,
+  capped at `99+`.
+- **One definition of "due".** The shell reads the *same* `my_followups`
+  call the page does, memoized per request with React `cache()`, instead
+  of a second count-only RPC. A scalar RPC was the obvious shape and was
+  rejected: it would restate four branches in a different piece of SQL,
+  which is precisely the drift §6 and CLAUDE.md's "a backfill must not be a
+  second definition of the metric" exist to prevent. It also sidesteps a
+  types-regeneration dependency, since the migration is now a pure
+  `CREATE OR REPLACE` with an unchanged signature.
+- New pgTAP suite `011_my_day_forward_window.sql` (14 assertions) and
+  `today/day-bands.test.ts` (18 tests).
+
+**Deviations and decisions taken during implementation:**
+
+- **A forward-dated row shows its date, not just its time.** "Appointment ·
+  2:30 PM" is a complete answer for today and unreadable for next Thursday
+  — and next Thursday is exactly what this phase puts in the list. Rows in
+  Tomorrow and Later render "Thu, Sep 24 · 2:30 PM", the shape C2's
+  Upcoming section already uses. A legacy row with a date but no slot says
+  the date rather than inventing a time it was never given.
+- **"Starting soon" is computed in the page, not the RPC.** The 2-hour
+  band needs an instant and `my_followups` takes a `date`. Adding a
+  parameter means `DROP FUNCTION` + `CREATE` + re-`GRANT` (what P23 had to
+  do) and a deploy window where the app calls a signature that does not
+  exist — for nothing, since the RPC already returns `appointment_at`. The
+  cost is that the band is accurate as of page load and does not tick over
+  on its own, which is the accepted price of deriving it at read time.
+- **The three existing suites that assert on `my_followups` were audited
+  against the wider window** (`001`, `009`, `010`) rather than assumed
+  safe. All survive — `009` and `010` pin specific row ids, and `001`'s
+  counts are unaffected because its seed dates every appointment today and
+  its follow-up assertions live on the branches that stayed narrow.
+- **The collapsed band is a native `<details>`**, not a client component.
+  No state, no dependency (rule 11), and keyboard/screen-reader behaviour
+  for free.
+
+**Not verified locally:** pgTAP cannot run in this environment — Docker is
+unavailable, the same class of block Phase C recorded. `007`–`011` run in
+CI as `npm run test:rls`; treat CI as the gate. Typecheck, ESLint,
+`next build` and the 138-test vitest suite were run and are green.
+
+**Revert:** change both `<= (p_as_of + 7)` back to `<= p_as_of` and
+re-apply. The app tolerates the narrow window unchanged — the forward bands
+simply render empty and the badge counts the same rows it always did — so
+reverting the migration does not require reverting the deploy, and
+reverting the deploy does not require reverting the migration.
+
+**Original scope as planned, for reference:**
 
 Derived at read time from `appointments.scheduled_for` + `status`, which
 Phase B already guarantees. No table, no cron, no stored state.
@@ -1019,7 +1110,8 @@ Phase C1 single record (call creates it, My Day    — invisible half  ✔
          reads it) (F4,F11,F12)
 Phase C2 lifecycle UI: resolve sheet, Upcoming,    — the visible change ✔
          Open Pipeline (F6,F7,F9,F10,F15,F16)
-Phase D  in-app bands + Web Push (F13)            — reusable push channel
+Phase D1 My Day looks a week ahead, banded (F13)   — read-time only  ✔
+Phase D2 Web Push (F13)                            — reusable push channel
 Phase E  contract                                 — after one clean cycle
 ```
 

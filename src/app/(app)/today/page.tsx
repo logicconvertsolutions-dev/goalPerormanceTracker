@@ -11,8 +11,10 @@ import { KpiStat } from './kpi-stat';
 import { NextUpCard } from './next-up-card';
 import { TodayRow } from './today-row';
 import { ActivityRow } from './activity-row';
+import { QueueBand } from './queue-band';
+import { fetchDueQueue } from './due-queue';
+import { bandQueue, isDueNow } from './day-bands';
 import type { ActivityKind } from '@/components/shell/activity-icons';
-import type { DueItemKind } from './use-follow-up-actions';
 
 const ACTIVITY_EDIT_PATH: Record<ActivityKind, string> = {
   call: '/log',
@@ -31,20 +33,24 @@ export default async function TodayPage() {
   if (session.agent!.role === 'admin') redirect('/admin/agents');
   const supabase = await createClient();
 
-  // p_as_of defaults to the DB server's own current_date (UTC) when omitted
-  // -- explicit here so "overdue"/"due today" reflects the agent's local
-  // calendar day, not the server's.
-  const { data: followUps } = await supabase.rpc('my_followups', {
-    p_as_of: todayIso(session.agent!.time_zone),
-  });
-  // Already ordered by due date ascending (most overdue first) by the RPC --
-  // follow-ups and appointments due are interleaved into one queue.
-  // `kind` is only ever one of the four SQL literals in my_followups, but
-  // generated RPC return types type it as a plain string -- narrowed here
-  // once instead of casting at every prop site. Since P25 C1 it also says
-  // which TABLE the row came from, which is what routes its actions.
-  const rows = (followUps ?? []).map((r) => ({ ...r, kind: r.kind as DueItemKind }));
-  const [nextUp, ...remaining] = rows;
+  // Shared with the app shell's nav badge, memoized per request -- see
+  // due-queue.ts. `asOf` is the agent's own local calendar day, not the DB
+  // server's UTC current_date, so "overdue" and "due today" mean what the
+  // agent would say they mean.
+  const rows = await fetchDueQueue(todayIso(session.agent!.time_zone));
+
+  // P25 D-1: the RPC now looks seven days ahead, so the queue is no longer
+  // "everything that is due" -- it is "everything that is due, plus what
+  // is coming". A flat list would have put next Friday's appointment in
+  // the same undifferentiated run as something twelve days overdue, and
+  // the Next Up card would have badged it "Due today". Banding is what
+  // keeps the page honest about the widened window, which is why the two
+  // land together.
+  //
+  // `featured` is null when nothing is actionable yet, which is what
+  // preserves the "nothing due today" empty state below on a day whose
+  // queue holds only future rows.
+  const { featured: nextUp, bands } = bandQueue(rows, Date.now());
 
   const { count: callsToday } = await supabase
     .from('call_logs')
@@ -54,8 +60,13 @@ export default async function TodayPage() {
 
   const recentActivity = await fetchRecentActivity(supabase, session.agent!.id, 7);
 
+  // Unchanged by the widened window: a forward-dated row has a NEGATIVE
+  // days_late, so it satisfies neither predicate and cannot inflate either
+  // tile. That property is the reason days_late was left free to go
+  // negative rather than clamped at zero.
   const overdueCount = rows.filter((r) => r.days_late > 0).length;
   const dueTodayCount = rows.filter((r) => r.days_late === 0).length;
+  const dueNowTotal = rows.filter(isDueNow).length;
 
   return (
     <div className="mx-auto max-w-lg space-y-7">
@@ -82,36 +93,41 @@ export default async function TodayPage() {
         <SectionHeader
           title="Next up"
           dot
-          subtitle="Due today"
-          action={remaining.length > 0 ? { label: `View all (${rows.length})`, href: '#today-queue' } : undefined}
+          subtitle={dueNowTotal > 0 ? `${dueNowTotal} to clear today` : 'Nothing due today'}
+          action={bands.length > 0 ? { label: `View all (${rows.length})`, href: '#today-queue' } : undefined}
         />
 
+        {/* Three distinct empty states, because they are three different
+            situations and one message for all of them is how "nothing due
+            today" ends up shown to someone with four appointments this
+            week (10-journeys.md). */}
         {!nextUp ? (
           <div className="rounded-lg border border-line bg-panel px-4 py-4 shadow-card">
             <p className="text-sm text-fg-3">
-              Nothing due today. Set a follow-up, or log a call with an appointment set, and it&apos;ll show up here.
+              {rows.length === 0
+                ? "Nothing due today. Set a follow-up, or log a call with an appointment set, and it'll show up here."
+                : "You're clear for today — nothing left to chase. What's coming up is below."}
             </p>
           </div>
         ) : (
-          <>
-            <NextUpCard
-              kind={nextUp.kind}
-              rowId={nextUp.call_id}
-              contactId={nextUp.contact_id}
-              contactName={nextUp.contact_name}
-              lastNote={nextUp.last_note}
-              timesCalled={nextUp.times_called}
-              daysLate={nextUp.days_late}
-              appointmentAt={nextUp.appointment_at}
-              timeZone={session.agent!.time_zone}
-            />
+          <NextUpCard
+            kind={nextUp.kind}
+            rowId={nextUp.call_id}
+            contactId={nextUp.contact_id}
+            contactName={nextUp.contact_name}
+            lastNote={nextUp.last_note}
+            timesCalled={nextUp.times_called}
+            daysLate={nextUp.days_late}
+            appointmentAt={nextUp.appointment_at}
+            timeZone={session.agent!.time_zone}
+          />
+        )}
 
-            {remaining.length > 0 && (
-              <div
-                id="today-queue"
-                className="scroll-mt-4 divide-y divide-line rounded-lg border border-line bg-panel px-4 shadow-card"
-              >
-                {remaining.map((row) => (
+        {bands.length > 0 && (
+          <div id="today-queue" className="scroll-mt-4 space-y-3">
+            {bands.map((band) => (
+              <QueueBand key={band.id} id={band.id} count={band.items.length}>
+                {band.items.map((row) => (
                   <TodayRow
                     key={`${row.kind}-${row.call_id}`}
                     kind={row.kind}
@@ -122,13 +138,14 @@ export default async function TodayPage() {
                     timesCalled={row.times_called}
                     daysLate={row.days_late}
                     appointmentAt={row.appointment_at}
+                    dueDate={row.due_date}
                     timeZone={session.agent!.time_zone}
                     overdue={row.days_late > 0}
                   />
                 ))}
-              </div>
-            )}
-          </>
+              </QueueBand>
+            ))}
+          </div>
         )}
       </div>
 

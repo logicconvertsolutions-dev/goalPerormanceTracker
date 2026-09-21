@@ -129,6 +129,41 @@ team's historical numbers, their name leaves the roster.
 
 ---
 
+## Book → see it coming → resolve (P25 C + D-1)
+
+The journey the product could not tell until P25, and the reason F13 was a
+finding rather than a nicety.
+
+1. **Book.** The agent logs a call with outcome "Appointment set", or
+   creates one from `/appointments/new`. One `appointments` row, stamped
+   with the day it was booked (`set_on`) and the slot (`scheduled_for`).
+2. **See it coming.** From that moment it is visible in two places: the
+   **Upcoming** section on `/appointments` (outside the period filter,
+   P25 C2), and — new in D-1 — on **My Day**, banded under Tomorrow or
+   Later as soon as it falls inside the next seven days. Before D-1 neither
+   existed: My Day showed it only on the day, and `/appointments` filtered
+   it out of the current cycle entirely. An appointment booked for next
+   week was invisible in the whole product.
+3. **The day itself.** It moves into **Later today**, then into **Starting
+   soon** two hours out, pinned at the top of the queue. The nav badge
+   counts it from the morning it is due.
+4. **Resolve.** Held opens the resolve sheet (premium, referrals, notes,
+   optionally a linked sale); No-show and Cancelled are one tap;
+   Reschedule terminates it and creates a linked successor.
+5. **If nothing is recorded**, it does not disappear — it lands in **Needs
+   an outcome** and stays there. That band exists because a pending past
+   appointment is counted in no outcome at all, so every rate derived from
+   outcomes is computed over a smaller denominator than reality.
+
+**Per-band empty states.** A band with no rows is not rendered — an empty
+"Tomorrow" panel is noise. The queue as a whole has two: "Nothing due
+today…" when it is genuinely empty, and "You're clear for today — nothing
+left to chase. What's coming up is below." when the only rows are ahead.
+The second exists because the first, shown to someone with four
+appointments this week, reads as the app having lost them.
+
+---
+
 ## Journey gaps this exposed
 
 Each of these is now specified, and now shipped — see `docs/06-build-phases.md`

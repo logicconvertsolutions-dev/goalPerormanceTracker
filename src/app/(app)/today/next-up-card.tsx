@@ -18,7 +18,14 @@ import { formatDisplayTime } from '@/lib/dates';
 
 /** The single most urgent item, featured above the rest of the queue —
  * answers "what should I do next" the moment the page opens. Covers call
- * follow-ups and appointments due, from either table (P23, P25 C1). */
+ * follow-ups and appointments due, from either table (P23, P25 C1).
+ *
+ * P25 D-1: `daysLate` here is guaranteed >= 0. The queue now reaches seven
+ * days ahead, and `bandQueue` deliberately refuses to promote a Tomorrow
+ * or Later row into this card — without that guarantee the badge below
+ * would have labelled next Friday's appointment "Due today", since it
+ * reads anything not overdue as due now. "What should I do next" has to
+ * mean something that can actually be done next. */
 export function NextUpCard({
   kind,
   rowId,

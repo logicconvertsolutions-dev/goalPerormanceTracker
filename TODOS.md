@@ -665,8 +665,31 @@ Phase C is complete.
   booking day, clamped server-side.
 - Resolve sheet, Upcoming section, Needs-an-outcome band — shipped.
 
-## Phase D
-- F13 no appointment reminders at all — in-app bands + Web Push
+## Done — Phase D-1 (My Day looks a week ahead) (2026-09-21)
+- F13 half closed — **the in-app half.** `my_followups`' two appointment
+  branches now reach `p_as_of + 7`, so an appointment booked for next week
+  is visible from the moment it is booked instead of on the morning it
+  happens. The follow-up branches stay narrow on purpose.
+- My Day's queue is banded: Starting soon · Needs an outcome · Overdue
+  follow-ups · Later today · Tomorrow · Later. Banding ships with the
+  widened window because `days_late` goes negative and the Next Up badge
+  would otherwise have labelled next Friday "Due today".
+- Nav count badge on My Day — due today plus needs an outcome only.
+- Read-time only: no table, no cron, no stored state, no dependency. **No
+  number moves** — nothing but one screen reads `my_followups`.
+- `011_my_day_forward_window.sql` (14 assertions) + `day-bands.test.ts`
+  (18 tests).
+
+## Phase D-2
+- F13's other half — Web Push as a reusable channel. `push_subscriptions`,
+  `notification_deliveries` (per-entity dedup key), `notification_channel_prefs`,
+  a service-worker `push`/`notificationclick` handler, and a
+  `due_push_notifications()` + cron route on the existing `ping_app_route`
+  pattern. `notification_log` stays untouched (D11).
+- Blocked on two things no code supplies: VAPID keys provisioned in Vercel
+  (`VAPID_PRIVATE_KEY` server-side, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`), and a
+  real-device pass — iOS delivers push only from an installed Home Screen
+  app, which Playwright cannot cover.
 
 ## Standing
 - F17 `002_daily_metrics_pipeline.sql` asserts only through

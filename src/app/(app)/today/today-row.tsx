@@ -14,13 +14,13 @@ import {
 import { useFollowUpActions, isResolvable, RESOLVE_OPTIONS, type DueItemKind } from './use-follow-up-actions';
 import { ResolveAppointmentDialog, type ResolveMode } from '../appointments/resolve-appointment-dialog';
 import { useLogActivityDialog } from '@/components/shell/log-activity-dialog';
-import { formatDisplayTime } from '@/lib/dates';
+import { formatDisplayTime, formatDisplayDateTime, formatDisplayDate } from '@/lib/dates';
 
-/** One row in the "rest of today's queue" list, below the featured Next Up
- * card. Deliberately plain — no border/shadow of its own — so a run of these
- * inside one bordered container reads as a scannable list, not a stack of
- * cards. Covers call follow-ups and appointments due, from either table
- * (P23, P25 C1). */
+/** One row of My Day's queue, below the featured Next Up card.
+ * Deliberately plain — no border/shadow of its own — so a run of these
+ * inside one band container reads as a scannable list, not a stack of
+ * cards. Covers call follow-ups and appointments from either table (P23,
+ * P25 C1), now due today, overdue, or up to a week out (P25 D-1). */
 export function TodayRow({
   kind,
   rowId,
@@ -30,6 +30,7 @@ export function TodayRow({
   timesCalled,
   daysLate,
   appointmentAt,
+  dueDate,
   timeZone,
   overdue = false,
 }: {
@@ -42,6 +43,9 @@ export function TodayRow({
   timesCalled: number;
   daysLate: number;
   appointmentAt: string | null;
+  /** `my_followups.due_date` — the day the item is for. Only read for a
+   *  forward-dated row that has no slot of its own. */
+  dueDate: string | null;
   timeZone: string | null;
   overdue?: boolean;
 }) {
@@ -49,9 +53,25 @@ export function TodayRow({
   const [resolveMode, setResolveMode] = useState<ResolveMode | null>(null);
   const { open: openLog } = useLogActivityDialog();
   const resolvable = isResolvable(kind);
+  // P25 D-1: a row in the Tomorrow or Later band has to say WHICH day.
+  // "Appointment · 2:30 PM" is a complete answer for today and an
+  // unreadable one for next Thursday, and the widened window is exactly
+  // what puts next Thursday in this list. A negative days_late is the
+  // signal that the row is in the future (see the D-1 migration header).
+  //
+  // formatDisplayDateTime returns the date alone despite its name, so the
+  // pair below reads "Thu, Sep 24 · 2:30 PM" — the same shape the
+  // Upcoming section on /appointments already uses.
+  const ahead = daysLate < 0;
   const subtitle = appointmentAt
-    ? `Appointment · ${formatDisplayTime(appointmentAt, timeZone)}`
-    : lastNote || `Called ${timesCalled}x`;
+    ? ahead
+      ? `Appointment · ${formatDisplayDateTime(appointmentAt, timeZone)} · ${formatDisplayTime(appointmentAt, timeZone)}`
+      : `Appointment · ${formatDisplayTime(appointmentAt, timeZone)}`
+    : ahead && dueDate
+      // A legacy or imported appointment has a date but no slot — say the
+      // date rather than inventing a time it was never given.
+      ? `Appointment · ${formatDisplayDate(dueDate)}`
+      : lastNote || `Called ${timesCalled}x`;
 
   return (
     <div className="flex items-center justify-between gap-2 py-3">

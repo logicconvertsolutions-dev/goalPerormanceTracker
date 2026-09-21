@@ -13,13 +13,14 @@ built.** What's actually implemented, verified against the live repo:
 > asserted the opposite.
 
 - **pgTAP (§1)** — implemented and it's the one gate that's genuinely
-  blocking: `supabase/tests/*.sql` (10 files) covers RLS/hierarchy, the
+  blocking: `supabase/tests/*.sql` (11 files) covers RLS/hierarchy, the
   `daily_metrics` pipeline, notifications, pilot instrumentation, the bulk
-  notification pipeline, admin reports, and the four P25 appointment
+  notification pipeline, admin reports, and the five P25 appointment
   suites — **lifecycle metrics** (`007_appointment_lifecycle.sql`, Phase 0),
   **identity invariants** (`008_appointment_identity.sql`, Phase B), the
-  **call↔appointment link** (`009_appointment_call_link.sql`, Phase C1) and
-  **reschedule lineage** (`010_appointment_reschedule.sql`, Phase C2). Runs
+  **call↔appointment link** (`009_appointment_call_link.sql`, Phase C1),
+  **reschedule lineage** (`010_appointment_reschedule.sql`, Phase C2) and
+  the **My Day horizon** (`011_my_day_forward_window.sql`, Phase D-1). Runs
   in CI as `npm run test:rls`, not `continue-on-error`. **Gap: no pgTAP
   coverage yet for P11's schema changes** — `agents_org_required_unless_admin`
   / `agents_admin_no_upline` / `invitations_org_required_unless_admin`
@@ -193,6 +194,28 @@ pipeline stage.
   terminal, so it never re-enters the denominator
 - **E5**: an appointment entered today for last month is 0 days late, not
   30 — but it is still in the queue, and it ages normally from there
+
+### My Day horizon (`011_my_day_forward_window.sql`, P25 Phase D-1)
+- **F13**: an appointment three days out reaches My Day *today*, and
+  reports a negative `days_late` rather than 0 — the sign is what the
+  client bands on
+- The horizon is asserted **on its boundary**: `+7` is in, `+8` is out. An
+  off-by-one here is invisible everywhere else and surfaces as "the
+  appointment I booked for next Monday never appeared"
+- Both **follow-up** branches stay narrow — a call follow-up and an
+  appointment follow-up three days out both stay out. Widening branch 1
+  would have broken `001`'s "snoozing past today clears it" assertion,
+  which is the product mistake stated as a test
+- What the wider window must **not** have loosened: a resolved appointment
+  inside the window stays out; an overdue one still comes back and still
+  reports how late it is
+- The legacy `call_appointment` branch gets the **same** horizon, and the
+  `source_call_log_id` dedup still holds at four days out — a dedup that
+  only worked for today's rows would double every appointment the moment
+  the window reached past it
+- The **own-data fence** re-asserted at distance: widening a window is
+  exactly the change that turns a missing `agent_id` predicate into a
+  visible leak, so it is proved here rather than assumed from `001`
 
 **Characterization-test discipline.** This file was introduced asserting the
 behaviour as it was *then*, bugs included, and flipped to the assertions above

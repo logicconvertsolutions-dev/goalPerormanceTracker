@@ -775,7 +775,8 @@ the cycle-digest email) moved to the period-general RPCs below.
   activity`'s own per-day target lookup switched from `public.week_start(d)`
   to `public.cycle_start(d)` in the same P17b pass.
 - `my_followups(p_as_of date)` (P1i, bug fixed P2c, `company` column dropped
-  P7f, sourced from `appointments` in P25 C1) — the agent's own `/today`
+  P7f, sourced from `appointments` in P25 C1, seven-day horizon in P25 D-1)
+  — the agent's own `/today`
   queue. Four branches across two tables, distinguished by the `kind`
   column, which is what the client routes each row's actions on:
 
@@ -797,6 +798,18 @@ the cycle-digest email) moved to the period-general RPCs below.
   `appointment_follow_up` is restricted to resolved rows: the appointment
   form only offers a follow-up date for held/no_show/rescheduled/cancelled,
   and a scheduled row is already in the `appointment` branch.
+
+  **Horizon (P25 D-1, F13).** The two *appointment* branches return
+  everything due up to and including `p_as_of + 7`; the two *follow-up*
+  branches stop at `p_as_of`. An appointment is a commitment to another
+  person at a fixed time and the cost of learning about it late is missing
+  it; a follow-up is a task the agent dated deliberately, and pulling it
+  forward would turn the callback queue into a to-do list and undo
+  snoozing. `days_late` is consequently **negative** for a forward-dated
+  row — it is `p_as_of - greatest(due date, set_on)` and is never clamped,
+  because callers distinguish "overdue" (`> 0`) from "due today" (`= 0`)
+  from "ahead" (`< 0`) by its sign. See `08-screen-specs.md` for how the
+  client bands them.
 - `admin_daily_active_loggers(p_days int)` (P7a) — the pilot instrument
   behind `/admin/pilot`; cross-joins active agents with the last N business
   days and flags whether anything was logged.
