@@ -152,13 +152,46 @@ git push origin staging
 - [ ] Wait for a Vercel deploy of `staging` to finish, and confirm it built
       from the commit you just pushed.
 
-### 1.7 Run §2 on staging
+### 1.7 Seed the fixtures
+
+Staging carries almost no appointment data, so several of Phase C's
+features render as empty bands there and read as broken when they are
+merely unseeded: **Needs an outcome**, the **F12** appointment-follow-up
+queue item, and **F16's delete guard**, which needs an appointment that
+actually produced a sale. An empty band on staging means "not seeded yet",
+not "not working".
+
+A seed covering one case per finding was written and applied to the
+staging branch on 2026-09-21. It is deliberately **not** carried on
+`master` — it is staging-only operational SQL and does not belong in the
+branch that deploys to production — so retrieve it from history:
+
+```bash
+git show dcd73bd:scripts/seed-staging-p25c.sql > /tmp/seed-staging-p25c.sql
+```
+
+Edit the agent/org ids at the top, run it, then
+`select public.drain_metrics(1000);`. It is idempotent (it wipes its own
+previous output first), everything it creates is prefixed `ZZ Test · ` so
+it is searchable from the contact filter, and it carries its own cleanup
+block at the foot of the file.
+
+It writes through the triggers rather than around them, which is the
+point: Phase B's claim is that the identity invariants hold for **every**
+writer, not just the server actions.
+
+One fixture pair is worth understanding before you look at My Day.
+`ZZ Test · Backdated Entry` and `ZZ Test · Imported Row` share a due date
+on purpose, and must report **0** and **30** days late respectively —
+that is E5, and the difference is entirely `set_on`.
+
+### 1.8 Run §2 on staging
 
 The whole of the next section. Do not skip the parts that look obvious —
 F6, F7 and F15 were each a one-line mistake that survived multiple reviews
 precisely because they looked obvious.
 
-### 1.8 Take the after-snapshot
+### 1.9 Take the after-snapshot
 
 ```bash
 psql "$STAGING_DATABASE_URL" -v ON_ERROR_STOP=1 --csv \
@@ -170,7 +203,7 @@ diff -u snapshot-before-staging.csv snapshot-after-staging.csv
       change to an agent-day you did not touch by hand is a bug — stop and
       investigate. Neither migration is supposed to move a stored number.
 
-### 1.9 Promote to `master`
+### 1.10 Promote to `master`
 
 `master` is protected: PR only, no direct push, no bypass.
 
@@ -184,7 +217,7 @@ diff -u snapshot-before-staging.csv snapshot-after-staging.csv
       C1's types were regenerated already and C2 adds no columns — but
       check rather than assume.
 
-### 1.10 Re-sync, in the same sitting
+### 1.11 Re-sync, in the same sitting
 
 ```bash
 git checkout dev     && git pull origin dev     && git merge master --no-edit && git push origin dev
