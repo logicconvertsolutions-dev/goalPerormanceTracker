@@ -77,16 +77,39 @@ describe('dialToConnectRatio', () => {
   });
 });
 
+// P25 C2 / §3 / decision D3. The denominator is outcomes only: held +
+// no_show + cancelled. It used to be every status including `scheduled`
+// and `rescheduled`, which made the rate drift upward through a cycle as
+// pending appointments resolved — no two readings of the same period
+// agreed, and no two screens agreed with each other (F10).
 describe('noShowRate', () => {
   it('is 0 when no appointments logged', () => {
     expect(noShowRate(workbookWeek)).toBe(0);
   });
-  it('divides no-shows by all appointment statuses in the week', () => {
-    const rows = [
-      row({ appt_scheduled: 1, appt_held: 2, appt_no_show: 1, appt_rescheduled: 0, appt_cancelled: 0 }),
-    ];
-    // 1 / (1+2+1+0+0) = 0.25
+
+  it('divides no-shows by recorded outcomes only', () => {
+    const rows = [row({ appt_held: 2, appt_no_show: 1, appt_cancelled: 1 })];
+    // 1 / (2+1+1) = 0.25
     expect(noShowRate(rows)).toBe(0.25);
+  });
+
+  it('ignores pending appointments, however many are scheduled', () => {
+    // The old formula moved from 0.2 to 0.5 here purely by the number of
+    // appointments still awaiting an outcome. This one does not move.
+    const few = [row({ appt_scheduled: 0, appt_held: 1, appt_no_show: 1 })];
+    const many = [row({ appt_scheduled: 40, appt_held: 1, appt_no_show: 1 })];
+    expect(noShowRate(few)).toBe(0.5);
+    expect(noShowRate(many)).toBe(0.5);
+  });
+
+  it('ignores rescheduled appointments — the successor is counted instead', () => {
+    // Counting both would charge one prospect to the denominator twice.
+    const rows = [row({ appt_held: 1, appt_no_show: 1, appt_rescheduled: 6 })];
+    expect(noShowRate(rows)).toBe(0.5);
+  });
+
+  it('is 0 when a period has pending appointments but no outcomes yet', () => {
+    expect(noShowRate([row({ appt_scheduled: 5 })])).toBe(0);
   });
 });
 

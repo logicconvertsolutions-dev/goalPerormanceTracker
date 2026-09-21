@@ -84,12 +84,43 @@ shell section — `nav-items.ts` labels it "My Day"), route unchanged at
 
 **Next Up card:** the single most-overdue/soonest-due follow-up, featured —
 contact name, last note (or "Called Nx" if no note), overdue/due-today
-badge. Tap opens the quick-log dialog pre-filled with that contact. Per-row
-menu: **Snooze 1 day · Snooze 1 week · Mark done** — matches spec.
+badge. Tap opens the quick-log dialog pre-filled with that contact.
 
 **Rest of queue:** plain list below Next Up, same actions, revealed via
 "View all (n)". **Empty state:** "Nothing due today. Set a follow-up when you
 log a call and it'll show up here." — matches spec verbatim.
+
+**Per-row menu (P25 C1).** The queue interleaves four kinds of item from
+two tables (`my_followups`' contract is in `02-data-model.md`), and the
+menu follows what the row actually is:
+
+| Row | Menu |
+|---|---|
+| A follow-up, or a pre-C1 call-log appointment | Snooze 1 day · Snooze 1 week · **Mark done** |
+| A pending appointment | Snooze 1 day · Snooze 1 week · **Held… · No-show · Cancelled · Reschedule…** |
+
+A pending appointment leaves the queue by recording what happened, not by
+being ticked off. There is no `done` status in the appointment machine, and
+the old "Mark done" wrote `appointment_done_at`, which fed no metric at all
+— an appointment booked from a call could never become Held (F11).
+
+The two items with an ellipsis open the **resolve sheet** (P25 C2), because
+each needs something a menu cannot ask for: Held has a premium, a referral
+count, notes and possibly a sale to record; Reschedule needs the new slot.
+No-show and Cancelled stay one tap — there is nothing to ask.
+
+**Snooze moves the appointment itself**, not a reminder: it shifts
+`scheduled_for` by whole days *in the agent's own zone*, so a 2:00 PM slot
+snoozed across a DST boundary is still at 2:00 PM. Per decision D1 that is
+a *correction* — Reschedule is the other thing, and terminates this
+appointment in favour of a successor.
+
+**Recording an outcome dates it to today**, not to the day the appointment
+was for (§7 E6). An appointment held last Tuesday and marked Held this
+morning counts this morning; the alternative lets a late-recorded outcome
+change a cycle that may already be closed. This is the same action the
+`/appointments` quick status-changer calls — one definition, deliberately,
+since two paths leaving two different rows is exactly what F8 was.
 
 **Recent activity (new, not in original spec):** last 7 days across all
 activity types, icon + contact + summary + date, "View all" → `/logs`.
@@ -145,33 +176,83 @@ editing on this page, only quick-add entry points.
 
 ## `/appointments`
 
-Matches the original spec's shape closely, with **one confirmed removal**:
-the "mark held → prompt for sale" flow described in the original spec does
-**not** exist in the live code. Status changes are a plain inline `<Select>`
-with no follow-on dialog of any kind — worth a product decision on whether
-to rebuild it, since the original spec's stated reason for it still holds
-("without that prompt the sales log stays empty and the funnel's last stage
-is permanently zero").
+Matches the original spec's shape closely. The original spec's **"mark held
+→ prompt for sale" flow was missing from the live code and is restored in
+P25 C2** — its stated reason had held the whole time ("without that prompt
+the sales log stays empty and the funnel's last stage is permanently
+zero").
+
+**Upcoming (P25 C2, above the filters and deliberately outside them).** The
+table below answers "what happened in this cycle", which is the wrong
+question for an appointment that has not happened yet — with the filter on
+the current cycle, next week's appointment was invisible on this page
+entirely (F13's context). Two bands:
+
+- **Needs an outcome** — past its slot and still `scheduled`. This is the
+  band that matters: an appointment left pending is in neither `held` nor
+  `no_show`, so every rate computed from outcomes is computed over a
+  smaller denominator than reality. Stated on the band itself.
+- **Upcoming** — still ahead, showing `scheduled_for` with the time. A
+  legacy or imported row with no slot shows its date alone rather than an
+  invented time.
+
+Both split on the **calendar day**, not the instant: a 2pm appointment
+today sits under Upcoming all morning and does not become "overdue" at
+2:01.
 
 **Filters:** period + custom, status (multi is not implemented — it's a
 single-select dropdown, not the multi-select the original spec called for),
 contact-name search.
 
 **KPI strip (4 cards, shown only when rows exist):** Scheduled · Held ·
-No-show rate · Open premium (sum of scheduled rows' expected premium).
+No-show rate · Open premium.
 
-**Table:** Date · Contact · Type · Status (inline-editable `<Select>`,
-persists immediately) · Expected Premium · Referrals · row actions
-(Edit/Delete). *(Notes is not a table column, despite the original spec
-listing it — visible on the edit form and contact detail instead.)*
+- **No-show rate** uses the P25 §3 formula —
+  `no_show / (held + no_show + cancelled)` — shared with the agent
+  dashboard and the SMD drill-down via `noShowRateFrom` in
+  `lib/metrics.ts`. Before C2 this page divided by *every row in the
+  period* and the dashboard by *every status*, so the two disagreed
+  mid-cycle (F10). The tile shows its denominator ("3 of 11 resolved"),
+  because a rate that has just been restated and gives no way to see what
+  it divided by is a rate nobody trusts.
+- **Open premium** sums scheduled rows' expected premium. It was
+  structurally $0 until C2 — the form hid the premium input on exactly the
+  status this sums (F7).
+
+**Table:** Date · Contact · Type · Status (inline-editable `<Select>`) ·
+Expected Premium · Referrals · row actions (Edit/Delete). *(Notes is not a
+table column, despite the original spec listing it — visible on the edit
+form and contact detail instead.)*
+
+Changing the status of a **pending** appointment to **Held** or
+**Rescheduled** opens the resolve sheet rather than writing a bare status;
+every other transition persists immediately. This is the same sheet My Day
+raises, deliberately — two code paths for one action, leaving two different
+rows, is what F8 was.
+
+**Delete (P25 C2, F16):** an appointment that produced a sale or a
+recruiting log cannot be deleted silently. The dialog names what is at
+stake (including the premium) and offers **Keep it** or **Delete both**.
+The FK is `ON DELETE SET NULL`, so the old behaviour left a sale counting
+toward `sales_count`/`premium_cents` with nothing here pointing at it.
+Both answers are legitimate — a sale that really happened should outlive a
+mistakenly-logged appointment. Not being asked is not.
 
 **Empty state:** "No appointments between {from} and {to} with these
 filters." + Clear all.
 
-**Form:** contact picker (create only), date (max today), optional type,
-status select, conditional follow-up chip picker (shown once status is
-held/no_show/rescheduled/cancelled), expected premium, referrals given,
-notes. Offline-fallback submit on create.
+**Form:** contact picker (create only), date (max today) or date+time when
+Scheduled, optional type, status select, conditional follow-up chip picker
+(shown once status is held/no_show/rescheduled/cancelled), **expected
+premium at every status** (P25 C2, F7 — it is the input to Open Pipeline),
+referrals given once resolved, notes. Offline-fallback submit on create,
+carrying the browser's own booking day so a replayed submission books on
+the day the agent made it (F14).
+
+Editing a persisted appointment shows **its own** date, from
+`scheduled_for` with `appt_date` as the fallback — never today. The old
+fallback silently moved any imported appointment to today the moment its
+notes were edited (F6).
 
 ---
 
@@ -270,6 +351,32 @@ Within the Call tab, matches the original five-field flow: date chip
 (Today/back-date, max today), contact picker, source, outcome, "Call back
 on…" chips once an outcome is chosen, notes. Offline-fallback submit;
 success navigates to `/today` unless invoked inside a modal.
+
+**Outcome "Appointment set" (P23, P24, P25 C1).** Instead of the "Call back
+on…" chips, the form asks for the appointment's own **date and time** — the
+appointment is the thing to come back to, not a separate reminder — plus an
+**Appointment type** select. The type is *optional* here and defaults to
+Follow Up (decision D5): `/appointments/new` keeps it required, but the
+call form is the hot path at roughly 40 uses a day, and the "type required
+before marking Held" guard already forces the answer at the point it
+actually matters.
+
+Since P25 C1 this outcome **creates a real `appointments` row**, linked back
+to the call by `source_call_log_id`, with the call's date as its booking
+day. Consequences worth knowing:
+
+- The appointment appears on `/appointments` and can be resolved like any
+  other. Before C1 it had no status and could never become Held (F11).
+- It counts **once** toward Appts Set, not twice (F4).
+- The call's notes are *not* copied onto it (D6) — two records that would
+  silently diverge the first time either was edited. The appointment is
+  bound to the contact that was called (D7).
+- Editing the call carries the edit across: moving the date/time moves the
+  appointment, and changing the outcome away from "Appointment set" removes
+  a still-pending one. A **resolved** appointment is never touched by a
+  call edit — its slot is a recorded fact and its outcome is a number the
+  SMD has already seen.
+- Deleting the call leaves the appointment standing.
 **Source auto-fill (P10):** picking an existing contact from the picker that
 already has a prior call on file collapses the Source field into a
 read-only summary pre-filled with that contact's most recent source,

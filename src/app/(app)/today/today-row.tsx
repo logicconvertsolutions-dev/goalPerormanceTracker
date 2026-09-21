@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { MoreVertical } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -7,19 +8,22 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useFollowUpActions, type DueItemKind } from './use-follow-up-actions';
+import { useFollowUpActions, isResolvable, RESOLVE_OPTIONS, type DueItemKind } from './use-follow-up-actions';
+import { ResolveAppointmentDialog, type ResolveMode } from '../appointments/resolve-appointment-dialog';
 import { useLogActivityDialog } from '@/components/shell/log-activity-dialog';
 import { formatDisplayTime } from '@/lib/dates';
 
 /** One row in the "rest of today's queue" list, below the featured Next Up
  * card. Deliberately plain — no border/shadow of its own — so a run of these
  * inside one bordered container reads as a scannable list, not a stack of
- * cards. Covers both call follow-ups and appointments due (P23). */
+ * cards. Covers call follow-ups and appointments due, from either table
+ * (P23, P25 C1). */
 export function TodayRow({
   kind,
-  callLogId,
+  rowId,
   contactId,
   contactName,
   lastNote,
@@ -30,7 +34,8 @@ export function TodayRow({
   overdue = false,
 }: {
   kind: DueItemKind;
-  callLogId: string;
+  /** call_logs.id or appointments.id — `kind` says which (P25 C1). */
+  rowId: string;
   contactId: string;
   contactName: string;
   lastNote: string | null;
@@ -40,12 +45,13 @@ export function TodayRow({
   timeZone: string | null;
   overdue?: boolean;
 }) {
-  const { pending, handleSnooze, handleMarkDone } = useFollowUpActions(kind, callLogId);
+  const { pending, handleSnooze, handleMarkDone, handleResolve } = useFollowUpActions(kind, rowId);
+  const [resolveMode, setResolveMode] = useState<ResolveMode | null>(null);
   const { open: openLog } = useLogActivityDialog();
-  const subtitle =
-    kind === 'appointment' && appointmentAt
-      ? `Appointment · ${formatDisplayTime(appointmentAt, timeZone)}`
-      : lastNote || `Called ${timesCalled}x`;
+  const resolvable = isResolvable(kind);
+  const subtitle = appointmentAt
+    ? `Appointment · ${formatDisplayTime(appointmentAt, timeZone)}`
+    : lastNote || `Called ${timesCalled}x`;
 
   return (
     <div className="flex items-center justify-between gap-2 py-3">
@@ -69,9 +75,36 @@ export function TodayRow({
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => handleSnooze(1)}>Snooze 1 day</DropdownMenuItem>
           <DropdownMenuItem onClick={() => handleSnooze(7)}>Snooze 1 week</DropdownMenuItem>
-          <DropdownMenuItem onClick={handleMarkDone}>Mark done</DropdownMenuItem>
+          {/* A pending appointment leaves the queue by recording what
+              happened, not by being ticked off -- see useFollowUpActions.
+              Held and Rescheduled open the sheet because each needs
+              something a menu item cannot ask for; the other two are a
+              tap, because there is nothing to ask. */}
+          {resolvable ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setResolveMode('held')}>Held…</DropdownMenuItem>
+              {RESOLVE_OPTIONS.map((o) => (
+                <DropdownMenuItem key={o.value} onClick={() => handleResolve(o.value)}>
+                  {o.label}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuItem onClick={() => setResolveMode('rescheduled')}>Reschedule…</DropdownMenuItem>
+            </>
+          ) : (
+            <DropdownMenuItem onClick={handleMarkDone}>Mark done</DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {resolvable && (
+        <ResolveAppointmentDialog
+          mode={resolveMode}
+          appointmentId={rowId}
+          contactName={contactName}
+          onOpenChange={(open) => !open && setResolveMode(null)}
+        />
+      )}
     </div>
   );
 }

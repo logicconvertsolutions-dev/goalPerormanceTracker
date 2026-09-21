@@ -8,12 +8,20 @@ interface KpiCardProps {
   target?: { value: string; pct: number };
   /** Present when this KPI has no target — a period-over-period delta instead. */
   delta?: { value: number; label: string };
+  /**
+   * A plain sub-label for a KPI whose number is meaningless without one.
+   * Added in P25 C2 for the no-show rate, whose denominator is now
+   * outcomes only (held + no-show + cancelled) rather than every row in
+   * the period — a rate nobody can see the denominator of is a rate nobody
+   * trusts, which is half of what F10 cost.
+   */
+  hint?: string;
 }
 
 /** A single metric tile — plain border, no shadow, so a grid of these reads
  * as one calm strip of numbers rather than a stack of individually-elevated
  * cards. Shared by the Dashboard and Team overview. */
-export function KpiCard({ label, value, target, delta }: KpiCardProps) {
+export function KpiCard({ label, value, target, delta, hint }: KpiCardProps) {
   return (
     <div className="space-y-1.5 rounded border border-line bg-panel px-3.5 py-3 shadow-card">
       <p className="text-xs font-medium uppercase tracking-wide text-fg-3">{label}</p>
@@ -34,6 +42,8 @@ export function KpiCard({ label, value, target, delta }: KpiCardProps) {
         <p className="text-xs text-fg-2">
           {delta.value >= 0 ? '▲' : '▼'} {Math.abs(delta.value)} {delta.label}
         </p>
+      ) : hint ? (
+        <p className="text-xs text-fg-3">{hint}</p>
       ) : null}
     </div>
   );

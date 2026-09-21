@@ -13,10 +13,13 @@ built.** What's actually implemented, verified against the live repo:
 > asserted the opposite.
 
 - **pgTAP (§1)** — implemented and it's the one gate that's genuinely
-  blocking: `supabase/tests/*.sql` (7 files) covers RLS/hierarchy, the
+  blocking: `supabase/tests/*.sql` (10 files) covers RLS/hierarchy, the
   `daily_metrics` pipeline, notifications, pilot instrumentation, the bulk
-  notification pipeline, admin reports, and — new in P25 Phase 0 —
-  **appointment lifecycle metrics** (`007_appointment_lifecycle.sql`). Runs
+  notification pipeline, admin reports, and the four P25 appointment
+  suites — **lifecycle metrics** (`007_appointment_lifecycle.sql`, Phase 0),
+  **identity invariants** (`008_appointment_identity.sql`, Phase B), the
+  **call↔appointment link** (`009_appointment_call_link.sql`, Phase C1) and
+  **reschedule lineage** (`010_appointment_reschedule.sql`, Phase C2). Runs
   in CI as `npm run test:rls`, not `continue-on-error`. **Gap: no pgTAP
   coverage yet for P11's schema changes** — `agents_org_required_unless_admin`
   / `agents_admin_no_upline` / `invitations_org_required_unless_admin`
@@ -144,6 +147,52 @@ pipeline stage.
 - Fuzz: random insert/update/delete over `appointments`, then assert
   `appts_set` equals a from-scratch count over **both** sources for every
   touched day
+
+### Appointment identity (`008_appointment_identity.sql`, P25 Phase B)
+- `set_on` is derived on insert even when the writer never mentions it, and
+  is immutable thereafter
+- `scheduled_for` survives resolution through the *old* code path — the
+  tests deliberately write the pre-Phase-B way (setting `appt_date` and
+  `appointment_at` directly) and assert the new columns come out right
+- `resolved_on` tracks status; `appt_date` stays derivable
+- E20/E11: neither link column can point across agents or orgs, or at itself
+
+### Call ↔ appointment link (`009_appointment_call_link.sql`, P25 Phase C1)
+- **F4 closed**: a call and the appointment it created count as ONE
+  `appts_set`, where 007 asserts an *unlinked* pair still counts twice.
+  The difference between those two assertions is exactly what
+  `source_call_log_id` buys, and why 007's test 5 stays at 2
+- `out_appt_set` still counts the raw call outcome — only the `appts_set`
+  contribution is deduped
+- E16: a second appointment cannot link to the same call log
+- My Day shows a linked pair **once**, as the appointments row, carrying
+  the appointment id (which is what the resolve actions need)
+- A legacy appointment that lives only on a call log still reaches My Day —
+  D4 leaves those unlinked forever, so dropping the `call_logs` branch
+  would silently empty the queue for everything booked before C1
+- **F11 closed**: resolving moves the appointment out of the queue and into
+  `appt_held` on the day the outcome was *recorded*, without touching the
+  booking event
+- **F12 closed**: a follow-up set on a resolved appointment reaches My Day,
+  and marking it done removes it
+
+### Reschedule lineage (`010_appointment_reschedule.sql`, P25 Phase C2)
+- The original terminates as `rescheduled` on the day the move was
+  recorded; the successor is created for the new slot and the two are
+  linked
+- **D2**: the original keeps its own Appts Set on the day it was booked,
+  and the successor counts a *new* one on the day it was rebooked — a
+  reschedule is real work, not a correction
+- **D3**: a reschedule contributes nothing to the no-show denominator
+- **F8 still holds**: the original still knows the slot it was actually
+  for after being rescheduled
+- **E11**: two appointments cannot reschedule into the same successor; a
+  cycle (A→B→A) is rejected; a chain of exactly ten builds, and an
+  eleventh link does not
+- **E10**: deleting a successor nulls the predecessor's link and leaves it
+  terminal, so it never re-enters the denominator
+- **E5**: an appointment entered today for last month is 0 days late, not
+  30 — but it is still in the queue, and it ages normally from there
 
 **Characterization-test discipline.** This file was introduced asserting the
 behaviour as it was *then*, bugs included, and flipped to the assertions above

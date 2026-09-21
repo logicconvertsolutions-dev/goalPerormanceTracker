@@ -332,6 +332,11 @@ export type Database = {
           notes: string | null
           org_id: string
           referrals_given: number
+          rescheduled_to_id: string | null
+          resolved_on: string | null
+          scheduled_for: string | null
+          set_on: string
+          source_call_log_id: string | null
           status: Database["public"]["Enums"]["appt_status"]
         }
         Insert: {
@@ -350,6 +355,11 @@ export type Database = {
           notes?: string | null
           org_id: string
           referrals_given?: number
+          rescheduled_to_id?: string | null
+          resolved_on?: string | null
+          scheduled_for?: string | null
+          set_on: string
+          source_call_log_id?: string | null
           status?: Database["public"]["Enums"]["appt_status"]
         }
         Update: {
@@ -368,6 +378,11 @@ export type Database = {
           notes?: string | null
           org_id?: string
           referrals_given?: number
+          rescheduled_to_id?: string | null
+          resolved_on?: string | null
+          scheduled_for?: string | null
+          set_on?: string
+          source_call_log_id?: string | null
           status?: Database["public"]["Enums"]["appt_status"]
         }
         Relationships: [
@@ -390,6 +405,20 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_rescheduled_to_id_fkey"
+            columns: ["rescheduled_to_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_source_call_log_id_fkey"
+            columns: ["source_call_log_id"]
+            isOneToOne: false
+            referencedRelation: "call_logs"
             referencedColumns: ["id"]
           },
         ]

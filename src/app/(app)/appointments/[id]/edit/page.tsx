@@ -12,7 +12,7 @@ export default async function EditAppointmentPage({ params }: { params: Promise<
   const { data: appointment } = await supabase
     .from('appointments')
     .select(
-      'id, contact_id, appt_date, appointment_at, appt_type, status, expected_premium_cents, referrals_given, notes, follow_up_on, contacts(full_name)'
+      'id, contact_id, appt_date, appointment_at, scheduled_for, appt_type, status, expected_premium_cents, referrals_given, notes, follow_up_on, contacts(full_name)'
     )
     .eq('id', id)
     .eq('agent_id', session.agent!.id)
@@ -51,6 +51,10 @@ export default async function EditAppointmentPage({ params }: { params: Promise<
           contactName: (appointment.contacts as { full_name: string } | null)?.full_name,
           apptDate: appointment.appt_date,
           appointmentAt: appointment.appointment_at,
+          // P25 C2 (F6): scheduled_for is the slot that survives
+          // resolution (Phase B), so the form shows the appointment's real
+          // date instead of falling back to today.
+          scheduledFor: appointment.scheduled_for,
           apptType: appointment.appt_type,
           status: appointment.status,
           expectedPremiumCents: appointment.expected_premium_cents,

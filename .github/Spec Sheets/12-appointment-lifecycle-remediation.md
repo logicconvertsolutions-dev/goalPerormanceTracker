@@ -13,7 +13,8 @@ revertible.
 
 Read with: `02-data-model.md` (schema/RPC contracts), `05-testing.md` (test
 plan), `08-screen-specs.md` (per-page KPIs), `06-build-phases.md` (where P25
-sits).
+sits), and `13-p25-phase-c-staging-verification.md` (how to promote Phase C
+and how to prove it on staging).
 
 ---
 
@@ -332,7 +333,226 @@ immediately correct again.
 
 ---
 
-### Phase C — Single record + lifecycle UI
+### Phase C1 — Single record (the invisible half) ✅ IMPLEMENTED
+
+Shipped as `20260920140000_p25c1_call_creates_appointment.sql` plus the app
+changes below. Fixes **F4** (for good), **F11** and **F12**. Items 1 and 2
+of the Phase C list; items 3-9 are C2.
+
+No new screen. The only visible change is an optional **Appointment type**
+select on the call form, shown when the outcome is "Appointment set" (D5).
+
+**What landed:**
+
+- `logCallAction` creates an `appointments` row for outcome
+  `appointment_set`, with `source_call_log_id`, `set_on = call_date`,
+  `scheduled_for = appointmentAt`, `status='scheduled'`, and the type from
+  the new select (default `follow_up`). `call_logs.appointment_at` is still
+  written for back-compat and retires in Phase E. Notes are not copied (D6);
+  the contact is the one that was called (D7).
+- **F4 closes with no migration work and no restatement.** Phase B shipped
+  the dedup clause inert; C1 simply starts populating the column it reads.
+  Nothing is backfilled (D4), so no historical number moves — unlike Phase
+  A's seven restated agent-days (§9a), there is nothing to announce here.
+- `my_followups` gains two branches over `appointments` and dedups the
+  legacy `call_logs` one. Four kinds across two tables; the contract table
+  is in `02-data-model.md`. Without the dedup, every appointment booked
+  after this deploys would have appeared on My Day twice.
+- `appointments_source_call_log_idx` became **UNIQUE** — "one call produces
+  at most one appointment" is now a table invariant rather than a
+  server-action convention (E16).
+- New pgTAP suite `009_appointment_call_link.sql` (13 assertions) and
+  `src/app/(app)/log/actions.test.ts` (9 tests).
+
+**Deviations and decisions taken during implementation:**
+
+- **My Day's row menu changed, slightly.** "No UI change beyond the Type
+  select" could not survive contact with the status machine: once the queue
+  is sourced from `appointments`, "Mark done" has no honest target. There
+  is no `done` status, and `appointment_done_at` — what it used to write —
+  fed nothing at all (F11). Mapping it to `held` would have made every
+  dismissal an Appts Held the SMD reads. So for a pending appointment the
+  single "Mark done" item is replaced by **Held / No-show / Cancelled**, in
+  the same dropdown. Snooze stays and moves `scheduled_for` by whole
+  *agent-local* days (E4, via the new `shiftZonedTimestampByDays`).
+  **Rescheduled is deliberately absent** — per D1 it needs a successor row
+  and the new slot, which is C2's picker.
+- **Resolving now stamps `resolved_on` with today, always.** Previously
+  `updateAppointmentStatusAction` rewrote `appt_date` to today *only* when
+  the appointment was future-dated, so an appointment held last Tuesday and
+  recorded this morning landed its Appts Held on last Tuesday — reaching
+  into a cycle that may already be closed. E6 says `resolved_on` is the
+  recording day; it now is. This moves numbers **going forward only** (no
+  backfill), and only for outcomes recorded late.
+- **One definition of "resolve", not two.** My Day's resolve delegates to
+  `updateAppointmentStatusAction` rather than writing the row itself. Two
+  code paths for one action, leaving two different rows, is the exact shape
+  of F8 — adding a second one while fixing the first would be absurd.
+- **Editing a call carries the edit across** to the appointment it created:
+  move the slot, create the row if the outcome just became
+  `appointment_set`, drop a still-pending row if it stopped being one. Not
+  in the section as written, but without it the call form could move an
+  appointment on one screen and not the other. A **resolved** appointment
+  is never touched — its slot is a recorded fact (F8) and its outcome is a
+  number the SMD has already seen. `set_on` is never written on update; the
+  Phase B trigger would reject it anyway.
+- **Deleting a call leaves its appointment standing.** The FK is
+  `ON DELETE SET NULL`, so the row survives, keeps its `set_on`, and keeps
+  counting. Deleting a real appointment because the call record was tidied
+  up would be data loss; the metric stays correct either way, which is the
+  point of the §3 definition.
+- **F14 is half fixed.** The call form's half is done — `set_on` comes from
+  the submitted `callDate`, so an offline replay buckets on the day the
+  agent booked, not the day it synced. `/appointments/new` still stamps the
+  sync day, because the fix there is a form change and that form is C2's
+  subject.
+- **`02-data-model.md` had never been updated for Phase B** (its own DoD
+  item in §10). Done here, since C1's RPC contract is unreadable without
+  it: the five columns, the indexes, the identity/link triggers, the status
+  machine and the §3 metric contract.
+
+**What agents see on deploy** (production, 2026-09-20, before promotion):
+no number moves, but My Day gains **nine rows** — 4 scheduled appointments
+(6–30 days late) that previously had no way to be resolved at all (F11),
+and 5 appointment follow-ups (0–20 days late) that the form wrote and
+nothing read (F12). Zero rows were already linked, so the unique index is
+safe; zero outstanding legacy call-log appointments, so the
+`call_appointment` branch matches nothing live. The Overdue tile ticks up
+for the agents who own those nine. The migration footer carries the query —
+re-run it before promoting.
+
+**Not verified locally:** pgTAP could not run in the authoring environment
+(the Docker registry is blocked by network policy, so `supabase start`
+cannot pull its images). `007`/`008`/`009` run in CI as `npm run test:rls`;
+treat CI as the gate. Typecheck, ESLint, `next build` and the 104-test
+vitest suite were all run and are green.
+
+**Revert:** app-only plus a function swap and an index shape — see the
+migration footer. Appointment rows created by the call form survive a
+revert and keep counting through `set_on`; `appts_set` simply returns to
+double-counting linked pairs.
+
+---
+
+### Phase C2 — Lifecycle UI ✅ IMPLEMENTED
+
+Shipped as `20260920150000_p25c2_reschedule_and_overdue.sql` plus the app
+changes below. Fixes **F6, F7, F9, F10, F15, F16** and F14's remaining
+half. With C1, Phase C is complete.
+
+**What landed:**
+
+- **Resolve sheet** (`resolve-appointment-dialog.tsx`), shared by My Day
+  and `/appointments`. Held opens it (Type, Expected premium, Referrals
+  given, Notes, "Log as a Sale" for an Application); No-show and Cancelled
+  stay one tap, because there is nothing to ask; **Reschedule** opens a
+  date/time picker.
+- **F9 / D1 — reschedule is defined.** `rescheduleAppointmentAction`
+  terminates the original as `rescheduled` and creates a successor linked
+  by `rescheduled_to_id`. The successor carries its own `set_on` (D2 — a
+  rebooking is real work) and the predecessor's premium (so Open Pipeline
+  does not drop because a prospect moved). Idempotent: a second call finds
+  the link and returns it rather than creating a second successor. If the
+  link-up fails the successor is rolled back, because an orphan would
+  count an Appts Set for a rebooking that never completed.
+- **E11 — the chain is a list.** A unique index gives each successor one
+  predecessor; a trigger rejects cycles (A→B→A, which Phase B's
+  self-reference check could not see) and caps depth at ten.
+- **F7 — Open Pipeline works.** Expected premium is shown and submitted for
+  a *scheduled* appointment. It was previously in the non-scheduled branch
+  only, so no appointment the app could create was able to carry one and
+  the tile was structurally $0 everywhere except for imported rows.
+- **F10 — one no-show rate.** `noShowRateFrom` in `lib/metrics.ts` is now
+  the only implementation; `/appointments`, the agent dashboard and the SMD
+  drill-down all call it. Per §3/D3 the denominator is outcomes only —
+  `held + no_show + cancelled`. The tile shows its denominator.
+- **F6 — the edit form stops moving appointments to today.** It reads
+  `scheduled_for` (which Phase B guarantees survives resolution) and falls
+  back to the row's own `appt_date`, never to today.
+- **F15 — a linked sale inherits the date actually submitted**, not the one
+  the page happened to load with. The Date input is controlled now.
+- **F16 — deleting an appointment with a linked sale asks first**, naming
+  the premium at stake, with *Keep it* and *Delete both* as separate
+  answers. Both are legitimate; not being asked is not.
+- **F14 — the appointment form submits its own booking day**, clamped
+  server-side to today. An offline replay now books on the day the agent
+  did it.
+- **Upcoming section** on `/appointments`, outside the period filter, in
+  two bands: **Needs an outcome** (past its slot, still pending — the band
+  that stops stale appointments quietly shrinking every outcome-based
+  denominator) and **Upcoming**.
+- New pgTAP suite `010_appointment_reschedule.sql` (15 assertions) and
+  `appointments/actions.test.ts` (12 tests).
+
+**Deviations and decisions taken during implementation:**
+
+- **The "sheet" is a Dialog.** There is no sheet primitive in the app and
+  rule 11 says no new dependency without asking, so it is built on the
+  existing Radix Dialog — the same treatment the appointment form's delete
+  confirmation already uses. On a phone it is a centred modal rather than a
+  bottom sheet. Worth revisiting if a sheet primitive ever lands.
+- **The resolve sheet loads its own defaults** via
+  `appointmentResolveDefaultsAction` rather than `my_followups` growing
+  columns for them. The queue RPC runs for every row on every My Day load;
+  these fields are read only after an agent has chosen to resolve one.
+- **The full form's Date field now writes `resolved_on`.** It was silently
+  inert on an already-resolved row: the Phase B trigger keeps
+  `old.resolved_on` when none is supplied and re-derives `appt_date`
+  straight back from it, so editing the date did nothing. E8 still holds —
+  the form submits the row's existing date unless the agent changes it.
+- **Re-recording a held appointment's details does not move its resolution
+  day.** Only a `scheduled → terminal` transition stamps `resolved_on`; a
+  correction to an outcome already recorded keeps the day it was recorded
+  on. Same rule in `resolveAppointmentHeldAction` and
+  `updateAppointmentStatusAction`.
+- **A failed sale does not fail the outcome.** If "Log as a Sale" cannot
+  save, the appointment is still Held and the action says so
+  (`saleWarning`) rather than returning a flat failure that would leave the
+  sheet open over a recorded outcome and invite recording it twice.
+- **`KpiCard` gained a `hint` prop** so the no-show tile can show its
+  denominator. A rate whose denominator just changed, with no way to see
+  it, is a rate nobody trusts — which is half of what F10 cost.
+- **Reschedule is not offered for an already-resolved appointment.** D1
+  makes it a transition out of `scheduled`; reopening a terminal row is a
+  separate, audited "undo" that this phase does not build.
+
+**The no-show rate is the restatement to communicate** (§9, D3). It changes
+for historical periods on every screen. Nothing else in C2 moves a stored
+number.
+
+**Measured against production, 2026-09-20 — the restatement is invisible.**
+`scripts/noshow-restatement-preview.sql` computes both formulas side by
+side and returns **zero rows**: across all 31 agent-cycles in the product's
+history, not one contains a single no-show. Every displayed rate is 0%
+under both the old formula and the new one, for every agent, for every
+cycle ever recorded.
+
+So **no agent's number changes on this deploy**. §9's comms requirement is
+satisfied by documenting the definition (done, in `02-data-model.md` and
+`08-screen-specs.md`); there is nothing for an agent to be told they will
+see move, because nothing moves. That will stop being true the first time
+anyone records a no-show, which is precisely the argument for shipping the
+correct formula now rather than after it has a visible number attached to
+it.
+
+Also measured: zero rows carry `rescheduled_to_id` and zero are
+`rescheduled`, so both new guards create safely. One scheduled appointment
+(imported) already carries a premium, and one sale is linked to an
+appointment — so F16's dialog has exactly one live case to exercise on
+staging, and Open Pipeline has one non-zero row to prove itself against.
+
+**Not verified locally:** pgTAP could not run in the authoring environment
+(the Docker registry is blocked by network policy). `007`–`010` run in CI
+as `npm run test:rls`. Typecheck, ESLint, `next build` and the 120-test
+vitest suite are green.
+
+**Revert:** app-only plus a function swap, two guards and an index — see
+the migration footer. Reschedule pairs already created keep their links and
+keep counting.
+
+---
+
+### Phase C — Single record + lifecycle UI (original scope, for reference)
 
 Fixes F6, F7, F9, F11, F12, F15, F16, and F10.
 
@@ -795,8 +1015,10 @@ Part of each phase's DoD, not a cleanup pass afterwards.
 Phase 0  characterization tests + snapshot        — no prod change
 Phase A  metrics integrity (F1,F2,F3,F4,F5)       — DB + import, no UI      ◀ urgent
 Phase B  additive schema + dual write (F8,E3)     — DB + actions, no UI
-Phase C  single record + lifecycle UI             — the visible change
-         (F6,F7,F9,F10,F11,F12,F15,F16)
+Phase C1 single record (call creates it, My Day    — invisible half  ✔
+         reads it) (F4,F11,F12)
+Phase C2 lifecycle UI: resolve sheet, Upcoming,    — the visible change ✔
+         Open Pipeline (F6,F7,F9,F10,F15,F16)
 Phase D  in-app bands + Web Push (F13)            — reusable push channel
 Phase E  contract                                 — after one clean cycle
 ```

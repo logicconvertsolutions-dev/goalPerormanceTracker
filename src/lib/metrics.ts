@@ -68,13 +68,42 @@ export function dialToConnectRatio(rows: DailyMetricsRow[]): number {
 }
 
 /**
- * Dashboard B71: `=IFERROR(noShow/SUM(scheduled..cancelled),0)` — denominator
- * is every appointment status logged in the week, not just held+no-show.
+ * No-show rate, P25 §3: `no_show / (held + no_show + cancelled)`.
+ *
+ * THIS IS THE ONE DEFINITION. `/appointments`, the agent dashboard and the
+ * SMD drill-down all call it, because before P25 C2 they each had their
+ * own and the three disagreed mid-cycle (F10): the page divided by every
+ * row in the period, the dashboard by every status including future-dated
+ * scheduled ones, and the RPCs clamped the period to today so the two
+ * never even saw the same rows.
+ *
+ * `scheduled` and `rescheduled` leave the denominator on purpose (D3). A
+ * pending appointment has no outcome yet — counting it dilutes the rate
+ * downward and makes it drift upward through a cycle as appointments
+ * resolve, so no two readings of the same period agree. A rescheduled one
+ * was continued by its successor, which is counted in its own right, so
+ * leaving it in would charge the same prospect to the denominator twice.
+ *
+ * This deliberately changes the published rate, including for closed
+ * periods — see §9 of the remediation plan. It was previously wrong in
+ * both directions; a single corrected restatement beats permanent drift.
+ *
+ * Takes the three counters rather than rows so a caller that already has
+ * an aggregate (an RPC row, a filtered page query) does not have to
+ * fabricate DailyMetricsRow shapes to reuse it.
  */
+export function noShowRateFrom(counts: {
+  apptHeld: number;
+  apptNoShow: number;
+  apptCancelled: number;
+}): number {
+  const denom = counts.apptHeld + counts.apptNoShow + counts.apptCancelled;
+  return denom === 0 ? 0 : counts.apptNoShow / denom;
+}
+
+/** {@link noShowRateFrom} over a set of `daily_metrics` rows. */
 export function noShowRate(rows: DailyMetricsRow[]): number {
-  const s = summarizeWeek(rows);
-  const denom = s.apptScheduled + s.apptHeld + s.apptNoShow + s.apptRescheduled + s.apptCancelled;
-  return denom === 0 ? 0 : s.apptNoShow / denom;
+  return noShowRateFrom(summarizeWeek(rows));
 }
 
 /**
@@ -141,6 +170,14 @@ export function conversionFunnel(rows: DailyMetricsRow[]): FunnelResult {
  * appointments — this is the one metric that legitimately reads raw
  * `appointments` rows instead of the read model (mirrors the "own dashboard
  * reads raw logs for today only" carve-out in docs/02-data-model.md).
+ *
+ * **This was structurally always $0 until P25 C2 (F7).** The metric sums
+ * `status='scheduled'` rows, but the appointment form hid the Expected
+ * premium input for exactly that status and submitted the field only in
+ * the other branch, so no appointment the app could create was ever able
+ * to carry one. The only non-zero rows came from imports. C2 shows and
+ * submits the field for a scheduled appointment, which is what makes this
+ * function start returning real numbers.
  */
 export function pipelineValueOpenAppts(
   appointments: { status: string; expected_premium_cents: number }[]

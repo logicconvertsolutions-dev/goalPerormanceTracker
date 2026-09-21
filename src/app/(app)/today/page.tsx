@@ -39,9 +39,10 @@ export default async function TodayPage() {
   });
   // Already ordered by due date ascending (most overdue first) by the RPC --
   // follow-ups and appointments due are interleaved into one queue.
-  // `kind` is only ever 'follow_up'/'appointment' (it's a SQL literal in
-  // my_followups), but generated RPC return types type it as a plain
-  // string -- narrowed here once instead of casting at every prop site.
+  // `kind` is only ever one of the four SQL literals in my_followups, but
+  // generated RPC return types type it as a plain string -- narrowed here
+  // once instead of casting at every prop site. Since P25 C1 it also says
+  // which TABLE the row came from, which is what routes its actions.
   const rows = (followUps ?? []).map((r) => ({ ...r, kind: r.kind as DueItemKind }));
   const [nextUp, ...remaining] = rows;
 
@@ -95,7 +96,7 @@ export default async function TodayPage() {
           <>
             <NextUpCard
               kind={nextUp.kind}
-              callLogId={nextUp.call_id}
+              rowId={nextUp.call_id}
               contactId={nextUp.contact_id}
               contactName={nextUp.contact_name}
               lastNote={nextUp.last_note}
@@ -112,9 +113,9 @@ export default async function TodayPage() {
               >
                 {remaining.map((row) => (
                   <TodayRow
-                    key={row.call_id}
+                    key={`${row.kind}-${row.call_id}`}
                     kind={row.kind}
-                    callLogId={row.call_id}
+                    rowId={row.call_id}
                     contactId={row.contact_id}
                     contactName={row.contact_name}
                     lastNote={row.last_note}

@@ -33,3 +33,15 @@ export const APPT_STATUSES = [
   { value: 'rescheduled', label: 'Rescheduled' },
   { value: 'scheduled', label: 'Scheduled' },
 ] as const;
+
+// The subset of APPT_STATUSES a pending appointment can be moved to with
+// one tap (P25 C1). `rescheduled` is excluded on purpose: per decision D1
+// it requires a successor row and the new slot, so it needs the resolve
+// sheet's date/time picker rather than a menu item (Phase C2).
+export const RESOLVABLE_STATUSES = [
+  { value: 'held', label: 'Held' },
+  { value: 'no_show', label: 'No-show' },
+  { value: 'cancelled', label: 'Cancelled' },
+] as const;
+
+export type ResolvableStatus = (typeof RESOLVABLE_STATUSES)[number]['value'];

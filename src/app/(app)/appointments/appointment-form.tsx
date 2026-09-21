@@ -85,6 +85,8 @@ export function AppointmentForm({
     notes: string | null;
     followUpOn?: string | null;
     appointmentAt?: string | null;
+    /** P25 Phase B's immutable slot. Preferred over appointmentAt. */
+    scheduledFor?: string | null;
     /** A sale/recruiting log this appointment already spawned via the
      * toggles below (sales/recruiting_logs.appointment_id) -- editing here
      * updates that record instead of creating a second one. */
@@ -103,11 +105,24 @@ export function AppointmentForm({
   );
   const [followUpOn, setFollowUpOn] = useState(defaultValues?.followUpOn ?? '');
   const [showFollowUpPicker, setShowFollowUpPicker] = useState(false);
-  // Only asked for when status is "Scheduled" -- an in-person appointment set
-  // for a future date/time (the meeting hasn't happened, so there's no
-  // premium/referrals to record yet either). See the Date section below.
-  const defaultAppointment = defaultValues?.appointmentAt ? isoToLocalParts(defaultValues.appointmentAt) : null;
-  const [appointmentDate, setAppointmentDate] = useState(defaultAppointment?.date ?? todayIso(browserTimeZone()));
+  // The slot this appointment is for, when status is "Scheduled".
+  //
+  // F6: this used to fall back to TODAY whenever the row had no
+  // appointment_at -- which is every imported row, and every row resolved
+  // before Phase B. Opening such an appointment to fix a typo in its notes
+  // and saving silently moved it to today, because appt_date is derived
+  // from these inputs. It now falls back to the row's own appt_date and
+  // only reaches for today when there is genuinely nothing to fall back to
+  // (a brand-new appointment).
+  //
+  // `scheduledFor` is preferred over `appointmentAt`: Phase B's identity
+  // trigger guarantees it survives resolution, which appointment_at does
+  // not (F8).
+  const persistedSlot = defaultValues?.scheduledFor ?? defaultValues?.appointmentAt ?? null;
+  const defaultAppointment = persistedSlot ? isoToLocalParts(persistedSlot) : null;
+  const [appointmentDate, setAppointmentDate] = useState(
+    defaultAppointment?.date ?? defaultValues?.apptDate ?? todayIso(browserTimeZone())
+  );
   const [appointmentTime, setAppointmentTime] = useState(defaultAppointment?.time ?? '');
   // "Log as a Sale" (apptType === 'application') and "Recruited?" (apptType
   // === 'marketing_presentation'). Pre-checked in edit mode when this
@@ -136,12 +151,19 @@ export function AppointmentForm({
   const tz = browserTimeZone();
   const today = todayIso(tz);
   // A "Scheduled" row's stored apptDate can be a future date (it's derived
-  // from appointmentAt) -- clamp to today for the plain "Date" field's
-  // initial value if the status gets changed away from "Scheduled" here,
-  // since that field's own `max` is today and a future defaultValue would
-  // start it invalid.
-  const apptDate =
+  // from the slot) -- clamp to today for the plain "Date" field's initial
+  // value if the status gets changed away from "Scheduled" here, since
+  // that field's own `max` is today and a future defaultValue would start
+  // it invalid.
+  const initialApptDate =
     defaultValues?.apptDate && defaultValues.apptDate <= today ? defaultValues.apptDate : today;
+  // F15: the Date field is uncontrolled, so its rendered default is NOT
+  // what the agent may have just typed into it. syncLinkedRecords used to
+  // read the constant above and stamp a linked sale with the date the page
+  // happened to load with -- change the appointment's date and save, and
+  // the sale silently kept the old one. The submitted value is read at
+  // save time instead, from the form.
+  const [apptDate, setApptDate] = useState(initialApptDate);
 
   const willDeleteSale = Boolean(defaultValues?.linkedSaleId) && !(apptType === 'application' && logAsSale);
   const willDeleteRecruit =
@@ -152,10 +174,19 @@ export function AppointmentForm({
   // here. Passing along just the contact name (no id) when creating a new
   // linked record is enough -- findOrCreateContact resolves it to the exact
   // contact the appointment itself is already logged against.
-  async function syncLinkedRecords(appointmentId: string, contactName: string, contactId: string | undefined) {
+  async function syncLinkedRecords(
+    appointmentId: string,
+    contactName: string,
+    contactId: string | undefined,
+    // F15: passed in from save(), read off the form at submit time. Taking
+    // it from the render-time constant meant a linked sale kept whatever
+    // date the page loaded with, even when the agent had just changed the
+    // appointment's date in the field above it.
+    linkedDate: string
+  ) {
     if (apptType === 'application' && logAsSale) {
       const saleForm = new FormData();
-      saleForm.set('saleDate', apptDate);
+      saleForm.set('saleDate', linkedDate);
       saleForm.set('productType', saleProductType === 'other' ? saleOtherProductType : saleProductType);
       saleForm.set('premiumCents', String(Math.round(Number(premiumDollars || 0) * 100)));
       if (defaultValues?.linkedSaleId) {
@@ -183,14 +214,14 @@ export function AppointmentForm({
       if (defaultValues?.linkedRecruitingLogId) {
         const recruitForm = new FormData();
         recruitForm.set('id', defaultValues.linkedRecruitingLogId);
-        recruitForm.set('logDate', apptDate);
+        recruitForm.set('logDate', linkedDate);
         recruitForm.set('status', 'recruited');
         const result = await syncRecruitingLogFromAppointmentAction(recruitForm);
         if (!result.ok) toast.error(result.error ?? 'Could not update the linked recruiting log.');
       } else {
         const recruitForm = new FormData();
         recruitForm.set('prospectName', contactName);
-        recruitForm.set('logDate', apptDate);
+        recruitForm.set('logDate', linkedDate);
         recruitForm.set('status', 'recruited');
         recruitForm.set('appointmentId', appointmentId);
         recruitForm.set('clientRequestId', crypto.randomUUID());
@@ -214,12 +245,27 @@ export function AppointmentForm({
     formData.set('apptType', apptType);
     if (status === 'scheduled') {
       formData.set('appointmentAt', new Date(`${appointmentDate}T${appointmentTime}`).toISOString());
-    } else {
-      formData.set('expectedPremiumCents', String(Math.round(Number(premiumDollars || 0) * 100)));
     }
+    // F7: this used to be in the `else` branch only, so a SCHEDULED
+    // appointment could never carry a premium -- and Open Pipeline sums
+    // exactly the scheduled ones, which is why it read $0 on every
+    // dashboard in the product except for imported rows. The input is now
+    // shown for both, and submitted for both.
+    formData.set('expectedPremiumCents', String(Math.round(Number(premiumDollars || 0) * 100)));
+    // F14: the day the booking was made, from the client's own calendar.
+    // An offline submission replayed three days later otherwise takes the
+    // sync day as its set_on and lands Appts Set on the wrong day. The
+    // server clamps this -- it is a claim from the browser, not a fact.
+    formData.set('bookedOn', today);
     if (NEEDS_FOLLOW_UP_STATUSES.has(status) && followUpOn) {
       formData.set('followUpOn', followUpOn);
     }
+
+    // The date a linked sale or recruiting log inherits: the appointment's
+    // own date as submitted. A scheduled appointment has no past date to
+    // give (and cannot have produced a sale yet), so it falls back to
+    // today -- which the linked actions would have used anyway.
+    const linkedDate = status === 'scheduled' ? today : String(formData.get('apptDate') || apptDate);
 
     if (mode === 'edit') {
       formData.set('id', defaultValues!.id);
@@ -230,7 +276,12 @@ export function AppointmentForm({
           return;
         }
         toast.success('Appointment updated');
-        await syncLinkedRecords(defaultValues!.id, defaultValues?.contactName ?? '', defaultValues?.contactId);
+        await syncLinkedRecords(
+          defaultValues!.id,
+          defaultValues?.contactName ?? '',
+          defaultValues?.contactId,
+          linkedDate
+        );
         router.push('/appointments');
       });
       return;
@@ -247,7 +298,7 @@ export function AppointmentForm({
       if (!result.queued && result.id) {
         const contactName = String(formData.get('contactName') || '');
         const contactId = String(formData.get('contactId') || '') || undefined;
-        await syncLinkedRecords(result.id, contactName, contactId);
+        await syncLinkedRecords(result.id, contactName, contactId, linkedDate);
       }
       onSuccess ? onSuccess() : router.push('/appointments');
     });
@@ -311,7 +362,8 @@ export function AppointmentForm({
             id="apptDate"
             name="apptDate"
             type="date"
-            defaultValue={apptDate}
+            value={apptDate}
+            onChange={(e) => setApptDate(e.target.value)}
             max={today}
             required
           />
@@ -384,34 +436,47 @@ export function AppointmentForm({
         </div>
       )}
 
-      {status !== 'scheduled' && (
-        <div className={apptType === 'application' ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-2 gap-4'}>
+      {/* Expected premium is asked for at every status (F7). On a
+          SCHEDULED appointment it is the opportunity's size -- the whole
+          input to Open Pipeline -- and hiding it here is what made that
+          dashboard tile structurally $0. Referrals only make sense once
+          the meeting has happened, so that half stays behind a resolved
+          status. */}
+      <div
+        className={
+          status === 'scheduled' || apptType === 'application'
+            ? 'grid grid-cols-1 gap-4'
+            : 'grid grid-cols-2 gap-4'
+        }
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor="expectedPremiumDollars">Expected premium ($)</Label>
+          <Input
+            id="expectedPremiumDollars"
+            type="number"
+            min={0}
+            step={1}
+            value={premiumDollars}
+            onChange={(e) => setPremiumDollars(e.target.value)}
+          />
+          {status === 'scheduled' && (
+            <p className="text-xs text-fg-3">What this is worth if it closes — feeds Open Pipeline.</p>
+          )}
+        </div>
+        {status !== 'scheduled' && apptType !== 'application' && (
           <div className="space-y-1.5">
-            <Label htmlFor="expectedPremiumDollars">Expected premium ($)</Label>
+            <Label htmlFor="referralsGiven">Referrals given</Label>
             <Input
-              id="expectedPremiumDollars"
+              id="referralsGiven"
+              name="referralsGiven"
               type="number"
               min={0}
               step={1}
-              value={premiumDollars}
-              onChange={(e) => setPremiumDollars(e.target.value)}
+              defaultValue={defaultValues?.referralsGiven ?? 0}
             />
           </div>
-          {apptType !== 'application' && (
-            <div className="space-y-1.5">
-              <Label htmlFor="referralsGiven">Referrals given</Label>
-              <Input
-                id="referralsGiven"
-                name="referralsGiven"
-                type="number"
-                min={0}
-                step={1}
-                defaultValue={defaultValues?.referralsGiven ?? 0}
-              />
-            </div>
-          )}
-        </div>
-      )}
+        )}
+      </div>
 
       {apptType === 'application' && (
         <div className="space-y-3 rounded-sm border border-line-2 p-3">

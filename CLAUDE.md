@@ -251,6 +251,8 @@ reference you see pointing at `docs/*.md`.
 | Unresolved decisions | `.github/Spec Sheets/00-open-questions.md` |
 | Claude Code kickoff prompts | `.github/Spec Sheets/07-getting-started.md` |
 | Incident response | `.github/Spec Sheets/11-incident-response.md` |
+| P25 appointment lifecycle remediation | `.github/Spec Sheets/12-appointment-lifecycle-remediation.md` |
+| P25 Phase C promotion + staging test plan | `.github/Spec Sheets/13-p25-phase-c-staging-verification.md` |
 
 ## Commands
 `npm run dev` · `npm test` (vitest — now blocking in CI, no more

@@ -222,11 +222,27 @@ create table public.appointments (
   referrals_given  int not null default 0,
   notes            text,               -- PII
   -- P7f: appointments can carry their own follow-up, mirroring call_logs.
+  -- Read by my_followups only since P25 C1 (F12) -- the column and its
+  -- index existed for five phases with nothing looking at them.
   follow_up_on       date,
   follow_up_done_at  timestamptz,
   import_row_hash    text,
   client_request_id  text,
-  created_at       timestamptz not null default now()
+  created_at       timestamptz not null default now(),
+
+  -- P25 Phase B -- appointment identity. Before these, an appointment was
+  -- reconstructed from whichever table happened to hold it and bucketed by
+  -- appt_date, which meant "scheduled for" while pending and "resolved on"
+  -- afterwards. No single question could be asked of it.
+  set_on             date not null,  -- booking day, agent-local. IMMUTABLE.
+  scheduled_for      timestamptz,    -- the slot itself. Immutable once terminal.
+  resolved_on        date,           -- day the outcome was RECORDED (E6), null while scheduled.
+  -- P25 C1: the call that set this appointment. Unique, so one call
+  -- produces at most one appointment (E16). Never backfilled for legacy
+  -- rows (D4) -- guessing which call produced which appointment can merge
+  -- two real ones.
+  source_call_log_id uuid references public.call_logs(id) on delete set null,
+  rescheduled_to_id  uuid references public.appointments(id) on delete set null
 );
 create index on public.appointments (agent_id, appt_date);
 create index on public.appointments (org_id);
@@ -236,6 +252,93 @@ create unique index appointments_import_uq on public.appointments (agent_id, imp
   where import_row_hash is not null;
 create unique index appointments_client_req_uq on public.appointments (agent_id, client_request_id)
   where client_request_id is not null;
+create index appointments_agent_set_on_idx on public.appointments (agent_id, set_on);
+create index appointments_agent_scheduled_for_idx on public.appointments (agent_id, scheduled_for)
+  where status = 'scheduled';
+create unique index appointments_source_call_log_idx on public.appointments (source_call_log_id)
+  where source_call_log_id is not null;
+
+> **`appt_date` is a compatibility column.** A `BEFORE INSERT OR UPDATE`
+> trigger (`private.appointments_identity`, P25 Phase B) maintains it as
+> `coalesce(resolved_on, scheduled_for::date at the agent's zone, appt_date,
+> set_on)`, so every query, index and page written before Phase B keeps
+> working untouched. **Do not write it directly in new code** — write
+> `set_on` / `scheduled_for` / `resolved_on` and let the trigger derive it.
+> The trigger, not the app, is what enforces this: the invariant then holds
+> for every writer, including the offline replay queue submitting a
+> pre-Phase-B payload days later, the import path, and psql.
+>
+> Two further triggers guard the columns per rule 1 (a privileged column is
+> protected by a trigger and grants, never a policy):
+> `appointments_identity` rejects any change to `set_on` and restores a
+> `scheduled_for` that a resolve would have nulled;
+> `appointments_links_valid` rejects a `source_call_log_id` or
+> `rescheduled_to_id` pointing outside the owning agent's own rows, or at
+> itself (E20/E11).
+
+**The appointment status machine.** Only `scheduled` is non-terminal:
+
+```
+   (booked) ──▶ scheduled ──┬──▶ held          (terminal)
+                            ├──▶ no_show       (terminal)
+                            ├──▶ cancelled     (terminal)
+                            └──▶ rescheduled ──▶ successor (rescheduled_to_id)
+```
+
+A terminal row is never reopened implicitly; returning one to `scheduled`
+clears `resolved_on` (E7). Resolving stamps `resolved_on` with the day the
+outcome was *recorded*, not the day the appointment was for (E6) — so a
+late-recorded outcome can never reach back and change a closed cycle. Only
+the `scheduled → terminal` transition stamps it: re-recording the details
+of an already-resolved appointment is a correction to the same outcome
+event and keeps the day it was first recorded on.
+
+**Reschedule lineage (P25 C2).** `rescheduled` is not a date change. The
+original terminates and a successor is created, linked by
+`rescheduled_to_id`; the successor carries its own `set_on`, so a rebooking
+counts as a new Appts Set (D2). Three guards keep the chain honest:
+`appointments_rescheduled_to_idx` (unique — one predecessor per successor,
+so the chain is a list rather than a graph), Phase B's
+`appointments_links_valid` (no self-reference, no crossing an agent or
+org), and `private.appointments_reschedule_chain_valid` (no cycles, depth
+capped at ten). A row with `status='rescheduled'` and no successor is
+legal: rows predating C2 were marked by hand, and a successor deleted later
+nulls its predecessor's pointer (E10). Neither can re-enter the no-show
+denominator, because `rescheduled` is not in it.
+
+**Metric contract** (`.github/Spec Sheets/12-appointment-lifecycle-remediation.md` §3
+is the source of truth; restated here because this is where people look):
+
+```
+appts_set(day)   = appointments where set_on = day            -- ALL statuses
+                 + call_logs where outcome='appointment_set'
+                     and call_date = day
+                     and not exists (appointment with source_call_log_id = this call)
+
+appt_scheduled(day) = appointments where status='scheduled' and appt_date = day
+appt_held(day)      = appointments where status='held'      and resolved_on = day
+   (same shape for no_show / cancelled / rescheduled)
+```
+
+```
+no_show_rate(period) = appt_no_show / (appt_held + appt_no_show + appt_cancelled)
+```
+
+The second `appts_set` term matches **legacy rows only** since P25 C1: the
+call form creates the appointment and stamps the link, so a new call always
+has one. An event count is never a filter on current state — that is what
+F3 got wrong, and why `appts_set` counts rows that *entered* `scheduled`
+rather than rows currently *in* it.
+
+The no-show denominator is **outcomes only** (D3). `scheduled` is excluded
+because a pending appointment has no outcome yet — including it makes the
+rate drift upward through a cycle as appointments resolve, so no two
+readings of the same period agree. `rescheduled` is excluded because that
+prospect is continued by a successor which is counted in its own right;
+including both charges one prospect to the denominator twice. This formula
+has exactly one implementation, `noShowRateFrom` in `src/lib/metrics.ts`;
+`/appointments`, the agent dashboard and the SMD drill-down all call it
+(P25 C2, F10).
 
 -- NEVER SHIPPED: the original design's `client_name text not null`. Sales
 -- link to an existing contact/appointment instead of duplicating a free-text
@@ -672,7 +775,28 @@ the cycle-digest email) moved to the period-general RPCs below.
   activity`'s own per-day target lookup switched from `public.week_start(d)`
   to `public.cycle_start(d)` in the same P17b pass.
 - `my_followups(p_as_of date)` (P1i, bug fixed P2c, `company` column dropped
-  P7f) — the agent's own `/today` queue.
+  P7f, sourced from `appointments` in P25 C1) — the agent's own `/today`
+  queue. Four branches across two tables, distinguished by the `kind`
+  column, which is what the client routes each row's actions on:
+
+  | `kind` | Source | `call_id` is | Due on |
+  |---|---|---|---|
+  | `follow_up` | `call_logs.follow_up_on` | a call log id | `follow_up_on` |
+  | `appointment` | `appointments`, `status='scheduled'` | an appointment id | `scheduled_for`'s date in the agent's zone, falling back to `appt_date` |
+  | `call_appointment` | `call_logs.appointment_at` | a call log id | `appointment_at`'s date in the agent's zone |
+  | `appointment_follow_up` | `appointments.follow_up_on`, resolved rows only | an appointment id | `follow_up_on` |
+
+  `call_id` keeps its name for back-compat but means "the id of the row
+  this item came from". The `call_appointment` branch excludes any call log
+  that an appointment points back at (`source_call_log_id`) — the same
+  dedup `recompute_day` uses. Without it, every appointment booked since
+  P25 C1 would appear on My Day twice: once as its own row, once as the
+  call that created it. It is therefore a legacy branch only, and stays
+  because D4 leaves pre-C1 appointments unlinked forever.
+
+  `appointment_follow_up` is restricted to resolved rows: the appointment
+  form only offers a follow-up date for held/no_show/rescheduled/cancelled,
+  and a scheduled row is already in the `appointment` branch.
 - `admin_daily_active_loggers(p_days int)` (P7a) — the pilot instrument
   behind `/admin/pilot`; cross-joins active agents with the last N business
   days and flags whether anything was logged.

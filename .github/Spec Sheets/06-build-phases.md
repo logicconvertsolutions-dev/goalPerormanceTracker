@@ -430,7 +430,7 @@ org filter, a date range for the two aggregate types, CSV export, and named
 saved report definitions (`report_definitions`, config only — always re-run
 against live data on load).
 
-## P25 — Appointment lifecycle remediation (in progress)
+## P25 — Appointment lifecycle remediation (in progress — Phases 0/A/B/C done)
 
 Full plan: `.github/Spec Sheets/12-appointment-lifecycle-remediation.md`.
 Five phases, each independently shippable and revertible.
@@ -484,9 +484,74 @@ Five phases, each independently shippable and revertible.
       - Verified on staging: all four acceptance tests passed, and a
         400-op fuzz proved `set_on` equals exactly what Phase A's
         expression computed — i.e. the migration moved no numbers.
-- [ ] **Phase C — single record + lifecycle UI.** Call creates the
-      appointment; resolve sheet; Upcoming view. F6, F7, F9, F10, F11, F12,
-      F15, F16.
+- [x] **Phase C1 — call creates the appointment; My Day reads it**
+      (`20260920140000_p25c1_call_creates_appointment.sql`). The invisible
+      half of Phase C: one migration, no new screen, one optional select.
+      - F4 — **closed.** Logging a call with outcome `appointment_set` now
+        creates an `appointments` row stamped with `source_call_log_id`, so
+        the dedup clause Phase B shipped inert starts matching and one
+        booking counts once instead of twice. Nothing is backfilled, so no
+        historical number moves and there is nothing to announce.
+      - F11 — **closed.** An appointment booked from a call had no status
+        and could never become Held / No-show / Cancelled;
+        `appointment_done_at` fed nothing. It is now an ordinary
+        appointments row, resolvable straight from My Day.
+      - F12 — **closed.** `appointments.follow_up_on` had been written by
+        the form since P20 and read by nothing. `my_followups` now has a
+        branch for it.
+      - `my_followups` returns four kinds across two tables. `call_id`
+        keeps its name but now means "the id of the row this came from";
+        `kind` says which table, and routes the row's actions.
+      - Snooze moves `scheduled_for` in whole *agent-local* days (E4), and
+        **Mark done is replaced by Held / No-show / Cancelled** for a
+        pending appointment — there is no honest "done" in the status
+        machine. Rescheduled waits for C2's successor picker (D1).
+      - Resolving stamps `resolved_on` with the day the outcome was
+        *recorded* (E6), in `updateAppointmentStatusAction` only — My Day
+        delegates to it rather than growing a second definition, which is
+        the shape F8 had.
+      - **Beyond the section as written:** editing a call carries the edit
+        across to the appointment it created (move the slot, create the row
+        if the outcome just became `appointment_set`, drop a still-pending
+        row if it stopped being one). Without it the call form could move
+        an appointment on one screen and not the other — the divergence
+        this phase exists to remove.
+      - `appointments_source_call_log_idx` is now UNIQUE, so "one call
+        produces at most one appointment" is a table invariant, not just a
+        server-action convention (E16).
+- [x] **Phase C2 — lifecycle UI**
+      (`20260920150000_p25c2_reschedule_and_overdue.sql`). The visible half.
+      With C1, **Phase C is complete**.
+      - F9/D1 — reschedule was undefined; both plausible agent behaviours
+        gave different numbers. It now terminates the original and creates
+        a linked successor, which carries its own `set_on` (D2) and the
+        predecessor's premium. Idempotent, and the successor is rolled back
+        if the link-up fails.
+      - E11 — a unique index makes the chain a list; a trigger rejects
+        cycles and caps depth at ten.
+      - F7 — Open Pipeline was structurally $0: the premium input was
+        hidden on exactly the status the metric sums. Shown and submitted
+        for both now.
+      - F10 — three different no-show rates became one, in
+        `noShowRateFrom`, with the §3/D3 denominator (outcomes only). **This
+        is the restatement to announce.**
+      - F6 — the edit form read `appointment_at` and fell back to *today*,
+        so editing an imported appointment's notes moved it. It reads
+        `scheduled_for` and falls back to the row's own date.
+      - F15 — a linked sale took the date the page loaded with, not the one
+        submitted.
+      - F16 — deleting an appointment with a linked sale now names the
+        premium at stake and offers *Keep it* / *Delete both*.
+      - F14 — the appointment form submits its own booking day, clamped
+        server-side. Both halves of F14 are now done.
+      - Upcoming section on `/appointments`, outside the period filter,
+        with a **Needs an outcome** band for pending appointments whose
+        slot has passed.
+      - **Deviation:** the "sheet" is built on the existing Dialog. The app
+        has no sheet primitive and rule 11 forbids adding a dependency
+        unasked, so on a phone it is a centred modal.
+      - **Deviation:** the full form's Date field now writes `resolved_on`.
+        It had been silently inert on a resolved row since Phase B.
 - [ ] **Phase D — in-app bands + Web Push.** Reusable push channel
       (`web-push`, approved under rule 11); appointment reminders are its
       first consumer. No email.
