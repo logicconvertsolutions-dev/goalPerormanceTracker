@@ -155,6 +155,10 @@ export function cycleSummaryEmail(d: CycleSummaryData): EmailContent {
 export interface CycleDigestData {
   agentId: string;
   fullName: string;
+  /** Which cycle these totals cover, e.g. "Sep 11-20" -- the cycle that just
+   * closed, not the one opening today. Stated in the copy because the email
+   * itself arrives on the *next* cycle's first morning. */
+  cycleLabel: string;
   totalCalls: number;
   totalCallsTarget: number;
   totalPremiumCents: number;
@@ -169,22 +173,26 @@ export function cycleDigestEmail(d: CycleDigestData): EmailContent {
   const teamUrl = appUrl('/team');
   const quietLine =
     d.quietAgentNames.length > 0
-      ? `Quiet this cycle: ${d.quietAgentNames.join(', ')}.`
-      : 'Everyone logged something this cycle.';
-  const moversLine = d.moverNames.length > 0 ? `Biggest movers: ${d.moverNames.join(', ')}.` : '';
+      ? `Quiet last cycle: ${d.quietAgentNames.join(', ')}.`
+      : 'Everyone logged something last cycle.';
+  const moversLine =
+    d.moverNames.length > 0 ? `Biggest movers vs. the cycle before: ${d.moverNames.join(', ')}.` : '';
   const quietLineHtml =
     d.quietAgentNames.length > 0
-      ? `Quiet this cycle: ${d.quietAgentNames.map(escapeHtml).join(', ')}.`
-      : 'Everyone logged something this cycle.';
+      ? `Quiet last cycle: ${d.quietAgentNames.map(escapeHtml).join(', ')}.`
+      : 'Everyone logged something last cycle.';
   const moversLineHtml =
-    d.moverNames.length > 0 ? `Biggest movers: ${d.moverNames.map(escapeHtml).join(', ')}.` : '';
+    d.moverNames.length > 0
+      ? `Biggest movers vs. the cycle before: ${d.moverNames.map(escapeHtml).join(', ')}.`
+      : '';
   const bodyHtml = `
     <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
-    <p>Team so far this cycle: <strong>${d.totalCalls} of ${d.totalCallsTarget}</strong> calls,
+    <p>Your team's last cycle (${escapeHtml(d.cycleLabel)}) closed with
+    <strong>${d.totalCalls} of ${d.totalCallsTarget}</strong> calls and
     ${formatMoney(d.totalPremiumCents)} in premium.</p>
     <p>${quietLineHtml}${moversLineHtml ? ` ${moversLineHtml}` : ''}</p>
     ${button(teamUrl, 'View team dashboard')}`;
-  const bodyText = `Hi ${firstName(d.fullName)},\n\nTeam so far this cycle: ${d.totalCalls} of ${d.totalCallsTarget} calls, ${formatMoney(d.totalPremiumCents)} in premium.\n\n${quietLine}${moversLine ? ` ${moversLine}` : ''}\n\nView team dashboard: ${teamUrl}`;
+  const bodyText = `Hi ${firstName(d.fullName)},\n\nYour team's last cycle (${d.cycleLabel}) closed with ${d.totalCalls} of ${d.totalCallsTarget} calls and ${formatMoney(d.totalPremiumCents)} in premium.\n\n${quietLine}${moversLine ? ` ${moversLine}` : ''}\n\nView team dashboard: ${teamUrl}`;
   return {
     subject: 'Your team cycle digest',
     html: wrap(bodyHtml, d.agentId, 'monday_digest'),
