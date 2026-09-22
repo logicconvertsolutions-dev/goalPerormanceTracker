@@ -60,6 +60,34 @@ const appointmentSchema = baseAppointmentSchema
 // Postgres unique-violation error code.
 const UNIQUE_VIOLATION = '23505';
 
+const RESCHEDULE_NEEDS_NEW_TIME = 'To reschedule, use Reschedule and pick the new date and time.';
+
+/**
+ * The status moves only rescheduleAppointmentAction may make (decision D1),
+ * checked by every other writer. Returns the error to show, or null.
+ *
+ * - Nothing else may move a row INTO `rescheduled`: it has no way to book
+ *   the successor, so the appointment would end as a move to nowhere --
+ *   terminal, out of every queue, and continued by nothing.
+ * - A row that was rescheduled WITH a successor cannot be reopened: the
+ *   successor is the live appointment, and reopening the original would
+ *   leave two pending appointments for one prospect. A legacy/imported
+ *   `rescheduled` row with no successor can be, since nothing continues it.
+ *
+ * A row already `rescheduled` keeping that status is always fine, so its
+ * notes stay editable.
+ */
+function statusChangeError(
+  current: { status: string; rescheduled_to_id: string | null },
+  next: (typeof APPT_STATUSES)[number]
+): string | null {
+  if (next === 'rescheduled' && current.status !== 'rescheduled') return RESCHEDULE_NEEDS_NEW_TIME;
+  if (current.status === 'rescheduled' && next !== 'rescheduled' && current.rescheduled_to_id) {
+    return 'This appointment was moved to a new time — update the new appointment instead.';
+  }
+  return null;
+}
+
 // P3: minimal CRUD only. Filters/summary/CSV land in P4 per docs/08-screen-specs.md.
 export async function createAppointmentAction(formData: FormData) {
   // Fetched before validation (rather than the more common validate-then-auth
@@ -85,6 +113,12 @@ export async function createAppointmentAction(formData: FormData) {
 
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input.' };
+  }
+  // D1: a reschedule ends one appointment and books its successor, so it
+  // needs the new slot. Creating a row already `rescheduled` would record
+  // a move to nowhere -- terminal, out of every queue, with no successor.
+  if (parsed.data.status === 'rescheduled') {
+    return { ok: false, error: RESCHEDULE_NEEDS_NEW_TIME };
   }
   const isScheduled = parsed.data.status === 'scheduled';
   // "Cannot be in the future" only applies to a status that logs something
@@ -212,10 +246,29 @@ export async function updateAppointmentAction(formData: FormData) {
     : parsed.data.apptDate!;
   const supabase = await createClient();
 
+  const { data: current } = await supabase
+    .from('appointments')
+    .select('status, rescheduled_to_id')
+    .eq('id', parsed.data.id)
+    .eq('agent_id', session.agent!.id)
+    .maybeSingle();
+  if (!current) return { ok: false, error: 'Appointment not found.' };
+
+  const statusError = statusChangeError(current, parsed.data.status);
+  if (statusError) return { ok: false, error: statusError };
+
   const { error } = await supabase
     .from('appointments')
     .update({
       appt_date: apptDate,
+      // The slot itself. Writing appointment_at alone moved nothing: on an
+      // UPDATE the Phase B identity trigger only copies appointment_at into
+      // scheduled_for when scheduled_for is null, which it never is for a
+      // row that already has a slot -- so the old time survived, appt_date
+      // was re-derived from it, and the agent's edit silently reverted.
+      // Omitted for a terminal status, where the slot is a recorded fact
+      // (F8) and the trigger keeps it.
+      ...(isScheduled ? { scheduled_for: parsed.data.appointmentAt } : {}),
       // P25 C2. The form's Date field is the day the outcome happened, so
       // for a terminal status it has to write resolved_on -- that is the
       // column the read model buckets by. Writing appt_date alone did
@@ -250,7 +303,21 @@ export async function updateAppointmentAction(formData: FormData) {
   return { ok: true };
 }
 
-export async function updateAppointmentStatusAction(id: string, status: (typeof APPT_STATUSES)[number]) {
+const statusChangeSchema = z.object({
+  id: z.string().uuid(),
+  status: z.enum(APPT_STATUSES),
+});
+
+export async function updateAppointmentStatusAction(
+  rawId: string,
+  rawStatus: (typeof APPT_STATUSES)[number]
+): Promise<{ ok: boolean; error?: string }> {
+  // Rule 7: a server action is a public endpoint whatever its TypeScript
+  // signature says, so both arguments are validated here, not trusted.
+  const parsed = statusChangeSchema.safeParse({ id: rawId, status: rawStatus });
+  if (!parsed.success) return { ok: false, error: 'Invalid input.' };
+  const { id, status } = parsed.data;
+
   const session = await requireAgent();
   const supabase = await createClient();
 
@@ -261,12 +328,19 @@ export async function updateAppointmentStatusAction(id: string, status: (typeof 
   // for the resolve-a-scheduled-appointment check below.
   const { data: appt } = await supabase
     .from('appointments')
-    .select('appt_type, status')
+    .select('appt_type, status, rescheduled_to_id')
     .eq('id', id)
     .eq('agent_id', session.agent!.id)
     .maybeSingle();
 
-  if (status === 'held' && !appt?.appt_type) {
+  // Previously this fell through and reported success for a row that does
+  // not exist (or is not this agent's), updating nothing.
+  if (!appt) return { ok: false, error: 'Appointment not found.' };
+
+  const statusError = statusChangeError(appt, status);
+  if (statusError) return { ok: false, error: statusError };
+
+  if (status === 'held' && !appt.appt_type) {
     return { ok: false, error: 'Set an appointment type before marking this held.' };
   }
 
@@ -290,7 +364,7 @@ export async function updateAppointmentStatusAction(id: string, status: (typeof 
   // resolution event, so it keeps the day it was first recorded on
   // (the trigger preserves old.resolved_on when none is supplied), and
   // returning a row to `scheduled` clears it in the trigger (E7).
-  const isResolving = appt?.status === 'scheduled' && status !== 'scheduled';
+  const isResolving = appt.status === 'scheduled' && status !== 'scheduled';
   const update: { status: (typeof APPT_STATUSES)[number]; resolved_on?: string } = { status };
   if (isResolving) {
     update.resolved_on = todayIso(session.agent!.time_zone);
@@ -302,12 +376,17 @@ export async function updateAppointmentStatusAction(id: string, status: (typeof 
     .eq('id', id)
     .eq('agent_id', session.agent!.id);
 
+  if (error) {
+    console.error('updateAppointmentStatusAction: update failed', error);
+    return { ok: false, error: 'Could not update the status — try again.' };
+  }
+
   // My Day's queue is sourced from appointments since C1, so a status
   // change here removes the row from it.
   revalidatePath('/today');
   revalidatePath('/appointments');
   revalidatePath('/logs');
-  return { ok: !error };
+  return { ok: true };
 }
 
 /**
@@ -411,12 +490,17 @@ export async function resolveAppointmentHeldAction(formData: FormData) {
 
   const { data: appt } = await supabase
     .from('appointments')
-    .select('id, status, appt_type, contact_id, contacts(full_name)')
+    .select('id, status, appt_type, contact_id, rescheduled_to_id, contacts(full_name)')
     .eq('id', parsed.data.id)
     .eq('agent_id', session.agent!.id)
     .maybeSingle();
 
   if (!appt) return { ok: false, error: 'Appointment not found.' };
+
+  // Same rule as every other status writer -- a sheet opened before the
+  // appointment was moved must not record Held on the original.
+  const statusError = statusChangeError(appt, 'held');
+  if (statusError) return { ok: false, error: statusError };
 
   const apptType = parsed.data.apptType || appt.appt_type;
   // The same guard the quick status-changer applies, kept here because the
@@ -559,7 +643,13 @@ export async function rescheduleAppointmentAction(formData: FormData) {
     return { ok: false, error: 'Could not create the new appointment.' };
   }
 
-  const { error: linkError } = await supabase
+  // Conditional on the original still being pending and unlinked. The
+  // idempotency check above reads before it writes, so two devices (or two
+  // tabs) rescheduling at the same moment can both pass it and both insert
+  // a successor. Without this guard the second link-up simply overwrote the
+  // first, leaving the first successor orphaned: pending in every queue and
+  // counting an extra Appts Set for a rebooking that happened once (E17).
+  const { data: linked, error: linkError } = await supabase
     .from('appointments')
     .update({
       status: 'rescheduled',
@@ -567,7 +657,25 @@ export async function rescheduleAppointmentAction(formData: FormData) {
       rescheduled_to_id: successor.id,
     })
     .eq('id', parsed.data.id)
-    .eq('agent_id', session.agent!.id);
+    .eq('agent_id', session.agent!.id)
+    .eq('status', 'scheduled')
+    .is('rescheduled_to_id', null)
+    .select('id');
+
+  if (!linkError && (!linked || linked.length === 0)) {
+    // Lost the race: another request finished the reschedule between our
+    // read and our write. Ours is the orphan, so it goes; the winner's
+    // successor is the answer, exactly as for a plain second call.
+    await supabase.from('appointments').delete().eq('id', successor.id).eq('agent_id', session.agent!.id);
+    const { data: winner } = await supabase
+      .from('appointments')
+      .select('rescheduled_to_id')
+      .eq('id', parsed.data.id)
+      .eq('agent_id', session.agent!.id)
+      .maybeSingle();
+    if (winner?.rescheduled_to_id) return { ok: true, id: winner.rescheduled_to_id };
+    return { ok: false, error: 'That appointment already has an outcome.' };
+  }
 
   if (linkError) {
     // Roll the successor back rather than leaving it behind. An orphan

@@ -430,7 +430,7 @@ org filter, a date range for the two aggregate types, CSV export, and named
 saved report definitions (`report_definitions`, config only — always re-run
 against live data on load).
 
-## P25 — Appointment lifecycle remediation (in progress — Phases 0/A/B/C done)
+## P25 — Appointment lifecycle remediation (closed at Phase C — D moved out, E on hold)
 
 Full plan: `.github/Spec Sheets/12-appointment-lifecycle-remediation.md`.
 Five phases, each independently shippable and revertible.
@@ -552,10 +552,35 @@ Five phases, each independently shippable and revertible.
         unasked, so on a phone it is a centred modal.
       - **Deviation:** the full form's Date field now writes `resolved_on`.
         It had been silently inert on a resolved row since Phase B.
-- [ ] **Phase D — in-app bands + Web Push.** Reusable push channel
-      (`web-push`, approved under rule 11); appointment reminders are its
-      first consumer. No email.
-- [ ] **Phase E — contract.** After one clean cycle on `master`.
+- [~] **Phase D — moved out of P25 (decision 2026-09-22).** Reminders,
+      push, a calendar view and a notifications icon are now one separate
+      notifications project covering appointments, due calls and tasks for
+      every user; existing email alerts stay. The D-1 branch
+      (`claude/p25-phase-d-appointment-pe3n94`) is **not merged** and is kept
+      only as input to that project — see spec 12 §5 Phase D for what it
+      contains and the rename it needs before it could ever merge.
+- [~] **Phase E — on hold.** Not needed for correctness. Revisit only if the
+      duplicate `appointment_at` columns start costing more bugs like N1.
+- [x] **P29 — appointment flow fixes after Phase C** (2026-09-22,
+      `20260922120000_p29_appointment_slot_frozen.sql` + app). Found in a
+      post-Phase-C review; see spec 12 §5 "After Phase C".
+      - N1 — editing a pending appointment's date/time on the edit form was
+        silently discarded (the form wrote `appointment_at`, the trigger
+        kept `scheduled_for`). It now writes `scheduled_for`.
+      - N2 — the full form and the quick status change could mark an
+        appointment Rescheduled with no new time and no successor. Now only
+        the reschedule picker can; a rescheduled row with a successor can't
+        be reopened.
+      - N3 — two simultaneous reschedules could leave an orphan successor
+        (an extra Appts Set). The link-up is now conditional.
+      - N4 — the quick status change validates its input (rule 7) and no
+        longer reports success when nothing was saved.
+      - N6 — DB guard: a resolved appointment's slot cannot be changed (E19).
+      - N7 — changing the appointment type on the call edit form now
+        reaches the appointment.
+      - Build: `xlsx` pinned to the versioned 0.20.3 tarball instead of
+        `xlsx-latest`, whose next release would have broken every `npm ci`
+        against the lockfile's integrity hash.
 
 ---
 

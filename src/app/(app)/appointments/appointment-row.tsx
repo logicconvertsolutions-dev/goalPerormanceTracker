@@ -126,7 +126,12 @@ export function AppointmentRow({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {APPT_STATUSES.map((s) => (
+            {APPT_STATUSES.filter(
+              // Rescheduled is reachable only from a pending row, where it
+              // opens the picker for the new time (D1). From any other status
+              // there is no successor to book, so it isn't offered.
+              (s) => s.value !== 'rescheduled' || status === 'scheduled' || status === 'rescheduled'
+            ).map((s) => (
               <SelectItem key={s.value} value={s.value}>
                 {s.label}
               </SelectItem>

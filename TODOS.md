@@ -665,8 +665,34 @@ Phase C is complete.
   booking day, clamped server-side.
 - Resolve sheet, Upcoming section, Needs-an-outcome band — shipped.
 
-## Phase D
-- F13 no appointment reminders at all — in-app bands + Web Push
+## Phase D — moved to the notifications project (2026-09-22)
+- F13 (no appointment reminders; My Day blind to future appointments) is
+  carried by the separate notifications project — push, calendar view,
+  notifications icon, reminders for appointments, due calls and tasks.
+  Until it lands, `/appointments`' Upcoming section is the only forward view.
+- D-1 branch `claude/p25-phase-d-appointment-pe3n94` is unmerged reference
+  material. Before it could ever merge, rename
+  `20260921100000_p25d1_my_day_forward_window.sql` (P26 already owns that
+  version in production) and its `011_my_day_forward_window.sql` test (P29
+  now owns `011`).
+
+## Phase E — on hold
+- Retiring `appointments.appointment_at` / `call_logs.appointment_at` is not
+  needed for correctness. N1 below was caused by the duplicate column.
+
+## Done — P29, appointment flow fixes after Phase C (2026-09-22)
+- N1 edit form silently kept the old slot — **closed** (writes `scheduled_for`)
+- N2 Rescheduled settable without a successor — **closed** (app-level; the
+  DB still allows it for legacy/imported rows, see 02-data-model)
+- N3 concurrent reschedule orphaned a successor — **closed**
+- N4 quick status change unvalidated / false success — **closed**
+- N5 `xlsx-latest` unpinned — **closed** (0.20.3 tarball)
+- N6 resolved slot editable by a direct write — **closed** (`appointments_slot_frozen`)
+- N7 call-form type change ignored — **closed**
+- Known, not fixed: an offline-queued `/appointments/new` submission is
+  retried forever if the server rejects it (pre-existing queue behaviour, see
+  `offline-sync.tsx`). Only reachable now by a Rescheduled create queued
+  before P29 shipped.
 
 ## Standing
 - F17 `002_daily_metrics_pipeline.sql` asserts only through
