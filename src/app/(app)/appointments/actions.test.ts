@@ -8,7 +8,7 @@
 // reachable here: a second Appts Set from a double-tap, an orphan
 // successor from a half-completed write, a resolution stamped on the wrong
 // day.
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 const mockRequireAgent = vi.fn();
 vi.mock('@/lib/auth/guards', () => ({
@@ -140,6 +140,10 @@ const PENDING = {
   org_id: ORG_ID,
   expected_premium_cents: 120000,
   rescheduled_to_id: null,
+  // A slot that has already passed, in every test's clock: 15 Sept.
+  scheduled_for: '2026-09-15T18:00:00.000Z',
+  appt_date: '2026-09-15',
+  resolved_on: null,
   contacts: { full_name: 'Jane Doe' },
 };
 
@@ -415,6 +419,10 @@ describe('createAppointmentAction — Rescheduled needs a new time (N2, D1)', ()
 describe('updateAppointmentAction — the edit form (N1, N2)', () => {
   beforeEach(mockAgent);
 
+  // A pending appointment whose slot was 1 Sept -- appt_date is NOT NULL
+  // in the table, so a realistic row always carries one.
+  const PENDING_ROW = { status: 'scheduled', rescheduled_to_id: null, scheduled_for: null, appt_date: '2026-09-01' };
+
   const pendingEdit = {
     id: APPT_ID,
     status: 'scheduled',
@@ -425,7 +433,7 @@ describe('updateAppointmentAction — the edit form (N1, N2)', () => {
   it('moves a pending appointment by writing its slot, not just appointment_at (N1)', async () => {
     // appointment_at alone is ignored on an update -- the identity trigger
     // keeps the existing scheduled_for -- so the edit used to revert.
-    const { updates } = setupSupabase({ appointment: { status: 'scheduled', rescheduled_to_id: null } });
+    const { updates } = setupSupabase({ appointment: PENDING_ROW });
 
     const result = await updateAppointmentAction(form(pendingEdit));
 
@@ -434,7 +442,7 @@ describe('updateAppointmentAction — the edit form (N1, N2)', () => {
   });
 
   it('never writes the slot of an appointment being given an outcome (F8)', async () => {
-    const { updates } = setupSupabase({ appointment: { status: 'scheduled', rescheduled_to_id: null } });
+    const { updates } = setupSupabase({ appointment: PENDING_ROW });
 
     await updateAppointmentAction(form({ id: APPT_ID, status: 'held', apptType: 'follow_up', apptDate: '2026-09-01' }));
 
@@ -442,7 +450,7 @@ describe('updateAppointmentAction — the edit form (N1, N2)', () => {
   });
 
   it('refuses to move an appointment into Rescheduled without a new time', async () => {
-    const { updates } = setupSupabase({ appointment: { status: 'scheduled', rescheduled_to_id: null } });
+    const { updates } = setupSupabase({ appointment: PENDING_ROW });
 
     const result = await updateAppointmentAction(
       form({ id: APPT_ID, status: 'rescheduled', apptType: 'follow_up', apptDate: '2026-09-01' })
@@ -541,5 +549,113 @@ describe('updateAppointmentStatusAction — the quick status change (N2, N4)', (
 
     expect(result.ok).toBe(false);
     expect(result.error).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------
+// The outcome day is confirmed by the agent, never presumed (2026-09-22).
+// Every route validates it the same way: from the appointment's own day
+// (or today, if it has not arrived) up to today.
+// ---------------------------------------------------------------------
+
+describe('outcome date — every route applies the same rule', () => {
+  beforeEach(() => {
+    mockAgent();
+    // Only Date is faked, so promises still resolve. 15:00 UTC is 11:00 in
+    // New York: "today" is 22 Sept for the agent.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-22T15:00:00.000Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('quick status change stamps the confirmed day', async () => {
+    const { updates } = setupSupabase({ appointment: PENDING });
+
+    const result = await updateAppointmentStatusAction(APPT_ID, 'no_show', '2026-09-15');
+
+    expect(result.ok).toBe(true);
+    expect(updates[0]).toMatchObject({ status: 'no_show', resolved_on: '2026-09-15' });
+  });
+
+  it('quick status change rejects a day in the future', async () => {
+    const { updates } = setupSupabase({ appointment: PENDING });
+
+    const result = await updateAppointmentStatusAction(APPT_ID, 'cancelled', '2026-09-23');
+
+    expect(result.ok).toBe(false);
+    expect(updates).toHaveLength(0);
+  });
+
+  it('quick status change rejects a day before the appointment', async () => {
+    const { updates } = setupSupabase({ appointment: PENDING });
+
+    const result = await updateAppointmentStatusAction(APPT_ID, 'no_show', '2026-09-14');
+
+    expect(result.ok).toBe(false);
+    expect(updates).toHaveLength(0);
+  });
+
+  it('only allows today for an appointment that has not happened yet (cancelled in advance)', async () => {
+    const future = { ...PENDING, scheduled_for: '2026-09-30T18:00:00.000Z', appt_date: '2026-09-30' };
+    setupSupabase({ appointment: future });
+    expect((await updateAppointmentStatusAction(APPT_ID, 'cancelled', '2026-09-21')).ok).toBe(false);
+
+    const { updates } = setupSupabase({ appointment: future });
+    expect((await updateAppointmentStatusAction(APPT_ID, 'cancelled', '2026-09-22')).ok).toBe(true);
+    expect(updates[0]).toMatchObject({ resolved_on: '2026-09-22' });
+  });
+
+  it('a caller that sends no date (pre-prompt client) still records today', async () => {
+    const { updates } = setupSupabase({ appointment: PENDING });
+
+    await updateAppointmentStatusAction(APPT_ID, 'no_show');
+
+    expect(updates[0]).toMatchObject({ resolved_on: '2026-09-22' });
+  });
+
+  it('Held sheet stamps the confirmed day, and the sale lands on it too', async () => {
+    const { updates } = setupSupabase({ appointment: { ...PENDING, appt_type: 'application' } });
+
+    const result = await resolveAppointmentHeldAction(
+      form({ id: APPT_ID, apptType: 'application', logAsSale: 'true', resolvedOn: '2026-09-16' })
+    );
+
+    expect(result.ok).toBe(true);
+    expect(updates[0]).toMatchObject({ status: 'held', resolved_on: '2026-09-16' });
+    const saleForm = mockCreateSaleAction.mock.calls[0][0] as FormData;
+    expect(saleForm.get('saleDate')).toBe('2026-09-16');
+  });
+
+  it('Held sheet rejects a day before the appointment', async () => {
+    const { updates } = setupSupabase({ appointment: PENDING });
+
+    const result = await resolveAppointmentHeldAction(form({ id: APPT_ID, resolvedOn: '2026-09-10' }));
+
+    expect(result.ok).toBe(false);
+    expect(updates).toHaveLength(0);
+  });
+
+  it('edit form rejects an outcome dated before the appointment', async () => {
+    const { updates } = setupSupabase({ appointment: PENDING });
+
+    const result = await updateAppointmentAction(
+      form({ id: APPT_ID, status: 'held', apptType: 'follow_up', apptDate: '2026-09-10' })
+    );
+
+    expect(result.ok).toBe(false);
+    expect(updates).toHaveLength(0);
+  });
+
+  it('edit form stamps the confirmed day when it records the outcome', async () => {
+    const { updates } = setupSupabase({ appointment: PENDING });
+
+    const result = await updateAppointmentAction(
+      form({ id: APPT_ID, status: 'held', apptType: 'follow_up', apptDate: '2026-09-15' })
+    );
+
+    expect(result.ok).toBe(true);
+    expect(updates[0]).toMatchObject({ resolved_on: '2026-09-15' });
   });
 });

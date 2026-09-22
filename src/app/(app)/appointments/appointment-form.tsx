@@ -24,6 +24,7 @@ import { APPT_TYPES, APPT_STATUSES } from '@/lib/appointment-types';
 import { PRODUCT_TYPES } from '@/lib/product-types';
 import { createAppointmentAction, updateAppointmentAction } from './actions';
 import { ResolveAppointmentDialog } from './resolve-appointment-dialog';
+import { APPOINTMENTS_FALLBACK } from '@/lib/return-to';
 import { createSaleAction, syncSaleFromAppointmentAction, deleteSaleAction } from '../sales/actions';
 import {
   createRecruitingLogAction,
@@ -67,8 +68,11 @@ export function AppointmentForm({
   prefillContactId,
   onSuccess,
   onCancel,
+  returnTo = APPOINTMENTS_FALLBACK,
 }: {
   mode?: 'create' | 'edit';
+  /** Where a save lands, when not in a modal: the screen that opened the form. */
+  returnTo?: string;
   prefillContactName?: string;
   prefillContactId?: string;
   /** When set (e.g. inside a modal), called instead of navigating away on success/cancel. */
@@ -184,6 +188,11 @@ export function AppointmentForm({
   // the sale silently kept the old one. The submitted value is read at
   // save time instead, from the form.
   const [apptDate, setApptDate] = useState(initialApptDate);
+  // Giving a pending appointment its outcome here: the Date field is the
+  // confirmed outcome day (2026-09-22), same rule as the resolve dialog --
+  // it starts on the appointment's own day (clamped to today) and cannot
+  // go earlier. The server enforces the same bounds.
+  const recordingOutcome = mode === 'edit' && defaultValues?.status === 'scheduled' && status !== 'scheduled';
 
   const willDeleteSale = Boolean(defaultValues?.linkedSaleId) && !(apptType === 'application' && logAsSale);
   const willDeleteRecruit =
@@ -302,7 +311,7 @@ export function AppointmentForm({
           defaultValues?.contactId,
           linkedDate
         );
-        router.push('/appointments');
+        router.push(returnTo);
       });
       return;
     }
@@ -320,7 +329,7 @@ export function AppointmentForm({
         const contactId = String(formData.get('contactId') || '') || undefined;
         await syncLinkedRecords(result.id, contactName, contactId, linkedDate);
       }
-      onSuccess ? onSuccess() : router.push('/appointments');
+      onSuccess ? onSuccess() : router.push(returnTo);
     });
   }
 
@@ -377,16 +386,20 @@ export function AppointmentForm({
         </div>
       ) : (
         <div className="space-y-1.5">
-          <Label htmlFor="apptDate">Date</Label>
+          <Label htmlFor="apptDate">{recordingOutcome ? 'When did this happen?' : 'Date'}</Label>
           <Input
             id="apptDate"
             name="apptDate"
             type="date"
             value={apptDate}
             onChange={(e) => setApptDate(e.target.value)}
+            min={recordingOutcome ? initialApptDate : undefined}
             max={today}
             required
           />
+          {recordingOutcome && (
+            <p className="text-xs text-fg-3">The outcome counts on this day. It starts on the appointment’s own date.</p>
+          )}
         </div>
       )}
 
@@ -637,7 +650,7 @@ export function AppointmentForm({
           onOpenChange={(open) => !open && setRescheduleOpen(false)}
           // The original is now terminal and the new appointment is the
           // live one, so this form is editing a row that just ended.
-          onResolved={() => router.push('/appointments')}
+          onResolved={() => router.push(returnTo)}
         />
       )}
     </form>

@@ -106,31 +106,40 @@ menu follows what the row actually is:
 
 | Row | Menu |
 |---|---|
-| A follow-up, or a pre-C1 call-log appointment | Snooze 1 day · Snooze 1 week · **Mark done** |
-| A pending appointment | Snooze 1 day · Snooze 1 week · **Held… · No-show · Cancelled · Reschedule…** |
+| A call follow-up, or an appointment follow-up | Snooze 1 day · Snooze 1 week · **Mark done** |
+| A pre-C1 call-log appointment | **Mark done** |
+| A pending appointment | **Held… · No-show… · Cancelled… · Reschedule…** |
 
 A pending appointment leaves the queue by recording what happened, not by
 being ticked off. There is no `done` status in the appointment machine, and
 the old "Mark done" wrote `appointment_done_at`, which fed no metric at all
 — an appointment booked from a call could never become Held (F11).
 
-The two items with an ellipsis open the **resolve sheet** (P25 C2), because
-each needs something a menu cannot ask for: Held has a premium, a referral
-count, notes and possibly a sale to record; Reschedule needs the new slot.
-No-show and Cancelled stay one tap — there is nothing to ask.
+Every appointment item opens the **resolve dialog**. Held also records a
+premium, a referral count, notes and possibly a sale; Reschedule needs the
+new slot; No-show and Cancelled need only the date below.
 
-**Snooze moves the appointment itself**, not a reminder: it shifts
-`scheduled_for` by whole days *in the agent's own zone*, so a 2:00 PM slot
-snoozed across a DST boundary is still at 2:00 PM. Per decision D1 that is
-a *correction* — Reschedule is the other thing, and terminates this
-appointment in favour of a successor.
+**No Snooze on an appointment** (decided 2026-09-22). It moved the
+appointment itself without recording a reschedule, in the same menu as
+Reschedule… — two items that look alike and do different things to the
+numbers. An appointment moves by Reschedule, or by fixing its time on the
+edit form. Callbacks keep Snooze.
 
-**Recording an outcome dates it to today**, not to the day the appointment
-was for (§7 E6). An appointment held last Tuesday and marked Held this
-morning counts this morning; the alternative lets a late-recorded outcome
-change a cycle that may already be closed. This is the same action the
-`/appointments` quick status-changer calls — one definition, deliberately,
-since two paths leaving two different rows is exactly what F8 was.
+**Every outcome asks "When did this happen?"** (decided 2026-09-22 —
+replaces §7 E6's "always the recording day"). The prompt starts on the
+appointment's own day; it cannot be later than today, nor earlier than
+the appointment. An appointment still in the future can only be given
+today (a cancellation recorded in advance). The same rule, in
+`lib/appointment-outcome-date.ts`, backs the dialog, the `/appointments`
+and Activity Logs status picker, and the edit form, and the server
+enforces it — before this, the day depended on which button was pressed.
+Correcting one outcome to another on an already-resolved appointment is
+the same event and keeps its day. A linked sale logged from Held lands on
+the outcome day too.
+
+**Tapping an item** opens the appointment for a pending appointment, and
+Log a call for everything else; saving the appointment comes back to My
+Day (`returnTo`).
 
 **Recent activity (new, not in original spec):** last 7 days across all
 activity types, icon + contact + summary + date, "View all" → `/logs`.
@@ -215,7 +224,14 @@ single-select dropdown, not the multi-select the original spec called for),
 contact-name search.
 
 **KPI strip (4 cards, shown only when rows exist):** Scheduled · Held ·
-No-show rate · Open premium.
+No-show rate · Open pipeline.
+
+- **Scheduled** and **Open pipeline** count *every* pending appointment,
+  the same set as the Upcoming section above them and the dashboard's
+  Open Pipeline (decided 2026-09-22). Held and No-show rate follow the
+  period filter. Before, both pending tiles counted only the period's
+  rows, so the tile could say 2 under an Upcoming list of 5, and the
+  premium differed from the dashboard's for the same appointments.
 
 - **No-show rate** uses the P25 §3 formula —
   `no_show / (held + no_show + cancelled)` — shared with the agent
@@ -225,9 +241,15 @@ No-show rate · Open premium.
   mid-cycle (F10). The tile shows its denominator ("3 of 11 resolved"),
   because a rate that has just been restated and gives no way to see what
   it divided by is a rate nobody trusts.
-- **Open premium** sums scheduled rows' expected premium. It was
+- **Open pipeline** sums pending appointments' expected premium
+  (`pipelineValueOpenAppts`, shared with the dashboard). It was
   structurally $0 until C2 — the form hid the premium input on exactly the
   status this sums (F7).
+
+**This page is not in the navigation.** It is reached from Activity Logs'
+Appointments tab ("View all"). Saving an appointment returns to the screen
+that opened the form (`returnTo`, validated as an in-app path), falling
+back to Activity Logs' Appointments tab.
 
 **Table:** Date · Contact · Type · Status (inline-editable `<Select>`) ·
 Expected Premium · Referrals · row actions (Edit/Delete). *(Notes is not a

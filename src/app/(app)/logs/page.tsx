@@ -236,6 +236,7 @@ export default async function LogsPage({
               apptType={a.appt_type}
               status={a.status}
               movedToSuccessor={a.status === 'rescheduled' && Boolean(a.rescheduled_to_id)}
+              returnTo="/logs?type=appointment"
               expectedPremiumCents={a.expected_premium_cents}
               referralsGiven={a.referrals_given}
               contactName={(a.contacts as { full_name: string } | null)?.full_name ?? '—'}

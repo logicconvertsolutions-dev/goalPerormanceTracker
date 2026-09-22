@@ -4,8 +4,8 @@ import { dueItemHref } from './due-item-target';
 const ID = '11111111-1111-4111-8111-111111111111';
 
 describe('dueItemHref — what tapping a My Day item opens', () => {
-  it('opens a pending appointment itself, not the call dialog', () => {
-    expect(dueItemHref('appointment', ID)).toBe(`/appointments/${ID}/edit`);
+  it('opens a pending appointment itself, not the call dialog — and comes back to My Day on save', () => {
+    expect(dueItemHref('appointment', ID)).toBe(`/appointments/${ID}/edit?returnTo=%2Ftoday`);
   });
 
   it('keeps every call-shaped item on the quick-log dialog', () => {

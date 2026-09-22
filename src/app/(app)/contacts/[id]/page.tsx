@@ -12,6 +12,7 @@ import { outcomeBadgeVariant } from '@/lib/call-outcomes';
 import { apptTypeLabel } from '@/lib/appointment-types';
 import { DeleteContactButton } from './delete-contact-button';
 import { EditContactDialog } from './edit-contact-dialog';
+import { withReturnTo } from '@/lib/return-to';
 
 export default async function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -55,7 +56,9 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           <div className="flex flex-wrap gap-2">
             <EditContactDialog contactId={contact.id} fullName={contact.full_name} notes={contact.notes} />
             <Button asChild variant="secondary" size="sm">
-              <Link href={`/appointments/new?contact=${contact.id}`}>Log appointment</Link>
+              <Link href={withReturnTo(`/appointments/new?contact=${contact.id}`, `/contacts/${contact.id}`)}>
+                Log appointment
+              </Link>
             </Button>
             <LogActivityButton variant="primary" size="sm" contactId={contact.id} contactName={contact.full_name}>
               Log a call

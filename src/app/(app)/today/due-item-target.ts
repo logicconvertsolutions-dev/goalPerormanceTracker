@@ -1,4 +1,5 @@
 import type { DueItemKind } from './use-follow-up-actions';
+import { withReturnTo } from '@/lib/return-to';
 
 /**
  * Where tapping a My Day item takes the agent.
@@ -15,10 +16,11 @@ import type { DueItemKind } from './use-follow-up-actions';
  *                                         appointment, decided 2026-09-22)
  *   call_appointment       call        -> log a call (pre-C1 legacy: there
  *                                         is no appointments row to open)
- *   appointment            appointment -> /appointments/[id]/edit
+ *   appointment            appointment -> /appointments/[id]/edit (returns to My Day)
  *
  * Returns the route to open, or null to open the quick-log dialog.
  */
 export function dueItemHref(kind: DueItemKind, rowId: string): string | null {
-  return kind === 'appointment' ? `/appointments/${rowId}/edit` : null;
+  // Saving it comes back to My Day, where the agent was working.
+  return kind === 'appointment' ? withReturnTo(`/appointments/${rowId}/edit`, '/today') : null;
 }

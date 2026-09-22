@@ -15,10 +15,11 @@ vi.mock('next/navigation', () => ({
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
 const mockResolveDefaults = vi.fn();
+const mockStatusChange = vi.fn(async () => ({ ok: true }));
 vi.mock('../actions', () => ({
   createAppointmentAction: vi.fn(),
   updateAppointmentAction: vi.fn(),
-  updateAppointmentStatusAction: vi.fn(async () => ({ ok: true })),
+  updateAppointmentStatusAction: (...args: unknown[]) => mockStatusChange(...(args as [])),
   deleteAppointmentAction: vi.fn(),
   resolveAppointmentHeldAction: vi.fn(),
   rescheduleAppointmentAction: vi.fn(),
@@ -90,6 +91,9 @@ describe('appointment edit form — status picker', () => {
       scheduledFor: '2026-09-25T15:00:00.000Z',
       apptDate: '2026-09-25',
       contactName: 'Jane Doe',
+      outcomeDefault: '2026-09-22',
+      outcomeMin: '2026-09-22',
+      outcomeMax: '2026-09-22',
     });
   });
 
@@ -149,6 +153,7 @@ describe('/appointments list row — status picker', () => {
             expectedPremiumCents={0}
             referralsGiven={0}
             contactName="Jane Doe"
+            returnTo="/appointments"
             {...props}
           />
         </tbody>
@@ -164,5 +169,81 @@ describe('/appointments list row — status picker', () => {
   it('leaves the picker usable for a pending appointment', () => {
     renderRow({ status: 'scheduled' });
     expect(screen.getByRole('combobox')).not.toBeDisabled();
+  });
+});
+
+describe('recording an outcome asks when it happened (2026-09-22)', () => {
+  beforeEach(() => {
+    mockStatusChange.mockClear();
+    mockResolveDefaults.mockReset();
+    mockResolveDefaults.mockResolvedValue({
+      apptType: 'follow_up',
+      status: 'scheduled',
+      expectedPremiumCents: 0,
+      referralsGiven: 0,
+      notes: null,
+      scheduledFor: '2026-09-15T15:00:00.000Z',
+      apptDate: '2026-09-15',
+      contactName: 'Jane Doe',
+      outcomeDefault: '2026-09-15',
+      outcomeMin: '2026-09-15',
+      outcomeMax: '2026-09-22',
+    });
+  });
+
+  it('list: No-show on a pending appointment opens the date prompt instead of saving at once', async () => {
+    render(
+      <table>
+        <tbody>
+          <AppointmentRow
+            id={ID}
+            apptDate="2026-09-15"
+            apptType="follow_up"
+            status="scheduled"
+            expectedPremiumCents={0}
+            referralsGiven={0}
+            contactName="Jane Doe"
+            returnTo="/appointments"
+          />
+        </tbody>
+      </table>
+    );
+    fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('option', { name: 'No-show' }));
+
+    expect(await screen.findByLabelText('When did this happen?')).toHaveValue('2026-09-15');
+    expect(mockStatusChange).not.toHaveBeenCalled();
+  });
+
+  it('list: correcting one outcome to another on a resolved appointment stays one step', async () => {
+    render(
+      <table>
+        <tbody>
+          <AppointmentRow
+            id={ID}
+            apptDate="2026-09-15"
+            apptType="follow_up"
+            status="held"
+            expectedPremiumCents={0}
+            referralsGiven={0}
+            contactName="Jane Doe"
+            returnTo="/appointments"
+          />
+        </tbody>
+      </table>
+    );
+    fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('option', { name: 'No-show' }));
+
+    await waitFor(() => expect(mockStatusChange).toHaveBeenCalledWith(ID, 'no_show'));
+  });
+
+  it('edit form: giving a pending appointment an outcome labels the date and bars earlier days', () => {
+    render(<AppointmentForm mode="edit" defaultValues={editValues({ apptDate: '2026-09-15' })} />);
+    openStatusPicker();
+    fireEvent.click(screen.getByRole('option', { name: 'Held' }));
+
+    const date = screen.getByLabelText('When did this happen?');
+    expect(date).toHaveAttribute('min', '2026-09-15');
   });
 });

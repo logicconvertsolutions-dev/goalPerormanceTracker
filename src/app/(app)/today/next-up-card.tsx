@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useFollowUpActions, isResolvable, RESOLVE_OPTIONS, type DueItemKind } from './use-follow-up-actions';
+import { useFollowUpActions, isResolvable, canSnooze, RESOLVE_OPTIONS, type DueItemKind } from './use-follow-up-actions';
 import { ResolveAppointmentDialog, type ResolveMode } from '../appointments/resolve-appointment-dialog';
 import { useLogActivityDialog } from '@/components/shell/log-activity-dialog';
 import { dueItemHref } from './due-item-target';
@@ -43,7 +43,7 @@ export function NextUpCard({
   appointmentAt: string | null;
   timeZone: string | null;
 }) {
-  const { pending, handleSnooze, handleMarkDone, handleResolve } = useFollowUpActions(kind, rowId);
+  const { pending, handleSnooze, handleMarkDone } = useFollowUpActions(kind, rowId);
   const [resolveMode, setResolveMode] = useState<ResolveMode | null>(null);
   const { open: openLog } = useLogActivityDialog();
   const router = useRouter();
@@ -92,18 +92,23 @@ export function NextUpCard({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleSnooze(1)}>Snooze 1 day</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleSnooze(7)}>Snooze 1 week</DropdownMenuItem>
+            {/* Callbacks only -- an appointment moves by Reschedule (2026-09-22). */}
+            {canSnooze(kind) && (
+              <>
+                <DropdownMenuItem onClick={() => handleSnooze(1)}>Snooze 1 day</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSnooze(7)}>Snooze 1 week</DropdownMenuItem>
+              </>
+            )}
             {/* See TodayRow -- a pending appointment records an outcome
-                instead of being marked done (P25 C1, F11), and the two
-                outcomes that need more than a tap open the sheet (C2). */}
+                instead of being marked done (P25 C1, F11), and every
+                outcome opens the dialog that confirms when it happened. */}
             {resolvable ? (
               <>
-                <DropdownMenuSeparator />
+                {canSnooze(kind) && <DropdownMenuSeparator />}
                 <DropdownMenuItem onClick={() => setResolveMode('held')}>Held…</DropdownMenuItem>
                 {RESOLVE_OPTIONS.map((o) => (
-                  <DropdownMenuItem key={o.value} onClick={() => handleResolve(o.value)}>
-                    {o.label}
+                  <DropdownMenuItem key={o.value} onClick={() => setResolveMode(o.value)}>
+                    {o.label}…
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuItem onClick={() => setResolveMode('rescheduled')}>Reschedule…</DropdownMenuItem>

@@ -3,9 +3,17 @@ import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppointmentForm } from '../../appointment-form';
+import { safeReturnTo } from '@/lib/return-to';
 
-export default async function EditAppointmentPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditAppointmentPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ returnTo?: string }>;
+}) {
   const { id } = await params;
+  const { returnTo } = await searchParams;
   const session = await requireVerifiedAgent();
   const supabase = await createClient();
 
@@ -45,6 +53,7 @@ export default async function EditAppointmentPage({ params }: { params: Promise<
       <PageHeader title="Edit appointment" />
       <AppointmentForm
         mode="edit"
+        returnTo={safeReturnTo(returnTo)}
         defaultValues={{
           id: appointment.id,
           contactId: appointment.contact_id ?? undefined,

@@ -236,7 +236,7 @@ create table public.appointments (
   -- afterwards. No single question could be asked of it.
   set_on             date not null,  -- booking day, agent-local. IMMUTABLE.
   scheduled_for      timestamptz,    -- the slot itself. Immutable once terminal.
-  resolved_on        date,           -- day the outcome was RECORDED (E6), null while scheduled.
+  resolved_on        date,           -- the outcome day the agent CONFIRMED (2026-09-22), null while scheduled.
   -- P25 C1: the call that set this appointment. Unique, so one call
   -- produces at most one appointment (E16). Never backfilled for legacy
   -- rows (D4) -- guessing which call produced which appointment can merge
@@ -287,9 +287,12 @@ create unique index appointments_source_call_log_idx on public.appointments (sou
 
 A terminal row is never reopened implicitly; returning one to `scheduled`
 clears `resolved_on` (E7). Resolving stamps `resolved_on` with the day the
-outcome was *recorded*, not the day the appointment was for (E6) — so a
-late-recorded outcome can never reach back and change a closed cycle. Only
-the `scheduled → terminal` transition stamps it: re-recording the details
+agent **confirms** in the "When did this happen?" prompt (decided
+2026-09-22; this replaces E6's "always the recording day"). It defaults to
+the appointment's own day and must lie between that day and today — so it
+*can* land in a cycle that has already closed, when that is when the
+meeting happened. Bounds live in `lib/appointment-outcome-date.ts` and are
+enforced server-side. Only the `scheduled → terminal` transition stamps it: re-recording the details
 of an already-resolved appointment is a correction to the same outcome
 event and keeps the day it was first recorded on.
 

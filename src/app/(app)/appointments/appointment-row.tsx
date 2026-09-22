@@ -23,6 +23,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatDisplayDate } from '@/lib/dates';
 import { apptTypeLabel, APPT_STATUSES } from '@/lib/appointment-types';
+import { withReturnTo } from '@/lib/return-to';
 import {
   appointmentDeleteImpactAction,
   deleteAppointmentAction,
@@ -36,12 +37,17 @@ interface DeleteImpact {
   recruitingLogId: string | null;
 }
 
+function isResolveMode(value: string): value is ResolveMode {
+  return value === 'held' || value === 'no_show' || value === 'cancelled' || value === 'rescheduled';
+}
+
 export function AppointmentRow({
   id,
   apptDate,
   apptType,
   status,
   movedToSuccessor = false,
+  returnTo,
   expectedPremiumCents,
   referralsGiven,
   contactName,
@@ -54,6 +60,8 @@ export function AppointmentRow({
    * so this row's status is final and the picker is locked. Offering the
    * other statuses here only produced a server refusal. */
   movedToSuccessor?: boolean;
+  /** The list this row is on, so Edit → Save comes back to it. */
+  returnTo: string;
   expectedPremiumCents: number;
   referralsGiven: number;
   contactName: string;
@@ -64,13 +72,17 @@ export function AppointmentRow({
   const [deleteImpact, setDeleteImpact] = useState<DeleteImpact | null>(null);
 
   function handleStatusChange(next: string) {
-    // P25 C2: Held and Rescheduled route through the same sheet My Day
-    // uses, rather than setting a bare status here. Held has details to
-    // capture, and a reschedule creates a successor row (D1) — neither is
-    // expressible as a status change on its own, and doing it in two
-    // places differently is how F8 happened.
-    if (status === 'scheduled' && (next === 'held' || next === 'rescheduled')) {
-      setResolveMode(next === 'held' ? 'held' : 'rescheduled');
+    // Recording an outcome on a pending appointment routes through the
+    // same dialog My Day uses, rather than setting a bare status here:
+    // every outcome confirms the day it happened (2026-09-22), Held also
+    // captures what the meeting produced, and a reschedule creates a
+    // successor row (D1). Doing it in two places differently is how F8
+    // happened.
+    //
+    // A change between two outcomes on an already-resolved row is a
+    // correction of the same event, keeps its day, and stays one step.
+    if (status === 'scheduled' && isResolveMode(next)) {
+      setResolveMode(next);
       return;
     }
     startTransition(async () => {
@@ -157,7 +169,7 @@ export function AppointmentRow({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem asChild>
-              <Link href={`/appointments/${id}/edit`}>Edit</Link>
+              <Link href={withReturnTo(`/appointments/${id}/edit`, returnTo)}>Edit</Link>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleDeleteClick} className="text-bad">
               Delete

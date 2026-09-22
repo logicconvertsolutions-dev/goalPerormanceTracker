@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useFollowUpActions, isResolvable, RESOLVE_OPTIONS, type DueItemKind } from './use-follow-up-actions';
+import { useFollowUpActions, isResolvable, canSnooze, RESOLVE_OPTIONS, type DueItemKind } from './use-follow-up-actions';
 import { ResolveAppointmentDialog, type ResolveMode } from '../appointments/resolve-appointment-dialog';
 import { useLogActivityDialog } from '@/components/shell/log-activity-dialog';
 import { dueItemHref } from './due-item-target';
@@ -47,7 +47,7 @@ export function TodayRow({
   timeZone: string | null;
   overdue?: boolean;
 }) {
-  const { pending, handleSnooze, handleMarkDone, handleResolve } = useFollowUpActions(kind, rowId);
+  const { pending, handleSnooze, handleMarkDone } = useFollowUpActions(kind, rowId);
   const [resolveMode, setResolveMode] = useState<ResolveMode | null>(null);
   const { open: openLog } = useLogActivityDialog();
   const router = useRouter();
@@ -80,20 +80,25 @@ export function TodayRow({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => handleSnooze(1)}>Snooze 1 day</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => handleSnooze(7)}>Snooze 1 week</DropdownMenuItem>
+          {/* Callbacks only -- an appointment moves by Reschedule (2026-09-22). */}
+          {canSnooze(kind) && (
+            <>
+              <DropdownMenuItem onClick={() => handleSnooze(1)}>Snooze 1 day</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleSnooze(7)}>Snooze 1 week</DropdownMenuItem>
+            </>
+          )}
           {/* A pending appointment leaves the queue by recording what
               happened, not by being ticked off -- see useFollowUpActions.
-              Held and Rescheduled open the sheet because each needs
-              something a menu item cannot ask for; the other two are a
-              tap, because there is nothing to ask. */}
+              Every outcome opens the resolve dialog, which confirms the
+              day it happened; Held also captures what the meeting
+              produced, and Reschedule asks for the new slot. */}
           {resolvable ? (
             <>
-              <DropdownMenuSeparator />
+              {canSnooze(kind) && <DropdownMenuSeparator />}
               <DropdownMenuItem onClick={() => setResolveMode('held')}>Held…</DropdownMenuItem>
               {RESOLVE_OPTIONS.map((o) => (
-                <DropdownMenuItem key={o.value} onClick={() => handleResolve(o.value)}>
-                  {o.label}
+                <DropdownMenuItem key={o.value} onClick={() => setResolveMode(o.value)}>
+                  {o.label}…
                 </DropdownMenuItem>
               ))}
               <DropdownMenuItem onClick={() => setResolveMode('rescheduled')}>Reschedule…</DropdownMenuItem>
