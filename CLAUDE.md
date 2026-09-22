@@ -253,6 +253,7 @@ reference you see pointing at `docs/*.md`.
 | Incident response | `.github/Spec Sheets/11-incident-response.md` |
 | P25 appointment lifecycle remediation | `.github/Spec Sheets/12-appointment-lifecycle-remediation.md` |
 | P25 Phase C promotion + staging test plan | `.github/Spec Sheets/13-p25-phase-c-staging-verification.md` |
+| Conversion funnel + sale attribution (requirements, not built) | `.github/Spec Sheets/14-conversion-funnel-and-sale-attribution.md` |
 
 ## Commands
 `npm run dev` · `npm test` (vitest — now blocking in CI, no more
