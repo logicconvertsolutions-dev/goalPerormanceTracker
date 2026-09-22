@@ -410,7 +410,15 @@ export async function composeCycleDigest(
     admin.rpc('system_team_period_summary', { p_leader_id: leader.id, p_from: priorCycle.from, p_to: priorCycle.to }),
   ]);
   const roster: TeamPeriodSummaryRow[] = cycleData ?? [];
-  if (roster.length === 0) return null;
+  // A team digest with no team is noise. agent_closure always carries the
+  // leader's own depth-0 self row, so someone with no downline yields a
+  // ONE-row roster, not a zero-row one, and the old `length === 0` check
+  // never fired for them -- which is how an admin (downline of 0) received a
+  // digest of their own zeros, naming themselves as the only quiet agent,
+  // every cycle-start day. P28 stops enqueueing those at the source; this
+  // stops composing one at all, including for a leader who simply has not
+  // been assigned a downline yet.
+  if (!roster.some((r) => r.depth > 0)) return null;
 
   const agentIds = roster.map((r) => r.agent_id);
   const priorRoster: TeamPeriodSummaryRow[] = priorCycleData ?? [];
