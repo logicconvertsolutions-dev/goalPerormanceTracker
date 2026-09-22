@@ -20,6 +20,7 @@ const LEADER: NotifiableAgent = {
 interface SummaryRow {
   agent_id: string;
   full_name: string;
+  depth: number;
   calls_made: number;
   calls_target: number;
   appts_set: number;
@@ -40,7 +41,10 @@ interface MetricRow {
   referrals_given?: number;
 }
 
+// depth defaults to 1 -- a downline member. depth 0 is the leader's own
+// self row, which alone does not constitute a team (see composeCycleDigest).
 const row = (over: Partial<SummaryRow> & { agent_id: string; full_name: string }): SummaryRow => ({
+  depth: 1,
   calls_made: 0,
   calls_target: 200,
   appts_set: 0,
@@ -155,8 +159,19 @@ describe('composeCycleDigest', () => {
     expect(result!.content.text).toContain('Cycle Aug 21-31 is closed');
   });
 
-  it('sends nothing when the leader has no downline', async () => {
+  it('sends nothing when the RPC returns no rows at all', async () => {
     const { admin } = stubAdmin({});
+    expect(await composeCycleDigest(admin, LEADER, '2026-09-21')).toBeNull();
+  });
+
+  it('sends nothing to someone whose only roster row is themselves', async () => {
+    // agent_closure always returns the leader's own depth-0 row, so an empty
+    // downline is a one-row roster, not a zero-row one. This is the case that
+    // sent an admin a digest of their own zeros every cycle.
+    const { admin } = stubAdmin({
+      '2026-09-11:2026-09-20': [row({ agent_id: 'solo', full_name: 'Solo Admin', depth: 0, calls_made: 0 })],
+      '2026-09-01:2026-09-10': [],
+    });
     expect(await composeCycleDigest(admin, LEADER, '2026-09-21')).toBeNull();
   });
 });

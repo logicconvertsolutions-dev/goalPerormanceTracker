@@ -56,6 +56,30 @@ export async function GET(request: Request) {
   return NextResponse.json({ rosterSent, autoNudgeSent });
 }
 
+/**
+ * Same handler on POST, because that is the verb the only caller uses.
+ *
+ * private.ping_app_route() issues net.http_post for every route it pings.
+ * That is correct for the drain (POST), but this route only ever exported
+ * GET -- a leftover from when a GitHub Actions `schedule:` workflow called
+ * it, which it no longer does. So every ping_legacy_notifications() tick
+ * got a bare 405 from Next.js's router before any handler ran: no request
+ * log, no error, nothing in the app to notice. Confirmed against production
+ * pg_net responses, which show a 405 every five minutes alongside the
+ * drain's 200s, going back as far as the response table is retained.
+ *
+ * The practical effect is that BOTH features this route owns have never
+ * fired on the pg_cron schedule: team_roster's Wed/Sat automatic training
+ * reminders (p11a) and the SMD's opt-in auto call nudges (p12a). They were
+ * not broken in code -- the code was simply never reached.
+ *
+ * Fixed here rather than by switching the SQL to net.http_get, because that
+ * would need a migration to deploy and this does not. GET stays exported so
+ * a manual curl and any future Vercel Cron (which issues GET) keep working;
+ * both verbs run the same authorized handler.
+ */
+export const POST = GET;
+
 // SMD-triggered daily "log your calls" reminder (p12a) -- distinct from
 // nudge_agent (manual, rate-limited) -- a leader/admin flips
 // auto_call_nudges_enabled on for a quiet associate and this fires every
