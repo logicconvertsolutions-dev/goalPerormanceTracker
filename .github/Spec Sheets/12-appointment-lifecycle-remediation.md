@@ -176,6 +176,11 @@ otherwise — raising them after Phase C is expensive.
 | D9 | **Reminders are in-app + Web Push. No email.** | Requested 2026-09-20. Push is built as a reusable channel; appointment reminders are its first consumer. No Resend template, no email unsubscribe surface. | Low — email can be added later as a third channel behind the same interface. |
 | D10 | **`web-push` approved as a new prod dependency** (rule 11). Server-only. | Hand-rolled VAPID/ECDH/aes128gcm fails silently on device when subtly wrong. Update CLAUDE.md's locked-stack line when it lands. | Low. |
 | D11 | **`notification_log` is not touched.** New kinds use `notification_deliveries` + `notification_channel_prefs`. | Its `UNIQUE (agent_id, kind, local_date)` and `kind` CHECK are correct for daily digests and wrong for per-entity events. Widening them would put the three live email kinds at risk for no benefit. | Low — legacy booleans can migrate onto the new tables later. |
+| D12 | **Outcome day is confirmed by the agent** (2026-09-22), defaulting to the appointment's day, bounded by it and today. Supersedes E6. | The recording-day rule held only for some buttons; the edit form used its Date field, so one outcome could land in two cycles. | Low — one module, `lib/appointment-outcome-date.ts`. |
+| D13 | **No Snooze on appointments** (2026-09-22). | It moved the appointment without recording a reschedule, beside Reschedule… in the same menu. | Low — UI only. |
+| D14 | **Tapping a pending appointment on My Day opens it**; follow-ups open Log a call (2026-09-22). | The tap target predated appointments in the queue. | Low. |
+| D15 | **`/appointments` Scheduled / Open pipeline count every pending appointment** (2026-09-22). | Match Upcoming and the dashboard. | Low. |
+| D16 | **Saving an appointment returns to where it was opened** (2026-09-22), else Activity Logs' Appointments tab. | `/appointments` is not in the navigation. | Low. |
 
 ---
 
@@ -586,6 +591,32 @@ blocked), so CI is the gate.
 
 **Revert:** app-only plus dropping one trigger — see REVERT in the migration header.
 
+**Found testing P29 on staging, and in the audit after it (2026-09-22).**
+App-only, no schema change:
+
+- **Decisions taken with the product owner:**
+  - D12 — the outcome day is **confirmed, not presumed**. Every outcome
+    (Held, No-show, Cancelled; My Day, the list pickers, the edit form)
+    asks "When did this happen?", starting on the appointment's own day,
+    bounded by it and today. Replaces E6. One rule,
+    `lib/appointment-outcome-date.ts`, enforced server-side; a caller
+    that sends no date still gets today.
+  - D13 — **no Snooze on appointments**. It moved the appointment without
+    recording a reschedule, next to Reschedule… in the same menu.
+    Callbacks keep it. The two appointment snooze actions are removed.
+  - D14 — tapping a pending appointment on My Day opens the appointment;
+    follow-ups still open Log a call.
+  - D15 — `/appointments` Scheduled and Open pipeline count every pending
+    appointment, matching Upcoming and the dashboard.
+  - D16 — saving an appointment returns to the screen that opened it
+    (`returnTo`, in-app paths only), else Activity Logs' Appointments tab.
+    `/appointments` is not in the navigation.
+- **Defects:** the edit form did not offer Rescheduled although the list
+  did (from N2); moved appointments offered statuses the server refused,
+  on `/appointments` and Activity Logs; the call edit page re-seeded the
+  appointment's time from the call's stale copy, so saving the call moved
+  the appointment back.
+
 ---
 
 ### Phase C — Single record + lifecycle UI (original scope, for reference)
@@ -845,8 +876,11 @@ Every one of these gets a test (§8).
 - E4 Booking near local midnight; DST transition on the appointment date.
 - E5 `scheduled_for` in the past at creation (backdated entry) — allowed,
   must not be treated as overdue-unresolved on day one.
-- E6 Resolution recorded days after the fact → `resolved_on` is the
-  recording day, not the appointment day. Deliberate, and documented.
+- E6 Resolution recorded days after the fact → **superseded 2026-09-22**:
+  the agent confirms the outcome day ("When did this happen?"), defaulting
+  to the appointment's own day, bounded by that day and today. Originally
+  the recording day; in practice that held only for some buttons (the edit
+  form used its Date field), so the same outcome could land in two cycles.
 
 **Lifecycle**
 - E7 Resolve → undo → resolve again; `resolved_on` must not accumulate.

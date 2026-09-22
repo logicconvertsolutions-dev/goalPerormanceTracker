@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Phone, CalendarClock, MoreVertical } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,9 +12,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useFollowUpActions, isResolvable, RESOLVE_OPTIONS, type DueItemKind } from './use-follow-up-actions';
+import { useFollowUpActions, isResolvable, canSnooze, RESOLVE_OPTIONS, type DueItemKind } from './use-follow-up-actions';
 import { ResolveAppointmentDialog, type ResolveMode } from '../appointments/resolve-appointment-dialog';
 import { useLogActivityDialog } from '@/components/shell/log-activity-dialog';
+import { dueItemHref } from './due-item-target';
 import { formatDisplayTime } from '@/lib/dates';
 
 /** The single most urgent item, featured above the rest of the queue —
@@ -41,9 +43,10 @@ export function NextUpCard({
   appointmentAt: string | null;
   timeZone: string | null;
 }) {
-  const { pending, handleSnooze, handleMarkDone, handleResolve } = useFollowUpActions(kind, rowId);
+  const { pending, handleSnooze, handleMarkDone } = useFollowUpActions(kind, rowId);
   const [resolveMode, setResolveMode] = useState<ResolveMode | null>(null);
   const { open: openLog } = useLogActivityDialog();
+  const router = useRouter();
   const overdue = daysLate > 0;
   const isAppointment = kind === 'appointment' || kind === 'call_appointment';
   const resolvable = isResolvable(kind);
@@ -53,7 +56,11 @@ export function NextUpCard({
       <div className={overdue ? 'w-[3px] shrink-0 rounded-l-[12px] bg-bad' : 'w-[3px] shrink-0 rounded-l-[12px] bg-gold'} />
       <button
         type="button"
-        onClick={() => openLog({ contactId, contactName })}
+        onClick={() => {
+          const href = dueItemHref(kind, rowId);
+          if (href) router.push(href);
+          else openLog({ contactId, contactName });
+        }}
         className="flex min-w-0 flex-1 items-center gap-3 py-3.5 text-left"
       >
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acc-dim text-acc">
@@ -85,18 +92,23 @@ export function NextUpCard({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleSnooze(1)}>Snooze 1 day</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleSnooze(7)}>Snooze 1 week</DropdownMenuItem>
+            {/* Callbacks only -- an appointment moves by Reschedule (2026-09-22). */}
+            {canSnooze(kind) && (
+              <>
+                <DropdownMenuItem onClick={() => handleSnooze(1)}>Snooze 1 day</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSnooze(7)}>Snooze 1 week</DropdownMenuItem>
+              </>
+            )}
             {/* See TodayRow -- a pending appointment records an outcome
-                instead of being marked done (P25 C1, F11), and the two
-                outcomes that need more than a tap open the sheet (C2). */}
+                instead of being marked done (P25 C1, F11), and every
+                outcome opens the dialog that confirms when it happened. */}
             {resolvable ? (
               <>
-                <DropdownMenuSeparator />
+                {canSnooze(kind) && <DropdownMenuSeparator />}
                 <DropdownMenuItem onClick={() => setResolveMode('held')}>Held…</DropdownMenuItem>
                 {RESOLVE_OPTIONS.map((o) => (
-                  <DropdownMenuItem key={o.value} onClick={() => handleResolve(o.value)}>
-                    {o.label}
+                  <DropdownMenuItem key={o.value} onClick={() => setResolveMode(o.value)}>
+                    {o.label}…
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuItem onClick={() => setResolveMode('rescheduled')}>Reschedule…</DropdownMenuItem>
