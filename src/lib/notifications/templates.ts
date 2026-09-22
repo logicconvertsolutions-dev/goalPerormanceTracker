@@ -78,13 +78,17 @@ function footer(agentId: string, kind: NotificationKind | null): { html: string;
   };
 }
 
+// `maxWidth` defaults to the 480px every short email uses. The cycle digest
+// passes 600 -- the standard wide-email width -- because its roster table has
+// eight columns and 480 forces a phone-hostile shrink. No other email needs it.
 function wrap(
   bodyHtml: string,
   agentId: string,
-  kind: NotificationKind | null
+  kind: NotificationKind | null,
+  maxWidth = 480
 ): EmailContent['html'] {
   const f = footer(agentId, kind);
-  return `<div style="font-family:'Plus Jakarta Sans',-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;">
+  return `<div style="font-family:'Plus Jakarta Sans',-apple-system,Helvetica,Arial,sans-serif;max-width:${maxWidth}px;margin:0 auto;">
     ${header()}
     <div style="background:${BRAND.bg};padding:32px;border:1px solid #E7E2D3;border-top:none;border-radius:0 0 14px 14px;color:${BRAND.text};">
       ${bodyHtml}
@@ -152,14 +156,122 @@ export function cycleSummaryEmail(d: CycleSummaryData): EmailContent {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Cycle digest (P26). The pre-P26 version was four sentences of team totals.
+// An SMD's actual job on cycle-close day is deciding who to talk to and about
+// what, so this carries the funnel rates that say WHERE a miss happened, and
+// names individuals with the number that earned them the mention.
+//
+// All of it is counts and sums over daily_metrics -- no contact_name, no
+// notes, no client_name (CLAUDE.md rule 2). The only names are the leader's
+// own downline, which they already see on /team.
+// ---------------------------------------------------------------------------
+
+const OK = '#1E7F4F';
+const WARN = '#B07503';
+const BAD = '#B4341F';
+const LINE = '#E7E2D3';
+const SOFT = '#F7F5EF';
+
+/** Integer percent, 0 when the denominator is 0 -- never NaN/Infinity in copy. */
+function pctOf(n: number, d: number): number {
+  return d > 0 ? Math.round((100 * n) / d) : 0;
+}
+
+/** Percent, or null when there is no denominator to divide by. */
+function rateOf(n: number, d: number): number | null {
+  return d > 0 ? Math.round((100 * n) / d) : null;
+}
+
+function toneFor(p: number): string {
+  return p >= 100 ? OK : p >= 70 ? WARN : BAD;
+}
+
+function deltaOf(cur: number, prev: number): number | null {
+  const d = cur - prev;
+  return d === 0 ? null : d;
+}
+
+// HTML entities, not the literal glyphs -- some Windows mail clients still
+// mangle a raw U+25B2 depending on the declared charset.
+function arrowHtml(d: number | null): string {
+  if (d === null) return 'flat vs last';
+  return d > 0 ? `&#9650; ${d} vs last` : `&#9660; ${Math.abs(d)} vs last`;
+}
+
+function arrowText(d: number | null): string {
+  if (d === null) return 'flat vs last cycle';
+  return d > 0 ? `up ${d} vs last cycle` : `down ${Math.abs(d)} vs last cycle`;
+}
+
+export interface CycleDigestTotals {
+  calls: number;
+  apptsSet: number;
+  apptsHeld: number;
+  sales: number;
+  premiumCents: number;
+  recruits: number;
+}
+
+export interface CycleDigestTargets {
+  calls: number;
+  apptsHeld: number;
+  premiumCents: number;
+}
+
+export interface CycleDigestAgent {
+  name: string;
+  calls: number;
+  callsTarget: number;
+  apptsSet: number;
+  apptsHeld: number;
+  sales: number;
+  premiumCents: number;
+  recruits: number;
+  /** Pre-formatted short date ("Sep 18"), or null if they have never logged. */
+  lastActive: string | null;
+  stale: boolean;
+}
+
+export interface CycleDigestCallout {
+  name: string;
+  reason: string;
+  hint?: string;
+  severe: boolean;
+}
+
 export interface CycleDigestData {
   agentId: string;
   fullName: string;
-  totalCalls: number;
-  totalCallsTarget: number;
-  totalPremiumCents: number;
-  quietAgentNames: string[];
-  moverNames: string[];
+  /** The cycle these numbers cover, e.g. "Sep 11-20" -- the one that just
+   * closed. Named in the copy because the email arrives on the *next*
+   * cycle's first morning. */
+  cycleLabel: string;
+  /** The comparison cycle, e.g. "Sep 1-10". */
+  priorLabel: string;
+  totals: CycleDigestTotals;
+  prior: CycleDigestTotals;
+  targets: CycleDigestTargets;
+  /** Set when most of the roster trips the same rule -- a callout naming
+   * everybody is not a callout, it is a team-level fact. */
+  banner: { title: string; body: string } | null;
+  attention: CycleDigestCallout[];
+  movers: { name: string; note: string }[];
+  agents: CycleDigestAgent[];
+}
+
+// Table-based grid: Outlook's Word renderer supports neither flexbox nor
+// CSS grid, so every column here is a real <td>.
+function statTile(label: string, value: string, sub: string, tone: string): string {
+  return `<td width="33%" style="padding:12px 10px;background:${SOFT};border:1px solid ${LINE};border-radius:10px;vertical-align:top;">
+    <div style="font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:${BRAND.muted};">${label}</div>
+    <div style="font-size:22px;font-weight:700;color:${tone};line-height:1.25;margin-top:3px;">${value}</div>
+    <div style="font-size:11px;color:${BRAND.muted};margin-top:2px;">${sub || '&nbsp;'}</div>
+  </td>`;
+}
+
+function sectionTitle(t: string): string {
+  return `<p style="margin:26px 0 10px;font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:${BRAND.navy};">${t}</p>`;
 }
 
 // Notification kind stays 'monday_digest' (the DB/URL identifier, unchanged
@@ -167,28 +279,174 @@ export interface CycleDigestData {
 // private.enqueue_due_notifications()'s doc comment for why.
 export function cycleDigestEmail(d: CycleDigestData): EmailContent {
   const teamUrl = appUrl('/team');
-  const quietLine =
-    d.quietAgentNames.length > 0
-      ? `Quiet this cycle: ${d.quietAgentNames.join(', ')}.`
-      : 'Everyone logged something this cycle.';
-  const moversLine = d.moverNames.length > 0 ? `Biggest movers: ${d.moverNames.join(', ')}.` : '';
-  const quietLineHtml =
-    d.quietAgentNames.length > 0
-      ? `Quiet this cycle: ${d.quietAgentNames.map(escapeHtml).join(', ')}.`
-      : 'Everyone logged something this cycle.';
-  const moversLineHtml =
-    d.moverNames.length > 0 ? `Biggest movers: ${d.moverNames.map(escapeHtml).join(', ')}.` : '';
+  const callPct = pctOf(d.totals.calls, d.targets.calls);
+  const heldPct = pctOf(d.totals.apptsHeld, d.targets.apptsHeld);
+  const premPct = pctOf(d.totals.premiumCents, d.targets.premiumCents);
+
+  const setRate = rateOf(d.totals.apptsSet, d.totals.calls);
+  const showRate = rateOf(d.totals.apptsHeld, d.totals.apptsSet);
+  const closeRate = rateOf(d.totals.sales, d.totals.apptsHeld);
+  const priorSetRate = rateOf(d.prior.apptsSet, d.prior.calls);
+  const priorShowRate = rateOf(d.prior.apptsHeld, d.prior.apptsSet);
+  const priorCloseRate = rateOf(d.prior.sales, d.prior.apptsHeld);
+
+  const dCalls = deltaOf(d.totals.calls, d.prior.calls);
+  const dHeld = deltaOf(d.totals.apptsHeld, d.prior.apptsHeld);
+  const dPrem = deltaOf(d.totals.premiumCents, d.prior.premiumCents);
+  const dRecruits = deltaOf(d.totals.recruits, d.prior.recruits);
+
+  const tilesA = [
+    statTile('Calls', String(d.totals.calls), `${callPct}% of ${d.targets.calls} &middot; ${arrowHtml(dCalls)}`, toneFor(callPct)),
+    statTile('Appts set', String(d.totals.apptsSet), setRate === null ? '&nbsp;' : `${setRate}% set rate`, BRAND.text),
+    statTile('Appts held', String(d.totals.apptsHeld), `${heldPct}% of ${d.targets.apptsHeld} &middot; ${arrowHtml(dHeld)}`, toneFor(heldPct)),
+  ];
+  const tilesB = [
+    statTile('Sales', String(d.totals.sales), '&nbsp;', BRAND.text),
+    statTile('Premium', formatMoney(d.totals.premiumCents), `${premPct}% of ${formatMoney(d.targets.premiumCents)} &middot; ${arrowHtml(dPrem)}`, toneFor(premPct)),
+    statTile('Recruiting convos', String(d.totals.recruits), arrowHtml(dRecruits), BRAND.text),
+  ];
+  const tileRow = (tiles: string[]) => `<tr>${tiles.join('<td width="10"></td>')}</tr>`;
+
+  // Sales are logged independently of appointments, so a close rate can
+  // legitimately exceed 100% (more sales than held appts in the window).
+  // Showing "300%" reads as a bug, so past 100 it falls back to the raw
+  // ratio, which is the honest statement of the same fact.
+  const funnelCell = (label: string, val: number | null, prev: number | null, raw?: string) => {
+    const shown = val === null ? '&mdash;' : val > 100 && raw ? raw : `${val}%`;
+    const move = val !== null && prev !== null ? deltaOf(val, prev) : null;
+    const tail = move === null ? 'no change' : move > 0 ? `&#9650; ${move} pts` : `&#9660; ${Math.abs(move)} pts`;
+    return `<td style="padding:10px 12px;border:1px solid ${LINE};border-radius:10px;">
+      <div style="font-size:11px;color:${BRAND.muted};">${label}</div>
+      <div style="font-size:17px;font-weight:700;color:${BRAND.text};margin-top:2px;">${shown}
+        <span style="font-size:11px;font-weight:600;color:${BRAND.muted};">${tail}</span></div>
+    </td>`;
+  };
+
+  const bannerHtml = d.banner
+    ? `<div style="margin-top:22px;padding:12px 14px;background:#FCF3F2;border:1px solid #F0D5D1;border-left:4px solid ${BAD};border-radius:8px;">
+        <div style="font-size:13px;font-weight:700;color:${BAD};">${escapeHtml(d.banner.title)}</div>
+        <div style="font-size:13px;color:${BRAND.text};margin-top:3px;">${escapeHtml(d.banner.body)}</div>
+      </div>`
+    : '';
+
+  const attentionHtml = d.attention.length
+    ? `${sectionTitle('Worth a conversation')}
+       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">${d.attention
+         .map(
+           (a) => `<tr><td style="padding:9px 0;border-bottom:1px solid ${LINE};">
+             <span style="font-weight:600;color:${BRAND.text};">${escapeHtml(a.name)}</span>
+             <span style="color:${a.severe ? BAD : WARN};font-size:13px;"> &middot; ${escapeHtml(a.reason)}</span>
+             ${a.hint ? `<div style="font-size:12px;color:${BRAND.muted};margin-top:2px;">${escapeHtml(a.hint)}</div>` : ''}
+           </td></tr>`
+         )
+         .join('')}</table>`
+    : '';
+
+  const moversHtml = d.movers.length
+    ? `${sectionTitle('Momentum')}
+       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">${d.movers
+         .map(
+           (m) => `<tr><td style="padding:7px 0;border-bottom:1px solid ${LINE};">
+             <span style="font-weight:600;color:${BRAND.text};">${escapeHtml(m.name)}</span>
+             <span style="color:${OK};font-size:13px;"> &middot; ${escapeHtml(m.note)}</span>
+           </td></tr>`
+         )
+         .join('')}</table>`
+    : '';
+
+  const th = (t: string, align: string) =>
+    `<th align="${align}" style="padding:7px 6px;font-size:11px;letter-spacing:.03em;text-transform:uppercase;color:${BRAND.muted};font-weight:600;border-bottom:1px solid ${LINE};">${t}</th>`;
+  const td = (v: string, align: string, style = '') =>
+    `<td align="${align}" style="padding:9px 6px;font-size:13px;border-bottom:1px solid ${LINE};${style}">${v}</td>`;
+
+  const agentRows = d.agents
+    .map((a) => {
+      const p = pctOf(a.calls, a.callsTarget);
+      return `<tr>
+        ${td(`<span style="font-weight:600;">${escapeHtml(a.name)}</span>`, 'left')}
+        ${td(`${a.calls}<span style="color:${BRAND.muted};font-size:11px;">/${a.callsTarget}</span> <span style="color:${toneFor(p)};font-size:11px;font-weight:600;">${p}%</span>`, 'right')}
+        ${td(String(a.apptsSet), 'right')}
+        ${td(String(a.apptsHeld), 'right')}
+        ${td(String(a.sales), 'right')}
+        ${td(formatMoney(a.premiumCents), 'right')}
+        ${td(String(a.recruits), 'right')}
+        ${td(escapeHtml(a.lastActive ?? 'never'), 'right', `color:${a.stale ? BAD : BRAND.muted};font-size:12px;`)}
+      </tr>`;
+    })
+    .join('');
+
   const bodyHtml = `
-    <p>Hi ${escapeHtml(firstName(d.fullName))},</p>
-    <p>Team so far this cycle: <strong>${d.totalCalls} of ${d.totalCallsTarget}</strong> calls,
-    ${formatMoney(d.totalPremiumCents)} in premium.</p>
-    <p>${quietLineHtml}${moversLineHtml ? ` ${moversLineHtml}` : ''}</p>
-    ${button(teamUrl, 'View team dashboard')}`;
-  const bodyText = `Hi ${firstName(d.fullName)},\n\nTeam so far this cycle: ${d.totalCalls} of ${d.totalCallsTarget} calls, ${formatMoney(d.totalPremiumCents)} in premium.\n\n${quietLine}${moversLine ? ` ${moversLine}` : ''}\n\nView team dashboard: ${teamUrl}`;
+    <p style="margin:0 0 4px;font-size:15px;">Hi ${escapeHtml(firstName(d.fullName))},</p>
+    <p style="margin:0 0 2px;font-size:20px;font-weight:700;color:${BRAND.navy};">Cycle ${escapeHtml(d.cycleLabel)} is closed</p>
+    <p style="margin:0;font-size:13px;color:${BRAND.muted};">${d.agents.length} ${d.agents.length === 1 ? 'person' : 'people'} on your team &middot; compared against ${escapeHtml(d.priorLabel)}</p>
+
+    ${sectionTitle('Team scorecard')}
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate;">
+      ${tileRow(tilesA)}<tr><td colspan="5" height="10"></td></tr>${tileRow(tilesB)}
+    </table>
+
+    ${sectionTitle('Where the funnel leaks')}
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate;">
+      <tr>
+        ${funnelCell('Calls &rarr; appt set', setRate, priorSetRate)}
+        <td width="10"></td>
+        ${funnelCell('Set &rarr; held', showRate, priorShowRate)}
+        <td width="10"></td>
+        ${funnelCell('Held &rarr; sale', closeRate, priorCloseRate, `${d.totals.sales}/${d.totals.apptsHeld}`)}
+      </tr>
+    </table>
+    ${bannerHtml}
+    ${attentionHtml}
+    ${moversHtml}
+
+    ${sectionTitle('Everyone, by the numbers')}
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+      <tr>${th('Agent', 'left')}${th('Calls', 'right')}${th('Set', 'right')}${th('Held', 'right')}${th('Sales', 'right')}${th('Premium', 'right')}${th('Recr', 'right')}${th('Last active', 'right')}</tr>
+      ${agentRows}
+    </table>
+    <p style="margin:18px 0 0;">${button(teamUrl, 'View team dashboard')}</p>`;
+
+  const L: string[] = [];
+  L.push(`Hi ${firstName(d.fullName)},`, '');
+  L.push(`Cycle ${d.cycleLabel} is closed. ${d.agents.length} on your team, compared against ${d.priorLabel}.`, '');
+  L.push('TEAM SCORECARD');
+  L.push(`  Calls        ${d.totals.calls} (${callPct}% of ${d.targets.calls}, ${arrowText(dCalls)})`);
+  L.push(`  Appts set    ${d.totals.apptsSet}${setRate === null ? '' : ` (${setRate}% set rate)`}`);
+  L.push(`  Appts held   ${d.totals.apptsHeld} (${heldPct}% of ${d.targets.apptsHeld}, ${arrowText(dHeld)})`);
+  L.push(`  Sales        ${d.totals.sales}`);
+  L.push(`  Premium      ${formatMoney(d.totals.premiumCents)} (${premPct}% of ${formatMoney(d.targets.premiumCents)})`);
+  L.push(`  Recruiting   ${d.totals.recruits} conversations`, '');
+  L.push('FUNNEL');
+  L.push(`  Calls -> appt set   ${setRate === null ? '-' : `${setRate}%`}`);
+  L.push(`  Set -> held         ${showRate === null ? '-' : `${showRate}%`}`);
+  L.push(
+    `  Held -> sale        ${closeRate === null ? '-' : closeRate > 100 ? `${d.totals.sales} sales / ${d.totals.apptsHeld} held` : `${closeRate}%`}`,
+    ''
+  );
+  if (d.banner) L.push(`** ${d.banner.title}`, `   ${d.banner.body}`, '');
+  if (d.attention.length) {
+    L.push('WORTH A CONVERSATION');
+    for (const a of d.attention) L.push(`  ${a.name} - ${a.reason}${a.hint ? ` (${a.hint})` : ''}`);
+    L.push('');
+  }
+  if (d.movers.length) {
+    L.push('MOMENTUM');
+    for (const m of d.movers) L.push(`  ${m.name} - ${m.note}`);
+    L.push('');
+  }
+  L.push('EVERYONE');
+  for (const a of d.agents) {
+    L.push(
+      `  ${a.name}: ${a.calls}/${a.callsTarget} calls, ${a.apptsSet} set, ${a.apptsHeld} held, ` +
+        `${a.sales} sales, ${formatMoney(a.premiumCents)}, ${a.recruits} recruiting, last active ${a.lastActive ?? 'never'}`
+    );
+  }
+  L.push('', `View team dashboard: ${teamUrl}`);
+
   return {
-    subject: 'Your team cycle digest',
-    html: wrap(bodyHtml, d.agentId, 'monday_digest'),
-    text: wrapText(bodyText, d.agentId, 'monday_digest'),
+    subject: `Your team cycle digest — ${d.cycleLabel}`,
+    html: wrap(bodyHtml, d.agentId, 'monday_digest', 600),
+    text: wrapText(L.join('\n'), d.agentId, 'monday_digest'),
     unsubscribeUrl: unsubscribeUrlFor(d.agentId, 'monday_digest'),
   };
 }

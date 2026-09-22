@@ -9,6 +9,7 @@ import {
   previousCycleBounds,
   nextCycleStart,
   cyclesInRange,
+  formatCycleRange,
   isPeriodPreset,
   resolvePeriod,
   shiftZonedTimestampByDays,
@@ -72,6 +73,22 @@ describe('cycleBounds', () => {
     expect(cycleBounds(new Date('2026-02-21T00:00:00Z'))).toEqual({ from: '2026-02-21', to: '2026-02-28' });
     // Leap February -- 9-day third chunk.
     expect(cycleBounds(new Date('2024-02-21T00:00:00Z'))).toEqual({ from: '2024-02-21', to: '2024-02-29' });
+  });
+});
+
+describe('formatCycleRange', () => {
+  it('states the month once for a within-month cycle', () => {
+    expect(formatCycleRange('2026-09-11', '2026-09-20')).toBe('Sep 11-20');
+    expect(formatCycleRange('2026-09-01', '2026-09-10')).toBe('Sep 1-10');
+  });
+
+  it('covers the variable-length third chunk', () => {
+    expect(formatCycleRange('2026-08-21', '2026-08-31')).toBe('Aug 21-31');
+    expect(formatCycleRange('2026-02-21', '2026-02-28')).toBe('Feb 21-28');
+  });
+
+  it('names both months if a range ever spans two', () => {
+    expect(formatCycleRange('2026-08-21', '2026-09-01')).toBe('Aug 21 - Sep 1');
   });
 });
 

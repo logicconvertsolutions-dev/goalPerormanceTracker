@@ -400,6 +400,22 @@ nudge or cycle summary *and* the team cycle digest — each kind still has its
 own `notification_log` dedup key, so this is at most one send per kind per
 day, not an uncapped volume of email.
 
+**Which cycle the digest reports.** The team cycle digest fires at 08:00 on
+day 1/11/21 and reports the cycle that **just closed** (day 11-20 when it
+arrives on the 21st), with the cycle before that as the baseline for its
+"biggest movers" deltas. It did not always: from P14a through P24 it summed
+the cycle *containing* the send date -- i.e. the one that had opened eight
+hours earlier -- so every digest was structurally empty. Totals read ~0
+against a full cycle's target, every agent landed in the "quiet" list, and
+no per-agent delta could be positive so "biggest movers" never appeared.
+The bug survived P18's weekly->cycle move because the old Monday version had
+the same shape (8 AM Monday, summing the week that started that morning) and
+the rewrite carried the window over verbatim. The email copy now names the
+range it covers ("Your team's last cycle (Sep 11-20) closed with...") so the
+window is legible from the email itself. The general rule, same family as
+CLAUDE.md rule 12: **a digest that arrives at the start of a period is
+reporting the period that ended, never the one that just began.**
+
 **Known loose end:** `n.role in ('leader', 'admin')` for `monday_digest`
 still counts admin as eligible, unchanged since P14a. Now that admin has no
 downline (`agent_closure` only has their own self-row), `composeCycleDigest()` /

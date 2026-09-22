@@ -249,6 +249,37 @@ export function previousCycleBounds(date: Date): { from: string; to: string } {
   return cycleBounds(new Date(addDays(current.from, -1) + 'T00:00:00Z'));
 }
 
+/** Compact day-in-month label, e.g. "Sep 18" -- for the cycle digest's
+ * per-agent "last active" column, where formatDisplayDate's weekday prefix
+ * would not fit the table cell. */
+export function formatShortDate(iso: string): string {
+  return new Date(iso + 'T00:00:00Z').toLocaleDateString('en-CA', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  });
+}
+
+/**
+ * Human label for an inclusive cycle range, e.g. "Sep 11-20" -- for copy
+ * that has to name *which* cycle it is reporting (the cycle digest email).
+ * A cycle never crosses a month boundary (cycleBounds chunks within one
+ * month), so the month is stated once; the cross-month form is spelled out
+ * anyway rather than assuming it.
+ */
+export function formatCycleRange(from: string, to: string): string {
+  const start = new Date(from + 'T00:00:00Z');
+  const end = new Date(to + 'T00:00:00Z');
+  const month = (d: Date) => d.toLocaleDateString('en-CA', { month: 'short', timeZone: 'UTC' });
+  const startMonth = month(start);
+  const endMonth = month(end);
+  const startDay = start.getUTCDate();
+  const endDay = end.getUTCDate();
+  return startMonth === endMonth
+    ? `${startMonth} ${startDay}-${endDay}`
+    : `${startMonth} ${startDay} - ${endMonth} ${endDay}`;
+}
+
 /** The start date of the next 10-day cycle strictly after the one containing `iso`. */
 export function nextCycleStart(iso: string): string {
   const current = cycleBounds(new Date(iso + 'T00:00:00Z'));
