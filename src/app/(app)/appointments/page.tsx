@@ -8,8 +8,9 @@ import { PageHeader } from '@/components/shell/page-header';
 import { KpiCard } from '@/components/shell/kpi-card';
 import { FilterBar, type FilterChip } from '@/components/shell/filter-bar';
 import { isPeriodPreset, resolvePeriod, todayIso, type PeriodPreset } from '@/lib/dates';
-import { noShowRateFrom } from '@/lib/metrics';
+import { noShowRateFrom, pipelineValueOpenAppts } from '@/lib/metrics';
 import { AppointmentRow } from './appointment-row';
+import { withReturnTo } from '@/lib/return-to';
 import { UpcomingSection, type UpcomingAppointment } from './upcoming-section';
 
 const STATUSES = ['scheduled', 'held', 'no_show', 'rescheduled', 'cancelled'] as const;
@@ -35,7 +36,7 @@ export default async function AppointmentsPage({
 
   let query = supabase
     .from('appointments')
-    .select('id, appt_date, appt_type, status, expected_premium_cents, referrals_given, notes, contacts(full_name)')
+    .select('id, appt_date, appt_type, status, expected_premium_cents, referrals_given, notes, rescheduled_to_id, contacts(full_name)')
     .eq('agent_id', session.agent!.id)
     .gte('appt_date', from)
     .lte('appt_date', to);
@@ -62,7 +63,7 @@ export default async function AppointmentsPage({
   // appointment was invisible on this page entirely.
   const { data: pendingRows } = await supabase
     .from('appointments')
-    .select('id, appt_date, scheduled_for, appt_type, contacts(full_name)')
+    .select('id, appt_date, scheduled_for, appt_type, status, expected_premium_cents, contacts(full_name)')
     .eq('agent_id', session.agent!.id)
     .eq('status', 'scheduled')
     .order('appt_date', { ascending: true });
@@ -82,14 +83,20 @@ export default async function AppointmentsPage({
   const held = rows.filter((r) => r.status === 'held').length;
   const noShows = rows.filter((r) => r.status === 'no_show').length;
   const cancelled = rows.filter((r) => r.status === 'cancelled').length;
-  const scheduled = rows.filter((r) => r.status === 'scheduled');
   // F10: the one definition, shared with the dashboards. This used to be
   // no-shows over EVERY row in the period, which disagreed with the
   // dashboard's own formula and drifted as pending appointments resolved.
   const noShowRatePct = Math.round(
     100 * noShowRateFrom({ apptHeld: held, apptNoShow: noShows, apptCancelled: cancelled })
   );
-  const openPremium = scheduled.reduce((acc, r) => acc + r.expected_premium_cents, 0);
+  // Scheduled and Open premium describe what is still PENDING, so they
+  // come from the same unfiltered set as the Upcoming section above them
+  // and the dashboard's Open Pipeline -- not from the period's rows. A
+  // tile under the Upcoming list that disagreed with it (2 vs 5) was the
+  // inconsistency; so was a premium total that differed from the
+  // dashboard's for the same appointments.
+  const pendingCount = pendingRows?.length ?? 0;
+  const openPremium = pipelineValueOpenAppts(pendingRows ?? []);
 
   const chips: FilterChip[] = [];
   if (search) chips.push({ key: 'search', label: `"${search}"` });
@@ -101,7 +108,7 @@ export default async function AppointmentsPage({
         title="Appointments"
         action={
           <Button asChild variant="primary" size="sm">
-            <Link href="/appointments/new">Log appointment</Link>
+            <Link href={withReturnTo('/appointments/new', '/appointments')}>Log appointment</Link>
           </Button>
         }
       />
@@ -151,10 +158,10 @@ export default async function AppointmentsPage({
       ) : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <KpiCard label="Scheduled" value={String(scheduled.length)} />
+            <KpiCard label="Scheduled" value={String(pendingCount)} hint="All pending" />
             <KpiCard label="Held" value={String(held)} />
             <KpiCard label="No-show rate" value={`${noShowRatePct}%`} hint={`${noShows} of ${held + noShows + cancelled} resolved`} />
-            <KpiCard label="Open premium" value={`$${(openPremium / 100).toLocaleString('en-CA')}`} />
+            <KpiCard label="Open pipeline" value={`$${(openPremium / 100).toLocaleString('en-CA')}`} hint="All pending" />
           </div>
 
           <div className="overflow-x-auto rounded-lg border border-line shadow-card">
@@ -178,6 +185,8 @@ export default async function AppointmentsPage({
                     apptDate={a.appt_date}
                     apptType={a.appt_type}
                     status={a.status}
+                    movedToSuccessor={a.status === 'rescheduled' && Boolean(a.rescheduled_to_id)}
+                    returnTo="/appointments"
                     expectedPremiumCents={a.expected_premium_cents}
                     referralsGiven={a.referrals_given}
                     contactName={(a.contacts as { full_name: string } | null)?.full_name ?? '—'}

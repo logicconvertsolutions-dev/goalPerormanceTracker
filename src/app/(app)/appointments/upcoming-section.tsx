@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { CalendarClock, AlertTriangle } from 'lucide-react';
 import { formatDisplayDateTime, formatDisplayTime, formatDisplayDate } from '@/lib/dates';
 import { apptTypeLabel } from '@/lib/appointment-types';
+import { withReturnTo } from '@/lib/return-to';
 
 export interface UpcomingAppointment {
   id: string;
@@ -90,7 +91,7 @@ function Row({ appointment, timeZone }: { appointment: UpcomingAppointment; time
 
   return (
     <li className="py-2.5">
-      <Link href={`/appointments/${id}/edit`} className="flex items-baseline justify-between gap-3 hover:underline">
+      <Link href={withReturnTo(`/appointments/${id}/edit`, '/appointments')} className="flex items-baseline justify-between gap-3 hover:underline">
         <span className="min-w-0 truncate text-sm font-medium text-fg">{contactName}</span>
         <span className="shrink-0 text-xs text-fg-3">
           {when}

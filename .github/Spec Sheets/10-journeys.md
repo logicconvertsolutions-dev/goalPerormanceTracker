@@ -47,7 +47,8 @@ come back.
 
 **Morning, `/today`:** four people due for callback, pulled from follow-up dates
 they set when they first logged the call. Each row: name, what was said last
-time, how many times called. Tap → the log form pre-filled with that contact.
+time, how many times called. Tap → the log form pre-filled with that contact
+(a pending appointment in the queue opens the appointment instead).
 
 **During calls:** log each one in five taps. Outcome `Connected` reveals
 "Call back on…" with quick chips — *Tomorrow · Monday · Next week · 1 month · Pick a date*.

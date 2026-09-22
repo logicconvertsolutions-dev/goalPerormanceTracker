@@ -13,13 +13,14 @@ built.** What's actually implemented, verified against the live repo:
 > asserted the opposite.
 
 - **pgTAP (§1)** — implemented and it's the one gate that's genuinely
-  blocking: `supabase/tests/*.sql` (10 files) covers RLS/hierarchy, the
+  blocking: `supabase/tests/*.sql` (11 files) covers RLS/hierarchy, the
   `daily_metrics` pipeline, notifications, pilot instrumentation, the bulk
   notification pipeline, admin reports, and the four P25 appointment
   suites — **lifecycle metrics** (`007_appointment_lifecycle.sql`, Phase 0),
   **identity invariants** (`008_appointment_identity.sql`, Phase B), the
   **call↔appointment link** (`009_appointment_call_link.sql`, Phase C1) and
-  **reschedule lineage** (`010_appointment_reschedule.sql`, Phase C2). Runs
+  **reschedule lineage** (`010_appointment_reschedule.sql`, Phase C2), plus
+  the P29 **resolved-slot guard** (`011_appointment_slot_frozen.sql`). Runs
   in CI as `npm run test:rls`, not `continue-on-error`. **Gap: no pgTAP
   coverage yet for P11's schema changes** — `agents_org_required_unless_admin`
   / `agents_admin_no_upline` / `invitations_org_required_unless_admin`
@@ -193,6 +194,17 @@ pipeline stage.
   terminal, so it never re-enters the denominator
 - **E5**: an appointment entered today for last month is 0 days late, not
   30 — but it is still in the queue, and it ages normally from there
+
+### Resolved-slot guard (`011_appointment_slot_frozen.sql`, P29)
+- Writing `appointment_at` alone does not move a pending appointment (why
+  the edit form must write `scheduled_for` — N1); writing `scheduled_for`
+  does, and `appt_date` follows
+- Resolving is allowed and keeps the slot
+- **E19**: a held row's slot cannot be moved, nor moved while changing to
+  another outcome (`23514`)
+- Still open: notes edits (with the form's `appointment_at = null`),
+  outcome corrections, and reopen-then-move
+- Every write runs as the owning agent through RLS
 
 **Characterization-test discipline.** This file was introduced asserting the
 behaviour as it was *then*, bugs included, and flipped to the assertions above

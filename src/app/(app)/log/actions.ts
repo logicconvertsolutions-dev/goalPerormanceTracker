@@ -278,7 +278,10 @@ const updateCallSchema = z
     notes: z.string().max(2000).optional(),
     followUpOn: z.string().optional(),
     appointmentAt: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date/time.').optional(),
-    apptType: z.enum(APPT_TYPE_VALUES).default(DEFAULT_APPT_TYPE),
+    // No default here, unlike logCallSchema: on an edit, "not submitted"
+    // (a pre-C1 page or offline payload) must mean "leave the appointment's
+    // type alone", not "reset it to follow_up".
+    apptType: z.enum(APPT_TYPE_VALUES).optional(),
   })
   .refine((data) => data.outcome !== 'appointment_set' || !!data.appointmentAt, {
     message: 'Enter the appointment date and time.',
@@ -370,7 +373,7 @@ async function syncAppointmentForCall(
     callLogId: string;
     isAppointmentSet: boolean;
     appointmentAt: string | null;
-    apptType: string;
+    apptType: string | undefined;
     timeZone: string | null;
   }
 ): Promise<{ message: string } | null> {
@@ -414,7 +417,7 @@ async function syncAppointmentForCall(
       callLogId: args.callLogId,
       callDate: call.call_date,
       appointmentAt: args.appointmentAt!,
-      apptType: args.apptType,
+      apptType: args.apptType ?? DEFAULT_APPT_TYPE,
       clientRequestId: null,
       timeZone: args.timeZone,
     });
@@ -427,9 +430,12 @@ async function syncAppointmentForCall(
     .update({
       scheduled_for: args.appointmentAt,
       appt_date: isoToDateInZone(args.appointmentAt!, args.timeZone),
-      // Don't overwrite a type set later on the appointment itself with
-      // the call form's default -- only fill one that was never chosen.
-      appt_type: linked.appt_type || args.apptType,
+      // The edit page pre-fills the call form's Type select from this
+      // appointment, so a submitted type is the agent's current choice and
+      // wins. It used to be ignored whenever the row already had a type,
+      // which made changing the type on the call form silently do nothing.
+      // A payload with no type at all keeps what the row has.
+      appt_type: args.apptType ?? linked.appt_type ?? DEFAULT_APPT_TYPE,
     })
     .eq('id', linked.id)
     .eq('agent_id', args.agentId);

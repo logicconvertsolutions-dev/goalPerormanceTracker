@@ -30,7 +30,7 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: (...args: unknown[]) => mockCreateClient(...args),
 }));
 
-const { logCallAction } = await import('./actions');
+const { logCallAction, updateCallAction } = await import('./actions');
 
 type Row = Record<string, unknown>;
 
@@ -228,5 +228,92 @@ describe('logCallAction — the appointment it creates (P25 C1)', () => {
     const result = await logCallAction(callForm({ apptType: 'not_a_real_type' }));
 
     expect(result.ok).toBe(false);
+  });
+});
+
+describe('updateCallAction — carrying a type change across to the appointment (N7)', () => {
+  const CALL_ID = '55555555-5555-4555-8555-555555555555';
+
+  /**
+   * The edit path: update the call, find the appointment it created, and
+   * update that. Records each table's update payload.
+   */
+  function setupEdit(linked: Row | null) {
+    const updates: Record<string, Row[]> = { call_logs: [], appointments: [] };
+    const from = vi.fn((table: string) => {
+      const builder: Record<string, unknown> = {
+        update: vi.fn((payload: Row) => {
+          updates[table]?.push(payload);
+          return builder;
+        }),
+        select: vi.fn(() => builder),
+        eq: vi.fn(() => builder),
+        maybeSingle: vi.fn(() => Promise.resolve({ data: table === 'appointments' ? linked : null, error: null })),
+        then: (resolve: (v: { error: null }) => void, reject: (e: unknown) => void) =>
+          Promise.resolve({ error: null }).then(resolve, reject),
+      };
+      return builder;
+    });
+    mockCreateClient.mockResolvedValue({ from });
+    return updates;
+  }
+
+  function editForm(overrides: Record<string, string> = {}): FormData {
+    const fd = new FormData();
+    const fields: Record<string, string> = {
+      id: CALL_ID,
+      callDate: '2026-09-14',
+      source: 'warm_market',
+      outcome: 'appointment_set',
+      appointmentAt: '2026-09-18T18:00:00.000Z',
+      ...overrides,
+    };
+    for (const [k, v] of Object.entries(fields)) if (v !== '') fd.set(k, v);
+    return fd;
+  }
+
+  beforeEach(() => {
+    mockCreateClient = vi.fn();
+    mockRequireAgent.mockReset();
+    mockRequireAgent.mockResolvedValue({
+      agent: { id: 'agent-1', org_id: 'org-1', time_zone: 'America/New_York' },
+    });
+  });
+
+  it('applies the type chosen on the call form to a pending appointment', async () => {
+    // Used to be ignored whenever the appointment already had a type, so
+    // changing it on the call form silently did nothing.
+    const updates = setupEdit({ id: 'appt-1', status: 'scheduled', appt_type: 'follow_up' });
+
+    const result = await updateCallAction(editForm({ apptType: 'application' }));
+
+    expect(result.ok).toBe(true);
+    expect(updates.appointments[0]).toMatchObject({ appt_type: 'application' });
+  });
+
+  it('keeps the appointment’s type when the payload carries none (E15)', async () => {
+    // A page or offline payload from before the type select existed must
+    // not reset a real type to the follow_up default.
+    const updates = setupEdit({ id: 'appt-1', status: 'scheduled', appt_type: 'solutions_presentation' });
+
+    await updateCallAction(editForm());
+
+    expect(updates.appointments[0]).toMatchObject({ appt_type: 'solutions_presentation' });
+  });
+
+  it('moves the pending appointment’s slot with the call', async () => {
+    const updates = setupEdit({ id: 'appt-1', status: 'scheduled', appt_type: 'follow_up' });
+
+    await updateCallAction(editForm({ appointmentAt: '2026-09-20T15:00:00.000Z' }));
+
+    expect(updates.appointments[0]).toMatchObject({ scheduled_for: '2026-09-20T15:00:00.000Z' });
+  });
+
+  it('never touches an appointment that already has an outcome', async () => {
+    const updates = setupEdit({ id: 'appt-1', status: 'held', appt_type: 'follow_up' });
+
+    await updateCallAction(editForm({ apptType: 'application' }));
+
+    expect(updates.appointments).toHaveLength(0);
   });
 });

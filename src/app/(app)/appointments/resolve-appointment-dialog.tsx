@@ -24,6 +24,7 @@ import {
   appointmentResolveDefaultsAction,
   resolveAppointmentHeldAction,
   rescheduleAppointmentAction,
+  updateAppointmentStatusAction,
 } from './actions';
 
 /**
@@ -42,7 +43,14 @@ import {
  * this renders as a centred modal, which is the same treatment the
  * appointment form's own delete confirmation already uses.
  */
-export type ResolveMode = 'held' | 'rescheduled';
+export type ResolveMode = 'held' | 'no_show' | 'cancelled' | 'rescheduled';
+
+/** The modes that record an outcome, and so ask when it happened. */
+const OUTCOME_LABELS: Partial<Record<ResolveMode, string>> = {
+  held: 'Held',
+  no_show: 'No-show',
+  cancelled: 'Cancelled',
+};
 
 interface Defaults {
   apptType: string | null;
@@ -51,6 +59,9 @@ interface Defaults {
   notes: string | null;
   scheduledFor: string | null;
   apptDate: string;
+  outcomeDefault: string;
+  outcomeMin: string;
+  outcomeMax: string;
 }
 
 export function ResolveAppointmentDialog({
@@ -81,6 +92,10 @@ export function ResolveAppointmentDialog({
   const [saleProductType, setSaleProductType] = useState('');
   const [newDate, setNewDate] = useState('');
   const [newTime, setNewTime] = useState('');
+  // "When did this happen?" -- confirmed by the agent, never presumed
+  // (2026-09-22). Starts on the appointment's own day; the server holds
+  // the same bounds (lib/appointment-outcome-date.ts).
+  const [outcomeDate, setOutcomeDate] = useState('');
 
   const tz = browserTimeZone();
 
@@ -105,6 +120,7 @@ export function ResolveAppointmentDialog({
         const slot = d.scheduledFor ? isoToLocalParts(d.scheduledFor) : null;
         setNewDate(slot?.date ?? d.apptDate ?? todayIso(tz));
         setNewTime(slot?.time ?? '');
+        setOutcomeDate(d.outcomeDefault);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -128,6 +144,7 @@ export function ResolveAppointmentDialog({
     formData.set('apptType', apptType);
     formData.set('expectedPremiumCents', String(Math.round(Number(premiumDollars || 0) * 100)));
     formData.set('referralsGiven', String(Math.max(0, Math.round(Number(referrals || 0)))));
+    formData.set('resolvedOn', outcomeDate);
     if (notes.trim()) formData.set('notes', notes.trim());
     if (apptType === 'application' && logAsSale) {
       formData.set('logAsSale', 'true');
@@ -148,6 +165,21 @@ export function ResolveAppointmentDialog({
       } else {
         toast.success(logAsSale && apptType === 'application' ? 'Marked held, sale logged' : 'Marked held');
       }
+      close();
+      onResolved?.();
+      router.refresh();
+    });
+  }
+
+  // No-show and Cancelled: nothing to capture but the day it happened.
+  function submitOutcome(status: 'no_show' | 'cancelled') {
+    startTransition(async () => {
+      const result = await updateAppointmentStatusAction(appointmentId, status, outcomeDate);
+      if (!result.ok) {
+        toast.error(result.error ?? 'Could not save the outcome.');
+        return;
+      }
+      toast.success(`Marked ${OUTCOME_LABELS[status]!.toLowerCase()}`);
       close();
       onResolved?.();
       router.refresh();
@@ -177,23 +209,61 @@ export function ResolveAppointmentDialog({
   }
 
   const isHeld = mode === 'held';
+  const isReschedule = mode === 'rescheduled';
+  const outcomeLabel = mode ? OUTCOME_LABELS[mode] : undefined;
+
+  const title = isHeld
+    ? `How did it go with ${contactName}?`
+    : isReschedule
+      ? `Move ${contactName}’s appointment`
+      : `Mark ${contactName}’s appointment ${outcomeLabel?.toLowerCase() ?? ''}`;
+  const description = isReschedule
+    ? 'This appointment closes as Rescheduled and a new one is created for the new time. Both stay on the record, so the rebooking counts as the work it was.'
+    : 'Confirm the day it happened — the outcome counts on that day.';
+
+  // Shown for every outcome, first, because it decides which day (and so
+  // which cycle) the outcome counts in.
+  const outcomeDateField = defaults && outcomeLabel && (
+    <div className="space-y-1.5">
+      <Label htmlFor="outcomeDate">When did this happen?</Label>
+      <Input
+        id="outcomeDate"
+        type="date"
+        value={outcomeDate}
+        min={defaults.outcomeMin}
+        max={defaults.outcomeMax}
+        onChange={(e) => setOutcomeDate(e.target.value)}
+        className="w-auto"
+      />
+    </div>
+  );
+
+  function submit() {
+    if (outcomeLabel && !outcomeDate) {
+      toast.error('Confirm the day it happened.');
+      return;
+    }
+    if (isHeld) submitHeld();
+    else if (isReschedule) submitReschedule();
+    else if (mode === 'no_show' || mode === 'cancelled') submitOutcome(mode);
+  }
 
   return (
     <Dialog open={mode !== null} onOpenChange={(open) => !open && close()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isHeld ? `How did it go with ${contactName}?` : `Move ${contactName}’s appointment`}</DialogTitle>
-          <DialogDescription>
-            {isHeld
-              ? 'Recorded against today — this is the day the outcome was logged, not the day the appointment was for.'
-              : 'This appointment closes as Rescheduled and a new one is created for the new time. Both stay on the record, so the rebooking counts as the work it was.'}
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         {loading || !defaults ? (
           <p className="py-6 text-sm text-fg-3">Loading…</p>
+        ) : !isHeld && !isReschedule ? (
+          outcomeDateField
         ) : isHeld ? (
           <div className="space-y-4">
+            {outcomeDateField}
+
             <div className="space-y-1.5">
               <Label htmlFor="resolveApptType">Type</Label>
               <Select value={apptType} onValueChange={setApptType}>
@@ -302,9 +372,9 @@ export function ResolveAppointmentDialog({
             type="button"
             variant="primary"
             disabled={pending || loading || !defaults}
-            onClick={isHeld ? submitHeld : submitReschedule}
+            onClick={submit}
           >
-            {pending ? 'Saving…' : isHeld ? 'Mark held' : 'Reschedule'}
+            {pending ? 'Saving…' : isReschedule ? 'Reschedule' : `Mark ${outcomeLabel?.toLowerCase()}`}
           </Button>
         </DialogFooter>
       </DialogContent>

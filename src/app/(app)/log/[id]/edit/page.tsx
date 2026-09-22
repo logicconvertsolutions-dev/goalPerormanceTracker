@@ -3,6 +3,7 @@ import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { PageHeader } from '@/components/shell/page-header';
 import { LogForm } from '../../log-form';
+import { callFormAppointmentAt } from './linked-appointment';
 
 export default async function EditCallPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -11,7 +12,7 @@ export default async function EditCallPage({ params }: { params: Promise<{ id: s
 
   const { data: call } = await supabase
     .from('call_logs')
-    .select('id, call_date, source, outcome, notes, follow_up_on, appointment_at, appointments(appt_type)')
+    .select('id, call_date, source, outcome, notes, follow_up_on, appointment_at, appointments(appt_type, scheduled_for)')
     .eq('id', id)
     .eq('agent_id', session.agent!.id)
     .maybeSingle();
@@ -22,7 +23,8 @@ export default async function EditCallPage({ params }: { params: Promise<{ id: s
   // form's Type select must show that row's type rather than silently
   // re-defaulting to Follow Up and writing it back on save. The embed is on
   // appointments.source_call_log_id, so it is at most one row.
-  const linkedApptType = call.appointments?.[0]?.appt_type ?? null;
+  const linked = call.appointments?.[0];
+  const linkedApptType = linked?.appt_type ?? null;
 
   return (
     <div className="max-w-md space-y-4">
@@ -36,7 +38,7 @@ export default async function EditCallPage({ params }: { params: Promise<{ id: s
           outcome: call.outcome,
           notes: call.notes,
           followUpOn: call.follow_up_on,
-          appointmentAt: call.appointment_at,
+          appointmentAt: callFormAppointmentAt(call.appointment_at, linked),
           apptType: linkedApptType,
         }}
       />

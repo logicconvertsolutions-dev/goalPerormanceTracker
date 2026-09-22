@@ -236,7 +236,7 @@ create table public.appointments (
   -- afterwards. No single question could be asked of it.
   set_on             date not null,  -- booking day, agent-local. IMMUTABLE.
   scheduled_for      timestamptz,    -- the slot itself. Immutable once terminal.
-  resolved_on        date,           -- day the outcome was RECORDED (E6), null while scheduled.
+  resolved_on        date,           -- the outcome day the agent CONFIRMED (2026-09-22), null while scheduled.
   -- P25 C1: the call that set this appointment. Unique, so one call
   -- produces at most one appointment (E16). Never backfilled for legacy
   -- rows (D4) -- guessing which call produced which appointment can merge
@@ -287,9 +287,12 @@ create unique index appointments_source_call_log_idx on public.appointments (sou
 
 A terminal row is never reopened implicitly; returning one to `scheduled`
 clears `resolved_on` (E7). Resolving stamps `resolved_on` with the day the
-outcome was *recorded*, not the day the appointment was for (E6) — so a
-late-recorded outcome can never reach back and change a closed cycle. Only
-the `scheduled → terminal` transition stamps it: re-recording the details
+agent **confirms** in the "When did this happen?" prompt (decided
+2026-09-22; this replaces E6's "always the recording day"). It defaults to
+the appointment's own day and must lie between that day and today — so it
+*can* land in a cycle that has already closed, when that is when the
+meeting happened. Bounds live in `lib/appointment-outcome-date.ts` and are
+enforced server-side. Only the `scheduled → terminal` transition stamps it: re-recording the details
 of an already-resolved appointment is a correction to the same outcome
 event and keeps the day it was first recorded on.
 
@@ -305,6 +308,23 @@ capped at ten). A row with `status='rescheduled'` and no successor is
 legal: rows predating C2 were marked by hand, and a successor deleted later
 nulls its predecessor's pointer (E10). Neither can re-enter the no-show
 denominator, because `rescheduled` is not in it.
+
+That legality is deliberate at the database level only. Since P29 the app
+never *moves* a row into `rescheduled` except through
+`rescheduleAppointmentAction`, and never reopens a rescheduled row that has
+a successor (the successor is the live appointment). A DB constraint was
+not used because it would break both legal cases above and the existing
+lifecycle fuzz tests.
+
+**Slot frozen once resolved (P29).** `private.appointments_slot_frozen`
+(BEFORE UPDATE) rejects a change to `scheduled_for` when the row is terminal
+before *and* after the write (errcode `23514`). Moving a pending
+appointment, resolving it, and reopening it all stay allowed. It runs after
+`appointments_identity` (triggers fire alphabetically), so the edit form's
+`appointment_at = null` on a resolved row is restored first and is a no-op
+here. Note the identity trigger copies `appointment_at` into
+`scheduled_for` only when the latter is null — on an UPDATE, writers must
+set `scheduled_for` itself to move an appointment.
 
 **Metric contract** (`.github/Spec Sheets/12-appointment-lifecycle-remediation.md` §3
 is the source of truth; restated here because this is where people look):
