@@ -8,6 +8,7 @@ import { findOrCreateContact } from '@/lib/contacts';
 import { createSaleAction, deleteSaleAction } from '../sales/actions';
 import { deleteRecruitingLogAction } from '../recruiting/actions';
 import { todayIso, isoToDateInZone } from '@/lib/dates';
+import { appointmentDay, defaultOutcomeDate, outcomeDateError } from '@/lib/appointment-outcome-date';
 
 const APPT_STATUSES = ['scheduled', 'held', 'no_show', 'rescheduled', 'cancelled'] as const;
 
@@ -248,7 +249,7 @@ export async function updateAppointmentAction(formData: FormData) {
 
   const { data: current } = await supabase
     .from('appointments')
-    .select('status, rescheduled_to_id')
+    .select('status, rescheduled_to_id, scheduled_for, appt_date')
     .eq('id', parsed.data.id)
     .eq('agent_id', session.agent!.id)
     .maybeSingle();
@@ -256,6 +257,17 @@ export async function updateAppointmentAction(formData: FormData) {
 
   const statusError = statusChangeError(current, parsed.data.status);
   if (statusError) return { ok: false, error: statusError };
+
+  // Recording an outcome here: the form's Date field is the agent's
+  // confirmed outcome day, held to the same rule as every other route.
+  if (current.status === 'scheduled' && !isScheduled) {
+    const dateError = outcomeDateError(
+      apptDate,
+      appointmentDay(current, session.agent!.time_zone),
+      todayIso(session.agent!.time_zone)
+    );
+    if (dateError) return { ok: false, error: dateError };
+  }
 
   const { error } = await supabase
     .from('appointments')
@@ -306,17 +318,25 @@ export async function updateAppointmentAction(formData: FormData) {
 const statusChangeSchema = z.object({
   id: z.string().uuid(),
   status: z.enum(APPT_STATUSES),
+  resolvedOn: z.string().optional(),
 });
 
+/**
+ * `resolvedOn` is the outcome day the agent confirmed (see
+ * lib/appointment-outcome-date.ts). Optional only so a caller from before
+ * the date prompt existed still works; it then falls back to today, which
+ * is what every route did before.
+ */
 export async function updateAppointmentStatusAction(
   rawId: string,
-  rawStatus: (typeof APPT_STATUSES)[number]
+  rawStatus: (typeof APPT_STATUSES)[number],
+  rawResolvedOn?: string
 ): Promise<{ ok: boolean; error?: string }> {
   // Rule 7: a server action is a public endpoint whatever its TypeScript
-  // signature says, so both arguments are validated here, not trusted.
-  const parsed = statusChangeSchema.safeParse({ id: rawId, status: rawStatus });
+  // signature says, so every argument is validated here, not trusted.
+  const parsed = statusChangeSchema.safeParse({ id: rawId, status: rawStatus, resolvedOn: rawResolvedOn });
   if (!parsed.success) return { ok: false, error: 'Invalid input.' };
-  const { id, status } = parsed.data;
+  const { id, status, resolvedOn } = parsed.data;
 
   const session = await requireAgent();
   const supabase = await createClient();
@@ -328,7 +348,7 @@ export async function updateAppointmentStatusAction(
   // for the resolve-a-scheduled-appointment check below.
   const { data: appt } = await supabase
     .from('appointments')
-    .select('appt_type, status, rescheduled_to_id')
+    .select('appt_type, status, rescheduled_to_id, scheduled_for, appt_date')
     .eq('id', id)
     .eq('agent_id', session.agent!.id)
     .maybeSingle();
@@ -351,13 +371,11 @@ export async function updateAppointmentStatusAction(
   // resolve implementation for the new My Day queue would be the same
   // mistake with the columns renamed.
   //
-  // Recording an outcome stamps resolved_on with the agent's TODAY, and
-  // lets the Phase B identity trigger derive appt_date from it. Before
-  // Phase B this action wrote appt_date directly, and only when the
-  // appointment was future-dated -- so an appointment held last Tuesday
-  // and recorded this morning landed its Appts Held on last Tuesday,
-  // reaching back into a cycle that may already be closed. resolved_on is
-  // the day the outcome was RECORDED (§7 E6), which never moves history.
+  // Recording an outcome stamps resolved_on with the day the agent
+  // CONFIRMED (decided 2026-09-22, replacing §7 E6's "always the recording
+  // day"): every route now asks, defaulting to the appointment's own day,
+  // and validates the answer the same way. The Phase B identity trigger
+  // derives appt_date from it.
   //
   // Only the scheduled -> terminal transition stamps it. A terminal row
   // changed to another terminal status is a correction to the same
@@ -367,7 +385,11 @@ export async function updateAppointmentStatusAction(
   const isResolving = appt.status === 'scheduled' && status !== 'scheduled';
   const update: { status: (typeof APPT_STATUSES)[number]; resolved_on?: string } = { status };
   if (isResolving) {
-    update.resolved_on = todayIso(session.agent!.time_zone);
+    const today = todayIso(session.agent!.time_zone);
+    const outcomeDay = resolvedOn ?? today;
+    const dateError = outcomeDateError(outcomeDay, appointmentDay(appt, session.agent!.time_zone), today);
+    if (dateError) return { ok: false, error: dateError };
+    update.resolved_on = outcomeDay;
   }
 
   const { error } = await supabase
@@ -458,6 +480,8 @@ const resolveHeldSchema = z.object({
   notes: z.string().max(2000).optional(),
   logAsSale: z.coerce.boolean().default(false),
   saleProductType: z.string().max(200).optional(),
+  // The confirmed outcome day; absent from a pre-prompt client (-> today).
+  resolvedOn: z.string().optional(),
 });
 
 /**
@@ -478,6 +502,7 @@ export async function resolveAppointmentHeldAction(formData: FormData) {
     notes: formData.get('notes') || undefined,
     logAsSale: formData.get('logAsSale') === 'true',
     saleProductType: formData.get('saleProductType') || undefined,
+    resolvedOn: formData.get('resolvedOn') || undefined,
   });
 
   if (!parsed.success) {
@@ -490,7 +515,7 @@ export async function resolveAppointmentHeldAction(formData: FormData) {
 
   const { data: appt } = await supabase
     .from('appointments')
-    .select('id, status, appt_type, contact_id, rescheduled_to_id, contacts(full_name)')
+    .select('id, status, appt_type, contact_id, rescheduled_to_id, scheduled_for, appt_date, resolved_on, contacts(full_name)')
     .eq('id', parsed.data.id)
     .eq('agent_id', session.agent!.id)
     .maybeSingle();
@@ -510,9 +535,14 @@ export async function resolveAppointmentHeldAction(formData: FormData) {
   // Only a scheduled -> terminal transition stamps the resolution day, for
   // the reason updateAppointmentStatusAction spells out: re-recording the
   // details of an already-held appointment is a correction to the same
-  // outcome event, and must not move it onto today's numbers. Passing
-  // undefined leaves the Phase B trigger holding old.resolved_on.
-  const resolvedOn = appt.status === 'scheduled' ? today : undefined;
+  // outcome event, and must not move it. Passing undefined leaves the
+  // Phase B trigger holding old.resolved_on.
+  let resolvedOn: string | undefined;
+  if (appt.status === 'scheduled') {
+    resolvedOn = parsed.data.resolvedOn ?? today;
+    const dateError = outcomeDateError(resolvedOn, appointmentDay(appt, session.agent!.time_zone), today);
+    if (dateError) return { ok: false, error: dateError };
+  }
 
   const { error } = await supabase
     .from('appointments')
@@ -545,7 +575,8 @@ export async function resolveAppointmentHeldAction(formData: FormData) {
     saleForm.set('clientName', (appt.contacts as { full_name: string } | null)?.full_name ?? '');
     saleForm.set('contactId', appt.contact_id);
     saleForm.set('appointmentId', parsed.data.id);
-    saleForm.set('saleDate', today);
+    // The sale closed at the meeting, so it lands on the outcome day.
+    saleForm.set('saleDate', resolvedOn ?? appt.resolved_on ?? today);
     saleForm.set('premiumCents', String(parsed.data.expectedPremiumCents));
     if (parsed.data.saleProductType) saleForm.set('productType', parsed.data.saleProductType);
     saleForm.set('clientRequestId', `appt-held:${parsed.data.id}`);
@@ -752,6 +783,11 @@ export async function appointmentResolveDefaultsAction(id: string) {
 
   if (!appt) return null;
 
+  const today = todayIso(session.agent!.time_zone);
+  // The earliest acceptable outcome day is also the default: the
+  // appointment's own day, or today if it has not arrived yet.
+  const outcomeEarliest = defaultOutcomeDate(appointmentDay(appt, session.agent!.time_zone), today);
+
   return {
     apptType: appt.appt_type,
     status: appt.status,
@@ -764,5 +800,10 @@ export async function appointmentResolveDefaultsAction(id: string) {
     scheduledFor: appt.scheduled_for,
     apptDate: appt.appt_date,
     contactName: (appt.contacts as { full_name: string } | null)?.full_name ?? '',
+    // For the "When did this happen?" prompt, computed here in the agent's
+    // zone so the dialog and the server agree on what "today" is.
+    outcomeDefault: outcomeEarliest,
+    outcomeMin: outcomeEarliest,
+    outcomeMax: today,
   };
 }

@@ -5,14 +5,11 @@ import { toast } from 'sonner';
 import {
   snoozeFollowUpAction,
   markFollowUpDoneAction,
-  snoozeAppointmentAction,
   markAppointmentDoneAction,
-  snoozeScheduledAppointmentAction,
-  resolveAppointmentAction,
   snoozeAppointmentFollowUpAction,
   markAppointmentFollowUpDoneAction,
 } from './actions';
-import { RESOLVABLE_STATUSES, type ResolvableStatus } from '@/lib/appointment-types';
+import { RESOLVABLE_STATUSES } from '@/lib/appointment-types';
 
 /**
  * The four row shapes `my_followups` returns, and the two tables behind
@@ -33,50 +30,57 @@ export function isResolvable(kind: DueItemKind): boolean {
 }
 
 /**
- * The outcomes a row menu offers directly. Held and Rescheduled are NOT
- * here — P25 C2 routes both through the resolve dialog, because each needs
- * something the menu cannot ask for (the premium/referrals/sale a held
- * appointment produced; the new slot a reschedule moves to).
+ * Snooze is for callbacks only (decided 2026-09-22). On an appointment it
+ * moved the appointment itself without recording a reschedule, sitting in
+ * the same menu as "Reschedule…" -- two items that look alike and do
+ * different things to the numbers. An appointment moves by Reschedule.
+ */
+export function canSnooze(kind: DueItemKind): boolean {
+  return kind === 'follow_up' || kind === 'appointment_follow_up';
+}
+
+/**
+ * The outcomes a row menu offers besides Held. Every outcome opens the
+ * resolve dialog, which asks when it happened (the day it counts on is
+ * confirmed, never presumed); Held additionally captures what the meeting
+ * produced. Rescheduled is not here -- it needs the new slot (D1).
  */
 export const RESOLVE_OPTIONS = RESOLVABLE_STATUSES.filter((o) => o.value !== 'held');
 
-const SNOOZE: Record<DueItemKind, (id: string, days: number) => Promise<{ ok: boolean }>> = {
+type SnoozableKind = 'follow_up' | 'appointment_follow_up';
+
+const SNOOZE: Record<SnoozableKind, (id: string, days: number) => Promise<{ ok: boolean }>> = {
   follow_up: snoozeFollowUpAction,
-  call_appointment: snoozeAppointmentAction,
-  appointment: snoozeScheduledAppointmentAction,
   appointment_follow_up: snoozeAppointmentFollowUpAction,
 };
 
 const MARK_DONE: Record<DueItemKind, (id: string) => Promise<{ ok: boolean }>> = {
   follow_up: markFollowUpDoneAction,
   call_appointment: markAppointmentDoneAction,
-  // A pending appointment has no "done" -- it resolves via handleResolve,
-  // and the row components offer Held / No-show / Cancelled instead of
-  // Mark done for it. Kept in the map so it stays exhaustive over
-  // DueItemKind (a kind added later has to answer the question rather than
-  // fall through to undefined), and failing loudly rather than quietly
-  // writing some other column if the two ever drift apart.
+  // A pending appointment has no "done" -- it resolves through the resolve
+  // dialog, and the row components offer its outcomes instead of Mark done.
+  // Kept in the map so it stays exhaustive over DueItemKind (a kind added
+  // later has to answer the question rather than fall through to
+  // undefined), and failing loudly rather than quietly writing some other
+  // column if the two ever drift apart.
   appointment: async () => ({ ok: false }),
   appointment_follow_up: markAppointmentFollowUpDoneAction,
 };
 
 /**
- * Snooze / mark-done / resolve behaviour shared by every My Day row,
- * routed by `kind` so the card and row components don't need to know which
- * table an item came from.
- *
- * Mark done and Resolve are mutually exclusive by kind: a pending
- * appointment exits the queue by recording what happened (Held / No-show /
- * Cancelled), everything else by being ticked off. That split is P25 C1
- * closing F11 -- the old "Mark done" wrote `appointment_done_at`, which
- * fed no metric and left the appointment permanently statusless.
+ * Snooze / mark-done behaviour shared by every My Day row, routed by
+ * `kind` so the card and row components don't need to know which table an
+ * item came from. Outcomes for a pending appointment go through
+ * ResolveAppointmentDialog instead.
  */
 export function useFollowUpActions(kind: DueItemKind, rowId: string) {
   const [pending, startTransition] = useTransition();
 
   function handleSnooze(daysToAdd: number) {
+    if (!canSnooze(kind)) return;
+    const snooze = SNOOZE[kind as SnoozableKind];
     startTransition(async () => {
-      const result = await SNOOZE[kind](rowId, daysToAdd);
+      const result = await snooze(rowId, daysToAdd);
       if (result.ok) toast.success('Snoozed');
       else toast.error('Could not snooze — try again');
     });
@@ -90,16 +94,5 @@ export function useFollowUpActions(kind: DueItemKind, rowId: string) {
     });
   }
 
-  function handleResolve(status: ResolvableStatus) {
-    startTransition(async () => {
-      const result = await resolveAppointmentAction(rowId, status);
-      if (result.ok) {
-        toast.success(RESOLVE_OPTIONS.find((o) => o.value === status)?.label ?? 'Updated');
-      } else {
-        toast.error(result.error ?? 'Could not update — try again');
-      }
-    });
-  }
-
-  return { pending, handleSnooze, handleMarkDone, handleResolve };
+  return { pending, handleSnooze, handleMarkDone };
 }

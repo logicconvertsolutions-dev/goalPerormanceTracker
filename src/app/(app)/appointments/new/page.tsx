@@ -2,13 +2,14 @@ import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { PageHeader } from '@/components/shell/page-header';
 import { AppointmentForm } from '../appointment-form';
+import { safeReturnTo } from '@/lib/return-to';
 
 export default async function NewAppointmentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ contact?: string }>;
+  searchParams: Promise<{ contact?: string; returnTo?: string }>;
 }) {
-  const { contact: contactId } = await searchParams;
+  const { contact: contactId, returnTo } = await searchParams;
   const session = await requireVerifiedAgent();
 
   let prefill: { id: string; full_name: string } | null = null;
@@ -28,6 +29,7 @@ export default async function NewAppointmentPage({
       <PageHeader title="Log appointment" />
       <AppointmentForm
         mode="create"
+        returnTo={safeReturnTo(returnTo)}
         prefillContactName={prefill?.full_name}
         prefillContactId={prefill?.id}
       />
