@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { MoreVertical } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ import {
 import { useFollowUpActions, isResolvable, RESOLVE_OPTIONS, type DueItemKind } from './use-follow-up-actions';
 import { ResolveAppointmentDialog, type ResolveMode } from '../appointments/resolve-appointment-dialog';
 import { useLogActivityDialog } from '@/components/shell/log-activity-dialog';
+import { dueItemHref } from './due-item-target';
 import { formatDisplayTime } from '@/lib/dates';
 
 /** One row in the "rest of today's queue" list, below the featured Next Up
@@ -48,6 +50,7 @@ export function TodayRow({
   const { pending, handleSnooze, handleMarkDone, handleResolve } = useFollowUpActions(kind, rowId);
   const [resolveMode, setResolveMode] = useState<ResolveMode | null>(null);
   const { open: openLog } = useLogActivityDialog();
+  const router = useRouter();
   const resolvable = isResolvable(kind);
   const subtitle = appointmentAt
     ? `Appointment · ${formatDisplayTime(appointmentAt, timeZone)}`
@@ -57,7 +60,11 @@ export function TodayRow({
     <div className="flex items-center justify-between gap-2 py-3">
       <button
         type="button"
-        onClick={() => openLog({ contactId, contactName })}
+        onClick={() => {
+          const href = dueItemHref(kind, rowId);
+          if (href) router.push(href);
+          else openLog({ contactId, contactName });
+        }}
         className="min-w-0 flex-1 text-left"
       >
         <p className="truncate text-[15px] font-semibold text-fg">{contactName}</p>

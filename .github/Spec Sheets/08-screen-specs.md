@@ -84,7 +84,17 @@ shell section — `nav-items.ts` labels it "My Day"), route unchanged at
 
 **Next Up card:** the single most-overdue/soonest-due follow-up, featured —
 contact name, last note (or "Called Nx" if no note), overdue/due-today
-badge. Tap opens the quick-log dialog pre-filled with that contact.
+badge. Tap opens the quick-log dialog pre-filled with that contact — for a
+call follow-up or an appointment follow-up. A **pending appointment** opens
+the appointment itself (`/appointments/[id]/edit`); its outcomes (Held /
+No-show / Cancelled / Reschedule) stay in the row menu. Same rule for every
+queue row (`today/due-item-target.ts`, decided 2026-09-22).
+
+**Rescheduled in a status picker** (the `/appointments` list and the edit
+form behave the same): offered only for a pending appointment, where
+choosing it opens the new-time picker and books the successor (D1). Not
+offered on a new appointment or one that already has an outcome. An
+appointment already moved to a successor shows Rescheduled, locked.
 
 **Rest of queue:** plain list below Next Up, same actions, revealed via
 "View all (n)". **Empty state:** "Nothing due today. Set a follow-up when you

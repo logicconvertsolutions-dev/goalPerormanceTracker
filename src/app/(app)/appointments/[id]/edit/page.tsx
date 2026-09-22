@@ -12,7 +12,7 @@ export default async function EditAppointmentPage({ params }: { params: Promise<
   const { data: appointment } = await supabase
     .from('appointments')
     .select(
-      'id, contact_id, appt_date, appointment_at, scheduled_for, appt_type, status, expected_premium_cents, referrals_given, notes, follow_up_on, contacts(full_name)'
+      'id, contact_id, appt_date, appointment_at, scheduled_for, appt_type, status, expected_premium_cents, referrals_given, notes, follow_up_on, rescheduled_to_id, contacts(full_name)'
     )
     .eq('id', id)
     .eq('agent_id', session.agent!.id)
@@ -64,6 +64,7 @@ export default async function EditAppointmentPage({ params }: { params: Promise<
           linkedSaleId: linkedSale?.id,
           linkedSaleProductType: linkedSale?.product_type,
           linkedRecruitingLogId: linkedRecruitingLog?.id,
+          rescheduledToId: appointment.rescheduled_to_id,
         }}
       />
     </div>

@@ -35,7 +35,7 @@ export default async function AppointmentsPage({
 
   let query = supabase
     .from('appointments')
-    .select('id, appt_date, appt_type, status, expected_premium_cents, referrals_given, notes, contacts(full_name)')
+    .select('id, appt_date, appt_type, status, expected_premium_cents, referrals_given, notes, rescheduled_to_id, contacts(full_name)')
     .eq('agent_id', session.agent!.id)
     .gte('appt_date', from)
     .lte('appt_date', to);
@@ -178,6 +178,7 @@ export default async function AppointmentsPage({
                     apptDate={a.appt_date}
                     apptType={a.appt_type}
                     status={a.status}
+                    movedToSuccessor={a.status === 'rescheduled' && Boolean(a.rescheduled_to_id)}
                     expectedPremiumCents={a.expected_premium_cents}
                     referralsGiven={a.referrals_given}
                     contactName={(a.contacts as { full_name: string } | null)?.full_name ?? '—'}

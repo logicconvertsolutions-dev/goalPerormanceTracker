@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Phone, CalendarClock, MoreVertical } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ import {
 import { useFollowUpActions, isResolvable, RESOLVE_OPTIONS, type DueItemKind } from './use-follow-up-actions';
 import { ResolveAppointmentDialog, type ResolveMode } from '../appointments/resolve-appointment-dialog';
 import { useLogActivityDialog } from '@/components/shell/log-activity-dialog';
+import { dueItemHref } from './due-item-target';
 import { formatDisplayTime } from '@/lib/dates';
 
 /** The single most urgent item, featured above the rest of the queue —
@@ -44,6 +46,7 @@ export function NextUpCard({
   const { pending, handleSnooze, handleMarkDone, handleResolve } = useFollowUpActions(kind, rowId);
   const [resolveMode, setResolveMode] = useState<ResolveMode | null>(null);
   const { open: openLog } = useLogActivityDialog();
+  const router = useRouter();
   const overdue = daysLate > 0;
   const isAppointment = kind === 'appointment' || kind === 'call_appointment';
   const resolvable = isResolvable(kind);
@@ -53,7 +56,11 @@ export function NextUpCard({
       <div className={overdue ? 'w-[3px] shrink-0 rounded-l-[12px] bg-bad' : 'w-[3px] shrink-0 rounded-l-[12px] bg-gold'} />
       <button
         type="button"
-        onClick={() => openLog({ contactId, contactName })}
+        onClick={() => {
+          const href = dueItemHref(kind, rowId);
+          if (href) router.push(href);
+          else openLog({ contactId, contactName });
+        }}
         className="flex min-w-0 flex-1 items-center gap-3 py-3.5 text-left"
       >
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-acc-dim text-acc">

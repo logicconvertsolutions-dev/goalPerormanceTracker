@@ -41,6 +41,7 @@ export function AppointmentRow({
   apptDate,
   apptType,
   status,
+  movedToSuccessor = false,
   expectedPremiumCents,
   referralsGiven,
   contactName,
@@ -49,6 +50,10 @@ export function AppointmentRow({
   apptDate: string;
   apptType: string | null;
   status: string;
+  /** Rescheduled into a successor: the successor is the live appointment,
+   * so this row's status is final and the picker is locked. Offering the
+   * other statuses here only produced a server refusal. */
+  movedToSuccessor?: boolean;
   expectedPremiumCents: number;
   referralsGiven: number;
   contactName: string;
@@ -121,7 +126,7 @@ export function AppointmentRow({
       <td className="px-4 py-2.5 text-fg font-medium">{contactName}</td>
       <td className="px-4 py-2.5 text-fg-2">{apptTypeLabel(apptType) ?? '—'}</td>
       <td className="px-4 py-2.5">
-        <Select value={status} onValueChange={handleStatusChange} disabled={pending}>
+        <Select value={status} onValueChange={handleStatusChange} disabled={pending || movedToSuccessor}>
           <SelectTrigger className="h-8 w-36">
             <SelectValue />
           </SelectTrigger>

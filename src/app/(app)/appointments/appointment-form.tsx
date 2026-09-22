@@ -23,6 +23,7 @@ import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
 import { APPT_TYPES, APPT_STATUSES } from '@/lib/appointment-types';
 import { PRODUCT_TYPES } from '@/lib/product-types';
 import { createAppointmentAction, updateAppointmentAction } from './actions';
+import { ResolveAppointmentDialog } from './resolve-appointment-dialog';
 import { createSaleAction, syncSaleFromAppointmentAction, deleteSaleAction } from '../sales/actions';
 import {
   createRecruitingLogAction,
@@ -93,18 +94,30 @@ export function AppointmentForm({
     linkedSaleId?: string;
     linkedSaleProductType?: string | null;
     linkedRecruitingLogId?: string;
+    /** Set when this appointment was rescheduled into a successor. */
+    rescheduledToId?: string | null;
   };
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [pending, startTransition] = useTransition();
-  // D1: this form cannot book a successor, so it never offers moving an
-  // appointment INTO Rescheduled -- that is the resolve sheet's Reschedule,
-  // which asks for the new time. A row that is already rescheduled still
-  // shows its own status, so opening it to fix a note doesn't change it.
-  const statusOptions = APPT_STATUSES.filter(
-    (s) => s.value !== 'rescheduled' || defaultValues?.status === 'rescheduled'
-  );
+  // D1: a reschedule books a successor at a new time, which a status field
+  // cannot ask for. So Rescheduled is offered only where it can work, and
+  // behaves the same as the /appointments list picker:
+  //   - a pending appointment being edited: choosing it opens the
+  //     new-time picker (the resolve dialog), and the save happens there;
+  //   - an appointment already rescheduled: shown as its own status;
+  //   - a new appointment: not offered -- there is nothing yet to move.
+  // An appointment already moved to a successor is locked to Rescheduled:
+  // the successor is the live one, and the server refuses to reopen it.
+  const movedToSuccessor = defaultValues?.status === 'rescheduled' && Boolean(defaultValues?.rescheduledToId);
+  const canReschedule = mode === 'edit' && defaultValues?.status === 'scheduled';
+  const statusOptions = movedToSuccessor
+    ? APPT_STATUSES.filter((s) => s.value === 'rescheduled')
+    : APPT_STATUSES.filter(
+        (s) => s.value !== 'rescheduled' || canReschedule || defaultValues?.status === 'rescheduled'
+      );
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [status, setStatus] = useState(defaultValues?.status ?? 'scheduled');
   const [apptType, setApptType] = useState(defaultValues?.apptType ?? '');
   const [premiumDollars, setPremiumDollars] = useState(
@@ -379,7 +392,17 @@ export function AppointmentForm({
 
       <div className="space-y-1.5">
         <Label htmlFor="status">Status</Label>
-        <Select value={status} onValueChange={setStatus}>
+        <Select
+          value={status}
+          disabled={movedToSuccessor}
+          onValueChange={(next) => {
+            if (next === 'rescheduled' && canReschedule) {
+              setRescheduleOpen(true);
+              return;
+            }
+            setStatus(next);
+          }}
+        >
           <SelectTrigger id="status">
             <SelectValue />
           </SelectTrigger>
@@ -606,6 +629,17 @@ export function AppointmentForm({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {canReschedule && (
+        <ResolveAppointmentDialog
+          mode={rescheduleOpen ? 'rescheduled' : null}
+          appointmentId={defaultValues!.id}
+          contactName={defaultValues?.contactName ?? ''}
+          onOpenChange={(open) => !open && setRescheduleOpen(false)}
+          // The original is now terminal and the new appointment is the
+          // live one, so this form is editing a row that just ended.
+          onResolved={() => router.push('/appointments')}
+        />
+      )}
     </form>
   );
 }
