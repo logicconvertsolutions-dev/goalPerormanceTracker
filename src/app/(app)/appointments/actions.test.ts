@@ -32,7 +32,13 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: (...args: unknown[]) => mockCreateClient(...args),
 }));
 
-const { rescheduleAppointmentAction, resolveAppointmentHeldAction } = await import('./actions');
+const {
+  createAppointmentAction,
+  rescheduleAppointmentAction,
+  resolveAppointmentHeldAction,
+  updateAppointmentAction,
+  updateAppointmentStatusAction,
+} = await import('./actions');
 
 type Row = Record<string, unknown>;
 
@@ -53,13 +59,23 @@ const AGENT_ID = '44444444-4444-4444-8444-444444444444';
 function setupSupabase({
   appointment,
   linkFails = false,
+  linkedRows = [{ id: APPT_ID }],
+  rereads = [],
 }: {
   appointment: Row | null;
   linkFails?: boolean;
+  // What a conditional update's `.select('id')` returns: the rows it
+  // actually changed. Empty simulates losing a race to another request.
+  linkedRows?: Row[];
+  // What each LATER maybeSingle() returns, in order, after the first one
+  // has returned `appointment` -- e.g. the re-read after a lost race.
+  rereads?: (Row | null)[];
 }) {
   const inserts: Record<string, Row[]> = { appointments: [], sales: [] };
   const updates: Row[] = [];
   const deletes: string[] = [];
+  const filters: Record<string, unknown>[] = [];
+  let reads = 0;
 
   const from = vi.fn((table: string) => {
     let mode: 'select' | 'insert' | 'update' | 'delete' = 'select';
@@ -74,6 +90,7 @@ function setupSupabase({
       update: vi.fn((payload: Row) => {
         mode = 'update';
         updates.push(payload);
+        filters.push({});
         return builder;
       }),
       delete: vi.fn(() => {
@@ -82,21 +99,31 @@ function setupSupabase({
       }),
       eq: vi.fn((col: string, value: string) => {
         if (mode === 'delete' && col === 'id') deleteId = value;
+        if (mode === 'update') filters[filters.length - 1][col] = value;
         return builder;
       }),
-      maybeSingle: vi.fn(() => Promise.resolve({ data: appointment, error: null })),
+      is: vi.fn((col: string, value: unknown) => {
+        if (mode === 'update') filters[filters.length - 1][`${col} is`] = value;
+        return builder;
+      }),
+      maybeSingle: vi.fn(() => {
+        const data = reads === 0 ? appointment : rereads[reads - 1] ?? appointment;
+        reads += 1;
+        return Promise.resolve({ data, error: null });
+      }),
       single: vi.fn(() => Promise.resolve({ data: { id: 'successor-1' }, error: null })),
-      then: (resolve: (v: { error: unknown }) => void, reject: (e: unknown) => void) => {
+      then: (resolve: (v: { data: unknown; error: unknown }) => void, reject: (e: unknown) => void) => {
         if (mode === 'delete') deletes.push(deleteId);
         const error = mode === 'update' && linkFails ? { message: 'boom' } : null;
-        return Promise.resolve({ error }).then(resolve, reject);
+        const data = mode === 'update' && !error ? linkedRows : null;
+        return Promise.resolve({ data, error }).then(resolve, reject);
       },
     };
     return builder;
   });
 
   mockCreateClient.mockResolvedValue({ from });
-  return { inserts, updates, deletes };
+  return { inserts, updates, deletes, filters };
 }
 
 function form(fields: Record<string, string>): FormData {
@@ -248,6 +275,17 @@ describe('resolveAppointmentHeldAction', () => {
     expect(updates[0]).not.toHaveProperty('resolved_on');
   });
 
+  it('refuses to mark Held an appointment that was already moved to a successor (N2)', async () => {
+    const { updates } = setupSupabase({
+      appointment: { ...PENDING, status: 'rescheduled', rescheduled_to_id: '66666666-6666-4666-8666-666666666666' },
+    });
+
+    const result = await resolveAppointmentHeldAction(form({ id: APPT_ID }));
+
+    expect(result.ok).toBe(false);
+    expect(updates).toHaveLength(0);
+  });
+
   it('refuses without a type, since Held is what makes type required', async () => {
     const { updates } = setupSupabase({ appointment: { ...PENDING, appt_type: null } });
 
@@ -293,5 +331,215 @@ describe('resolveAppointmentHeldAction', () => {
 
     expect(result.ok).toBe(true);
     expect(result.saleWarning).toContain('future');
+  });
+});
+
+// ---------------------------------------------------------------------
+// Appointment-flow fixes after Phase C (N1-N4).
+// ---------------------------------------------------------------------
+
+function mockAgent() {
+  mockCreateClient = vi.fn();
+  mockRequireAgent.mockReset();
+  mockRequireAgent.mockResolvedValue({
+    agent: { id: AGENT_ID, org_id: ORG_ID, time_zone: 'America/New_York' },
+  });
+  mockCreateSaleAction.mockReset();
+  mockCreateSaleAction.mockResolvedValue({ ok: true });
+}
+
+const SUCCESSOR_ID = '66666666-6666-4666-8666-666666666666';
+
+describe('rescheduleAppointmentAction — two requests at once (N3, E17)', () => {
+  beforeEach(mockAgent);
+
+  it('links up only if the original is still pending and unlinked', async () => {
+    const { filters } = setupSupabase({ appointment: PENDING });
+
+    await rescheduleAppointmentAction(form({ id: APPT_ID, scheduledFor: '2026-10-01T18:00:00.000Z' }));
+
+    expect(filters[0]).toMatchObject({ id: APPT_ID, status: 'scheduled', 'rescheduled_to_id is': null });
+  });
+
+  it('removes its own successor and returns the winner’s when it loses the race', async () => {
+    // Both requests read the original as pending and both inserted a
+    // successor. The other one linked first, so this link-up matches no
+    // row. Keeping our successor would leave an orphan counting a second
+    // Appts Set for one rebooking.
+    const { deletes } = setupSupabase({
+      appointment: PENDING,
+      linkedRows: [],
+      rereads: [{ ...PENDING, status: 'rescheduled', rescheduled_to_id: SUCCESSOR_ID }],
+    });
+
+    const result = await rescheduleAppointmentAction(
+      form({ id: APPT_ID, scheduledFor: '2026-10-01T18:00:00.000Z' })
+    );
+
+    expect(result).toEqual({ ok: true, id: SUCCESSOR_ID });
+    expect(deletes).toContain('successor-1');
+  });
+
+  it('removes its successor and fails if the original got another outcome meanwhile', async () => {
+    const { deletes } = setupSupabase({
+      appointment: PENDING,
+      linkedRows: [],
+      rereads: [{ ...PENDING, status: 'cancelled' }],
+    });
+
+    const result = await rescheduleAppointmentAction(
+      form({ id: APPT_ID, scheduledFor: '2026-10-01T18:00:00.000Z' })
+    );
+
+    expect(result.ok).toBe(false);
+    expect(deletes).toContain('successor-1');
+  });
+});
+
+describe('createAppointmentAction — Rescheduled needs a new time (N2, D1)', () => {
+  beforeEach(mockAgent);
+
+  it('refuses to create an appointment that is already rescheduled', async () => {
+    const { inserts } = setupSupabase({ appointment: null });
+
+    const result = await createAppointmentAction(
+      form({ contactName: 'Jane Doe', apptType: 'follow_up', status: 'rescheduled', apptDate: '2026-09-01' })
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/Reschedule/);
+    expect(inserts.appointments).toHaveLength(0);
+  });
+});
+
+describe('updateAppointmentAction — the edit form (N1, N2)', () => {
+  beforeEach(mockAgent);
+
+  const pendingEdit = {
+    id: APPT_ID,
+    status: 'scheduled',
+    apptType: 'follow_up',
+    appointmentAt: '2026-10-02T14:30:00.000Z',
+  };
+
+  it('moves a pending appointment by writing its slot, not just appointment_at (N1)', async () => {
+    // appointment_at alone is ignored on an update -- the identity trigger
+    // keeps the existing scheduled_for -- so the edit used to revert.
+    const { updates } = setupSupabase({ appointment: { status: 'scheduled', rescheduled_to_id: null } });
+
+    const result = await updateAppointmentAction(form(pendingEdit));
+
+    expect(result.ok).toBe(true);
+    expect(updates[0]).toMatchObject({ scheduled_for: '2026-10-02T14:30:00.000Z' });
+  });
+
+  it('never writes the slot of an appointment being given an outcome (F8)', async () => {
+    const { updates } = setupSupabase({ appointment: { status: 'scheduled', rescheduled_to_id: null } });
+
+    await updateAppointmentAction(form({ id: APPT_ID, status: 'held', apptType: 'follow_up', apptDate: '2026-09-01' }));
+
+    expect(updates[0]).not.toHaveProperty('scheduled_for');
+  });
+
+  it('refuses to move an appointment into Rescheduled without a new time', async () => {
+    const { updates } = setupSupabase({ appointment: { status: 'scheduled', rescheduled_to_id: null } });
+
+    const result = await updateAppointmentAction(
+      form({ id: APPT_ID, status: 'rescheduled', apptType: 'follow_up', apptDate: '2026-09-01' })
+    );
+
+    expect(result.ok).toBe(false);
+    expect(updates).toHaveLength(0);
+  });
+
+  it('refuses to reopen an appointment that was moved to a successor', async () => {
+    // The successor is the live appointment; reopening the original would
+    // leave two pending appointments for one prospect.
+    const { updates } = setupSupabase({ appointment: { status: 'rescheduled', rescheduled_to_id: SUCCESSOR_ID } });
+
+    const result = await updateAppointmentAction(form(pendingEdit));
+
+    expect(result.ok).toBe(false);
+    expect(updates).toHaveLength(0);
+  });
+
+  it('still lets a rescheduled appointment’s notes be edited', async () => {
+    const { updates } = setupSupabase({ appointment: { status: 'rescheduled', rescheduled_to_id: SUCCESSOR_ID } });
+
+    const result = await updateAppointmentAction(
+      form({ id: APPT_ID, status: 'rescheduled', apptType: 'follow_up', apptDate: '2026-09-01', notes: 'Moved by client' })
+    );
+
+    expect(result.ok).toBe(true);
+    expect(updates[0]).toMatchObject({ status: 'rescheduled', notes: 'Moved by client' });
+  });
+
+  it('reports a missing appointment instead of pretending to save', async () => {
+    const { updates } = setupSupabase({ appointment: null });
+
+    const result = await updateAppointmentAction(form(pendingEdit));
+
+    expect(result.ok).toBe(false);
+    expect(updates).toHaveLength(0);
+  });
+});
+
+describe('updateAppointmentStatusAction — the quick status change (N2, N4)', () => {
+  beforeEach(mockAgent);
+
+  it('validates its arguments before touching the database (rule 7)', async () => {
+    setupSupabase({ appointment: PENDING });
+
+    expect((await updateAppointmentStatusAction('not-a-uuid', 'held')).ok).toBe(false);
+    expect((await updateAppointmentStatusAction(APPT_ID, 'done' as never)).ok).toBe(false);
+    expect(mockCreateClient).not.toHaveBeenCalled();
+  });
+
+  it('reports a missing appointment instead of success', async () => {
+    const { updates } = setupSupabase({ appointment: null });
+
+    const result = await updateAppointmentStatusAction(APPT_ID, 'no_show');
+
+    expect(result.ok).toBe(false);
+    expect(updates).toHaveLength(0);
+  });
+
+  it('never sets Rescheduled directly — that is the reschedule picker’s job', async () => {
+    const { updates } = setupSupabase({ appointment: { ...PENDING, status: 'held' } });
+
+    const result = await updateAppointmentStatusAction(APPT_ID, 'rescheduled');
+
+    expect(result.ok).toBe(false);
+    expect(updates).toHaveLength(0);
+  });
+
+  it('refuses to reopen an appointment that was moved to a successor', async () => {
+    const { updates } = setupSupabase({
+      appointment: { ...PENDING, status: 'rescheduled', rescheduled_to_id: SUCCESSOR_ID },
+    });
+
+    const result = await updateAppointmentStatusAction(APPT_ID, 'scheduled');
+
+    expect(result.ok).toBe(false);
+    expect(updates).toHaveLength(0);
+  });
+
+  it('stamps the recording day when it resolves a pending appointment (E6)', async () => {
+    const { updates } = setupSupabase({ appointment: PENDING });
+
+    const result = await updateAppointmentStatusAction(APPT_ID, 'no_show');
+
+    expect(result.ok).toBe(true);
+    expect(updates[0]).toMatchObject({ status: 'no_show' });
+    expect(updates[0].resolved_on).toBeTruthy();
+  });
+
+  it('says so when the database rejects the change', async () => {
+    setupSupabase({ appointment: PENDING, linkFails: true });
+
+    const result = await updateAppointmentStatusAction(APPT_ID, 'cancelled');
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBeTruthy();
   });
 });

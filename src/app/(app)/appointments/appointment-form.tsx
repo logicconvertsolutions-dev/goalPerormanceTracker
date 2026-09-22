@@ -98,6 +98,13 @@ export function AppointmentForm({
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [pending, startTransition] = useTransition();
+  // D1: this form cannot book a successor, so it never offers moving an
+  // appointment INTO Rescheduled -- that is the resolve sheet's Reschedule,
+  // which asks for the new time. A row that is already rescheduled still
+  // shows its own status, so opening it to fix a note doesn't change it.
+  const statusOptions = APPT_STATUSES.filter(
+    (s) => s.value !== 'rescheduled' || defaultValues?.status === 'rescheduled'
+  );
   const [status, setStatus] = useState(defaultValues?.status ?? 'scheduled');
   const [apptType, setApptType] = useState(defaultValues?.apptType ?? '');
   const [premiumDollars, setPremiumDollars] = useState(
@@ -377,7 +384,7 @@ export function AppointmentForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {APPT_STATUSES.map((s) => (
+            {statusOptions.map((s) => (
               <SelectItem key={s.value} value={s.value}>
                 {s.label}
               </SelectItem>

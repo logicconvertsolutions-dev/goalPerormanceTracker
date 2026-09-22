@@ -306,6 +306,23 @@ legal: rows predating C2 were marked by hand, and a successor deleted later
 nulls its predecessor's pointer (E10). Neither can re-enter the no-show
 denominator, because `rescheduled` is not in it.
 
+That legality is deliberate at the database level only. Since P29 the app
+never *moves* a row into `rescheduled` except through
+`rescheduleAppointmentAction`, and never reopens a rescheduled row that has
+a successor (the successor is the live appointment). A DB constraint was
+not used because it would break both legal cases above and the existing
+lifecycle fuzz tests.
+
+**Slot frozen once resolved (P29).** `private.appointments_slot_frozen`
+(BEFORE UPDATE) rejects a change to `scheduled_for` when the row is terminal
+before *and* after the write (errcode `23514`). Moving a pending
+appointment, resolving it, and reopening it all stay allowed. It runs after
+`appointments_identity` (triggers fire alphabetically), so the edit form's
+`appointment_at = null` on a resolved row is restored first and is a no-op
+here. Note the identity trigger copies `appointment_at` into
+`scheduled_for` only when the latter is null — on an UPDATE, writers must
+set `scheduled_for` itself to move an appointment.
+
 **Metric contract** (`.github/Spec Sheets/12-appointment-lifecycle-remediation.md` §3
 is the source of truth; restated here because this is where people look):
 
