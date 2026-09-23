@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { AlertTriangle, Bell, CalendarClock, Smartphone, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -77,13 +77,17 @@ export function NotificationBell({
   const [filter, setFilter] = useState<FilterKey>('all');
   const [pushState, setPushState] = useState<PushState>('loading');
   const [pending, startTransition] = useTransition();
+  // Fetched when the sheet opens, so the Enable tap can call subscribe()
+  // straight away: iOS only allows it while the tap's user activation lasts.
+  const registration = useRef<ServiceWorkerRegistration | null>(null);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     (async () => {
-      const next = await detectPushState(vapidPublicKey);
-      if (!cancelled) setPushState(next);
+      const { state, reg } = await detectPushState(vapidPublicKey);
+      registration.current = reg;
+      if (!cancelled) setPushState(state);
     })();
     return () => {
       cancelled = true;
@@ -112,19 +116,19 @@ export function NotificationBell({
 
   async function enablePush() {
     if (!vapidPublicKey) return;
+    const reg = registration.current;
+    if (!reg) {
+      toast.error('Still setting up — try again in a moment.');
+      return;
+    }
     try {
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
-        setPushState(permission === 'denied' ? 'blocked' : 'off');
-        return;
-      }
-      const reg = await navigator.serviceWorker.ready;
-      const sub =
-        (await reg.pushManager.getSubscription()) ??
-        (await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: base64UrlToUint8Array(vapidPublicKey) as BufferSource,
-        }));
+      // subscribe() is the first await in the tap handler: it shows the
+      // permission prompt itself, and WebKit rejects it once an earlier await
+      // (requestPermission, serviceWorker.ready) has used up the activation.
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: base64UrlToUint8Array(vapidPublicKey) as BufferSource,
+      });
       const result = await savePushSubscriptionAction(sub.toJSON(), navigator.userAgent);
       if (!result.ok) {
         toast.error(result.error);
@@ -132,15 +136,20 @@ export function NotificationBell({
       }
       setPushState('on');
       toast.success('Notifications are on for this device');
-    } catch {
-      toast.error('This browser could not turn on notifications.');
+    } catch (error) {
+      if (Notification.permission === 'denied') {
+        setPushState('blocked');
+        return;
+      }
+      console.error('Push subscribe failed', error);
+      const name = error instanceof Error ? error.name : 'Error';
+      toast.error(`This browser couldn’t turn on notifications (${name}).`);
     }
   }
 
   async function disablePush() {
     try {
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
+      const sub = await registration.current?.pushManager.getSubscription();
       if (sub) {
         await deletePushSubscriptionAction(sub.endpoint);
         await sub.unsubscribe();
@@ -274,18 +283,27 @@ export function NotificationBell({
   );
 }
 
-async function detectPushState(vapidPublicKey: string | null): Promise<PushState> {
+async function detectPushState(
+  vapidPublicKey: string | null
+): Promise<{ state: PushState; reg: ServiceWorkerRegistration | null }> {
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-    return isIos() && !isStandalone() ? 'ios-install' : 'unsupported';
+    return { state: isIos() && !isStandalone() ? 'ios-install' : 'unsupported', reg: null };
   }
-  if (!vapidPublicKey) return 'not-configured';
-  if (Notification.permission === 'denied') return 'blocked';
+  let reg: ServiceWorkerRegistration | null = null;
   try {
-    const reg = await navigator.serviceWorker.getRegistration();
-    const sub = await reg?.pushManager.getSubscription();
-    return sub && Notification.permission === 'granted' ? 'on' : 'off';
+    // Same path as service-worker-registration.tsx; register() is a no-op
+    // when that already ran, and covers the case where it hasn't yet.
+    reg = (await navigator.serviceWorker.getRegistration()) ?? (await navigator.serviceWorker.register('/sw.js'));
   } catch {
-    return 'off';
+    reg = null;
+  }
+  if (!vapidPublicKey) return { state: 'not-configured', reg };
+  if (Notification.permission === 'denied') return { state: 'blocked', reg };
+  try {
+    const sub = await reg?.pushManager.getSubscription();
+    return { state: sub && Notification.permission === 'granted' ? 'on' : 'off', reg };
+  } catch {
+    return { state: 'off', reg };
   }
 }
 
