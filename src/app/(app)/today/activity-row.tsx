@@ -1,16 +1,21 @@
+import { Badge } from '@/components/ui/badge';
 import { formatDisplayDateTime, formatDisplayTime } from '@/lib/dates';
 import { ACTIVITY_META, type ActivityKind } from '@/components/shell/activity-icons';
+import type { StatusTone } from '@/lib/recent-activity';
 
 export function ActivityRow({
   kind,
   contactName,
   summary,
+  status,
   createdAt,
   timeZone,
 }: {
   kind: ActivityKind;
   contactName: string;
   summary: string;
+  /** Outcome pill (Missed / Connected / Appointment ...) -- P30. */
+  status: { label: string; tone: StatusTone };
   createdAt: string;
   /** Viewing agent's IANA time zone -- falls back to America/New_York when unset. */
   timeZone?: string | null;
@@ -29,9 +34,13 @@ export function ActivityRow({
         <p className="truncate text-[15px] font-semibold text-fg">{contactName}</p>
         <p className="truncate text-sm capitalize text-fg-3">{summary}</p>
       </div>
-      <div className="shrink-0 text-right">
-        <p className="text-xs font-medium text-fg-2">{formatDisplayDateTime(createdAt, timeZone)}</p>
-        <p className="text-xs text-fg-4">{formatDisplayTime(createdAt, timeZone)}</p>
+      <div className="flex shrink-0 flex-col items-end gap-1 text-right">
+        <Badge variant={status.tone} className="px-2 py-0 text-[11px]">
+          {status.label}
+        </Badge>
+        <p className="text-[11px] text-fg-3">
+          {formatDisplayDateTime(createdAt, timeZone)} · {formatDisplayTime(createdAt, timeZone)}
+        </p>
       </div>
     </div>
   );
