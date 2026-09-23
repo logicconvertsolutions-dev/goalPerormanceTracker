@@ -1,23 +1,25 @@
 import Image from 'next/image';
 import { Plus } from 'lucide-react';
 import { LogActivityButton } from '@/components/shell/log-activity-button';
-import mountain from './my-day-mountain.jpg';
+import mountain from './my-day-mountain.avif';
 
 /**
  * My Day header (P30): date, time-of-day greeting and the Log Activity
  * button over the summit photo. Kept to roughly the footprint of the old
  * "My Day" title row. The image is a static import (not public/, which is
- * off-limits), so next/image resizes and serves it per screen size.
+ * off-limits), so next/image resizes and serves it per screen size. AVIF on
+ * purpose: Next generates a blur preview (via sharp) at build time for every
+ * static .jpg/.png/.webp import, and the Node 18 CI job has no sharp (sharp
+ * 0.35 needs Node >= 20.9). The navy bg-acc shows while the photo loads.
  */
 export function GreetingHero({ greeting, name, dateLabel }: { greeting: string; name: string; dateLabel: string }) {
   return (
-    <section className="relative flex items-center gap-3 overflow-hidden rounded-lg px-4 py-3.5 text-white shadow-card lg:py-5">
+    <section className="relative flex items-center gap-3 overflow-hidden rounded-lg bg-acc px-4 py-3.5 text-white shadow-card lg:py-5">
       <Image
         src={mountain}
         alt=""
         fill
         priority
-        placeholder="blur"
         sizes="(min-width: 1024px) 1152px, 100vw"
         // Keep the climber and flag in frame on the wide, short crop.
         className="object-cover object-[78%_42%]"

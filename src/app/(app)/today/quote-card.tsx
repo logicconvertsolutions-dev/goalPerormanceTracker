@@ -1,17 +1,16 @@
 import Image from 'next/image';
 import { Sun } from 'lucide-react';
 import type { Quote } from '@/lib/quotes';
-import mountain from './my-day-mountain.jpg';
+import mountain from './my-day-mountain.avif';
 
 /** "Today's thought" (P30) -- one curated quote per agent-local day. */
 export function QuoteCard({ quote }: { quote: Quote }) {
   return (
-    <figure className="relative overflow-hidden rounded-lg px-5 py-5 text-white shadow-card">
+    <figure className="relative overflow-hidden rounded-lg bg-acc px-5 py-5 text-white shadow-card">
       <Image
         src={mountain}
         alt=""
         fill
-        placeholder="blur"
         sizes="(min-width: 1024px) 480px, 100vw"
         className="object-cover object-[80%_45%]"
       />
