@@ -350,3 +350,107 @@ export function resolvePeriod(
   }
 }
 
+
+// ---------------------------------------------------------------------------
+// My Day calendar (P30). Day/week/month ranges for the calendar card. Weeks
+// start Monday, same as weekStart() above; the month grid is padded out to
+// whole Monday-Sunday weeks so every row has seven cells.
+// ---------------------------------------------------------------------------
+
+export const CALENDAR_VIEWS = ['day', 'week', 'month'] as const;
+export type CalendarView = (typeof CALENDAR_VIEWS)[number];
+
+export function isCalendarView(v: string | null | undefined): v is CalendarView {
+  return !!v && (CALENDAR_VIEWS as readonly string[]).includes(v);
+}
+
+/** True for a real calendar date in YYYY-MM-DD form (rejects 2026-02-30). */
+export function isIsoDate(v: string | null | undefined): v is string {
+  if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  return new Date(v + 'T00:00:00Z').toISOString().slice(0, 10) === v;
+}
+
+/** The seven dates (Mon..Sun) of the week containing `iso`. */
+export function weekDates(iso: string): string[] {
+  const start = weekStart(new Date(iso + 'T00:00:00'));
+  return Array.from({ length: 7 }, (_, i) => addDays(start, i));
+}
+
+/** Every date shown on a month grid for the month containing `iso`: whole
+ * Monday-start weeks from the week holding the 1st through the week holding
+ * the last day, so leading/trailing days from the adjacent months pad it. */
+export function monthGridDates(iso: string): string[] {
+  const d = new Date(iso + 'T00:00:00Z');
+  const first = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString().slice(0, 10);
+  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+  const start = weekStart(new Date(first + 'T00:00:00'));
+  const end = addDays(weekStart(new Date(last + 'T00:00:00')), 6);
+  const out: string[] = [];
+  for (let cur = start; cur <= end; cur = addDays(cur, 1)) out.push(cur);
+  return out;
+}
+
+/** Inclusive `{from, to}` dates the calendar needs data for. */
+export function calendarRange(view: CalendarView, iso: string): { from: string; to: string } {
+  // Day view still loads the whole swipeable strip so each day can show its dots.
+  const dates = view === 'day' ? dayStripDates(iso) : view === 'week' ? weekDates(iso) : monthGridDates(iso);
+  return { from: dates[0], to: dates[dates.length - 1] };
+}
+
+/** Where the calendar's back/forward arrows go: one day, week or month. */
+export function stepCalendarDate(view: CalendarView, iso: string, direction: 1 | -1): string {
+  if (view === 'day') return addDays(iso, direction);
+  if (view === 'week') return addDays(iso, 7 * direction);
+  const d = new Date(iso + 'T00:00:00Z');
+  const target = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + direction, 1));
+  // Keep the day-of-month where the target month has it, else clamp.
+  const day = Math.min(d.getUTCDate(), daysInMonth(target.getUTCFullYear(), target.getUTCMonth()));
+  return new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth(), day)).toISOString().slice(0, 10);
+}
+
+/** "September 2026" for a date string. */
+export function formatMonthYear(iso: string): string {
+  return new Date(iso + 'T00:00:00Z').toLocaleDateString('en-CA', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/** Hour of day (0-23) that `instant` reads as in `timeZone`. */
+export function hourInZone(instant: Date, timeZone?: string | null): number {
+  return zonedParts(instant, resolveTimeZone(timeZone)).hour;
+}
+
+/**
+ * The instant (ISO string) for a local wall-clock `date` + `time` ("HH:MM")
+ * in the given IANA zone -- the server-side counterpart of combining an
+ * `<input type="date">` and `<input type="time">` in the browser. Same
+ * two-pass offset solve as {@link shiftZonedTimestampByDays}, so a DST
+ * transition day resolves to the right instant.
+ */
+export function zonedDateTimeToIso(date: string, time: string, timeZone?: string | null): string {
+  const zone = resolveTimeZone(timeZone);
+  const [y, m, d] = date.split('-').map(Number);
+  const [hh, mm] = time.split(':').map(Number);
+  const wall = Date.UTC(y, m - 1, d, hh, mm, 0);
+  let ts = wall;
+  for (let i = 0; i < 2; i += 1) {
+    ts = wall - zoneOffsetMs(new Date(ts), zone);
+  }
+  return new Date(ts).toISOString();
+}
+
+/** Minutes since local midnight (0-1439) that an instant reads as in
+ * `timeZone` -- where an event sits on the My Day timeline. */
+export function minutesIntoDayInZone(isoTimestamp: string, timeZone?: string | null): number {
+  const p = zonedParts(new Date(isoTimestamp), resolveTimeZone(timeZone));
+  return p.hour * 60 + p.minute;
+}
+
+/** The dates in the Day view's swipeable strip: the week before, the week
+ * of, and the week after `iso` (21 days, Monday-start). */
+export function dayStripDates(iso: string): string[] {
+  const start = addDays(weekStart(new Date(iso + 'T00:00:00')), -7);
+  return Array.from({ length: 21 }, (_, i) => addDays(start, i));
+}

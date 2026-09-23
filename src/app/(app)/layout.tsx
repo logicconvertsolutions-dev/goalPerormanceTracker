@@ -8,6 +8,7 @@ import { AnnouncementBanner } from '@/components/shell/announcement-banner';
 import { OfflineSync } from '@/components/shell/offline-sync';
 import { LogActivityDialogProvider } from '@/components/shell/log-activity-dialog';
 import { KautisMark } from '@/components/shell/kautis-logo';
+import { NotificationBell, type BellNotification } from '@/components/shell/notification-bell';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireAgent();
@@ -40,6 +41,25 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       .order('created_at', { ascending: false }),
     supabase.from('announcement_dismissals').select('announcement_id').eq('agent_id', session.userId),
   ]);
+  // Bell feed (P30). Admins have no personal notifications, so no bell.
+  let bell: { items: BellNotification[]; unread: number } | null = null;
+  if (role !== 'admin') {
+    const [{ data: items }, { count: unread }] = await Promise.all([
+      supabase
+        .from('notifications')
+        .select('id, kind, title, body, link, created_at, read_at')
+        .eq('agent_id', session.userId)
+        .order('created_at', { ascending: false })
+        .limit(30),
+      supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('agent_id', session.userId)
+        .is('read_at', null),
+    ]);
+    bell = { items: items ?? [], unread: unread ?? 0 };
+  }
+
   const dismissedIds = new Set((dismissed ?? []).map((d) => d.announcement_id));
   const visibleAnnouncements = (activeAnnouncements ?? []).filter((a) => !dismissedIds.has(a.id));
 
@@ -66,11 +86,23 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 {org?.name ?? 'Kautis'}
               </span>
             </Link>
-            <AccountMenu
-              fullName={session.agent!.full_name}
-              isAdmin={role === 'admin'}
-              isLeader={role === 'leader'}
-            />
+            <div className="flex shrink-0 items-center gap-1.5">
+              {bell && (
+                <NotificationBell
+                  notifications={bell.items}
+                  unreadCount={bell.unread}
+                  // The VAPID *public* key is meant to be shared with browsers;
+                  // passed down from the server so no NEXT_PUBLIC_ var is needed.
+                  vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? null}
+                  timeZone={session.agent!.time_zone}
+                />
+              )}
+              <AccountMenu
+                fullName={session.agent!.full_name}
+                isAdmin={role === 'admin'}
+                isLeader={role === 'leader'}
+              />
+            </div>
           </header>
           <AnnouncementBanner announcements={visibleAnnouncements} />
           <main className="flex-1 px-4 py-6 pb-24 md:px-6 md:pb-6 print:p-0">{children}</main>

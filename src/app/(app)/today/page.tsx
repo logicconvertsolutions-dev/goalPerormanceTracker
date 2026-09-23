@@ -2,17 +2,30 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireVerifiedAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
-import { Phone, CalendarDays, AlertTriangle, Plus } from 'lucide-react';
-import { todayIso, formatFullDisplayDate } from '@/lib/dates';
+import { Phone, CalendarDays, AlertTriangle, Clock } from 'lucide-react';
+import {
+  addDays,
+  calendarRange,
+  formatFullDisplayDate,
+  isCalendarView,
+  isIsoDate,
+  todayIso,
+  zonedDateTimeToIso,
+} from '@/lib/dates';
 import { fetchRecentActivity } from '@/lib/recent-activity';
-import { LogActivityButton } from '@/components/shell/log-activity-button';
+import { fetchCalendarItems } from '@/lib/calendar';
+import { firstName, greetingFor } from '@/lib/greeting';
+import { quoteForDate } from '@/lib/quotes';
 import { SectionHeader } from './section-header';
 import { KpiStat } from './kpi-stat';
-import { NextUpCard } from './next-up-card';
-import { TodayRow } from './today-row';
 import { ActivityRow } from './activity-row';
+import { GreetingHero } from './greeting-hero';
+import { CalendarCard } from './calendar-card';
+import { TodoCard } from './todo-card';
+import { RemindersCard } from './reminders-card';
+import { QuoteCard } from './quote-card';
+import { PageBackdrop } from './page-backdrop';
 import type { ActivityKind } from '@/components/shell/activity-icons';
-import type { DueItemKind } from './use-follow-up-actions';
 
 const ACTIVITY_EDIT_PATH: Record<ActivityKind, string> = {
   call: '/log',
@@ -21,7 +34,7 @@ const ACTIVITY_EDIT_PATH: Record<ActivityKind, string> = {
   recruiting: '/recruiting',
 };
 
-export default async function TodayPage() {
+export default async function TodayPage({ searchParams }: { searchParams: Promise<{ view?: string; date?: string }> }) {
   const session = await requireVerifiedAgent();
   // Admins have no personal "My Day" -- they don't log activity of their
   // own (see docs/09-account-and-auth.md). Every hardcoded post-auth
@@ -30,134 +43,167 @@ export default async function TodayPage() {
   // catch and reroute an admin session rather than every caller doing it.
   if (session.agent!.role === 'admin') redirect('/admin/agents');
   const supabase = await createClient();
+  const agentId = session.agent!.id;
+  const timeZone = session.agent!.time_zone;
+  const today = todayIso(timeZone);
 
-  // p_as_of defaults to the DB server's own current_date (UTC) when omitted
-  // -- explicit here so "overdue"/"due today" reflects the agent's local
-  // calendar day, not the server's.
-  const { data: followUps } = await supabase.rpc('my_followups', {
-    p_as_of: todayIso(session.agent!.time_zone),
-  });
-  // Already ordered by due date ascending (most overdue first) by the RPC --
-  // follow-ups and appointments due are interleaved into one queue.
-  // `kind` is only ever one of the four SQL literals in my_followups, but
-  // generated RPC return types type it as a plain string -- narrowed here
-  // once instead of casting at every prop site. Since P25 C1 it also says
-  // which TABLE the row came from, which is what routes its actions.
-  const rows = (followUps ?? []).map((r) => ({ ...r, kind: r.kind as DueItemKind }));
-  const [nextUp, ...remaining] = rows;
+  // Calendar state lives in the URL (CLAUDE.md: filter state in search params).
+  const params = await searchParams;
+  const view = isCalendarView(params.view) ? params.view : 'day';
+  const date = isIsoDate(params.date) ? params.date : today;
+  const range = calendarRange(view, date);
 
-  const { count: callsToday } = await supabase
-    .from('call_logs')
-    .select('id', { count: 'exact', head: true })
-    .eq('agent_id', session.agent!.id)
-    .eq('call_date', todayIso(session.agent!.time_zone));
+  const [
+    { data: followUps },
+    { count: callsToday },
+    { data: yesterday },
+    recentActivity,
+    calendarItems,
+    { data: tasks },
+    { data: reminders },
+  ] = await Promise.all([
+    // p_as_of: the agent's local calendar day, not the DB server's (UTC).
+    supabase.rpc('my_followups', { p_as_of: today }),
+    supabase
+      .from('call_logs')
+      .select('id', { count: 'exact', head: true })
+      .eq('agent_id', agentId)
+      .eq('call_date', today),
+    // Yesterday comes from the read model (CLAUDE.md rule 10) -- only
+    // today's own count may read call_logs directly.
+    supabase
+      .from('daily_metrics')
+      .select('calls_made')
+      .eq('agent_id', agentId)
+      .eq('activity_date', addDays(today, -1))
+      .maybeSingle(),
+    fetchRecentActivity(supabase, agentId, 5),
+    fetchCalendarItems(supabase, agentId, timeZone, range.from, range.to),
+    // To Do: today's tasks, plus anything still open from earlier days.
+    supabase
+      .from('tasks')
+      .select('id, title, kind, due_on, due_at, done_at')
+      .eq('agent_id', agentId)
+      .or(`due_on.eq.${today},and(due_on.lt.${today},done_at.is.null)`)
+      .order('done_at', { ascending: true, nullsFirst: true })
+      .order('due_on', { ascending: true })
+      .order('due_at', { ascending: true, nullsFirst: false }),
+    // Reminders: undismissed, from the start of today onward.
+    supabase
+      .from('reminders')
+      .select('id, title, remind_at, lead_minutes, push, sent_at')
+      .eq('agent_id', agentId)
+      .is('dismissed_at', null)
+      .gte('remind_at', zonedDateTimeToIso(today, '00:00', timeZone))
+      .order('remind_at', { ascending: true })
+      .limit(5),
+  ]);
 
-  const recentActivity = await fetchRecentActivity(supabase, session.agent!.id, 7);
-
+  const rows = followUps ?? [];
   const overdueCount = rows.filter((r) => r.days_late > 0).length;
   const dueTodayCount = rows.filter((r) => r.days_late === 0).length;
+  const callDelta = (callsToday ?? 0) - (yesterday?.calls_made ?? 0);
+  const now = new Date();
 
   return (
-    <div className="mx-auto max-w-lg space-y-7">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[34px] font-bold leading-[40px] tracking-heading-tight text-fg">
-            My Day
-          </h1>
-          <p className="mt-0.5 text-sm text-fg-3">{formatFullDisplayDate(todayIso(session.agent!.time_zone))}</p>
-        </div>
-        <LogActivityButton variant="primary" size="sm" className="mt-1.5 shrink-0">
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Log Activity
-        </LogActivityButton>
-      </div>
-
-      <div className="flex gap-2.5">
-        <KpiStat icon={Phone} value={callsToday ?? 0} label="Calls logged" />
-        <KpiStat icon={CalendarDays} value={dueTodayCount} label="Due today" />
-        <KpiStat icon={AlertTriangle} value={overdueCount} label="Overdue" warn={overdueCount > 0} />
-      </div>
-
-      <div className="space-y-3">
-        <SectionHeader
-          title="Next up"
-          dot
-          subtitle="Due today"
-          action={remaining.length > 0 ? { label: `View all (${rows.length})`, href: '#today-queue' } : undefined}
+    <>
+      <PageBackdrop />
+      <div className="relative z-[1] mx-auto max-w-lg space-y-4 lg:max-w-6xl">
+        <GreetingHero
+          greeting={greetingFor(now, timeZone)}
+          name={firstName(session.agent!.full_name)}
+          dateLabel={formatFullDisplayDate(today)}
         />
 
-        {!nextUp ? (
-          <div className="rounded-lg border border-line bg-panel px-4 py-4 shadow-card">
-            <p className="text-sm text-fg-3">
-              Nothing due today. Set a follow-up, or log a call with an appointment set, and it&apos;ll show up here.
-            </p>
-          </div>
-        ) : (
-          <>
-            <NextUpCard
-              kind={nextUp.kind}
-              rowId={nextUp.call_id}
-              contactId={nextUp.contact_id}
-              contactName={nextUp.contact_name}
-              lastNote={nextUp.last_note}
-              timesCalled={nextUp.times_called}
-              daysLate={nextUp.days_late}
-              appointmentAt={nextUp.appointment_at}
-              timeZone={session.agent!.time_zone}
-            />
+        <div className="flex gap-2.5">
+          <KpiStat
+            icon={Phone}
+            value={callsToday ?? 0}
+            label="Calls logged"
+            hint={
+              callDelta === 0 ? 'Same as yesterday' : `${callDelta > 0 ? '▲' : '▼'} ${Math.abs(callDelta)} vs yesterday`
+            }
+          />
+          <KpiStat
+            icon={CalendarDays}
+            value={dueTodayCount}
+            label="Due today"
+            href="/today/due?filter=today"
+            hint="Tap to view"
+          />
+          <KpiStat
+            icon={AlertTriangle}
+            value={overdueCount}
+            label="Overdue"
+            warn={overdueCount > 0}
+            href="/today/due?filter=overdue"
+            hint="Tap to view"
+          />
+        </div>
 
-            {remaining.length > 0 && (
-              <div
-                id="today-queue"
-                className="scroll-mt-4 divide-y divide-line rounded-lg border border-line bg-panel px-4 shadow-card"
-              >
-                {remaining.map((row) => (
-                  <TodayRow
-                    key={`${row.kind}-${row.call_id}`}
-                    kind={row.kind}
-                    rowId={row.call_id}
-                    contactId={row.contact_id}
-                    contactName={row.contact_name}
-                    lastNote={row.last_note}
-                    timesCalled={row.times_called}
-                    daysLate={row.days_late}
-                    appointmentAt={row.appointment_at}
-                    timeZone={session.agent!.time_zone}
-                    overdue={row.days_late > 0}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      <div className="space-y-3">
-        <SectionHeader title="Recent activity" action={{ label: 'View all', href: '/logs' }} />
-        <div className="rounded-[24px] border border-line bg-panel px-4 shadow-card">
-          {recentActivity.length === 0 ? (
-            <p className="py-4 text-sm text-fg-3">Nothing logged yet.</p>
-          ) : (
-            <div className="divide-y divide-line">
-              {recentActivity.map((item) => (
-                <Link
-                  key={`${item.kind}-${item.id}`}
-                  href={`${ACTIVITY_EDIT_PATH[item.kind]}/${item.id}/edit`}
-                  className="block hover:bg-hover"
-                >
-                  <ActivityRow
-                    kind={item.kind}
-                    contactName={item.contactName}
-                    summary={item.summary}
-                    createdAt={item.createdAt}
-                    timeZone={session.agent!.time_zone}
-                  />
-                </Link>
-              ))}
+        {/* Phone/tablet: one column in the order below. Desktop (lg+): two
+          columns -- calendar + recent activity left, to-dos, reminders and
+          the quote right. The column wrappers are display:contents below lg,
+          so `order` keeps the single-column sequence without duplicating
+          markup. */}
+        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-start">
+          <div className="contents lg:flex lg:flex-col lg:gap-4">
+            <div className="order-1 lg:order-none">
+              <CalendarCard
+                items={calendarItems}
+                view={view}
+                date={date}
+                today={today}
+                nowIso={now.toISOString()}
+                timeZone={timeZone}
+              />
             </div>
-          )}
+            <div className="order-4 lg:order-none">
+              <div className="space-y-3">
+                <SectionHeader title="Recent activity" action={{ label: 'View all', href: '/logs' }} />
+                <div className="rounded-[24px] border border-line bg-panel px-4 shadow-card">
+                  {recentActivity.length === 0 ? (
+                    <p className="flex items-center gap-2 py-4 text-sm text-fg-3">
+                      <Clock className="h-4 w-4" aria-hidden="true" />
+                      Nothing logged yet.
+                    </p>
+                  ) : (
+                    <div className="divide-y divide-line">
+                      {recentActivity.map((item) => (
+                        <Link
+                          key={`${item.kind}-${item.id}`}
+                          href={`${ACTIVITY_EDIT_PATH[item.kind]}/${item.id}/edit`}
+                          className="block hover:bg-hover"
+                        >
+                          <ActivityRow
+                            kind={item.kind}
+                            contactName={item.contactName}
+                            summary={item.summary}
+                            status={item.status}
+                            createdAt={item.createdAt}
+                            timeZone={timeZone}
+                          />
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="contents lg:flex lg:flex-col lg:gap-4">
+            <div className="order-2 lg:order-none">
+              <TodoCard tasks={tasks ?? []} today={today} timeZone={timeZone} />
+            </div>
+            <div className="order-3 lg:order-none">
+              <RemindersCard reminders={reminders ?? []} today={today} timeZone={timeZone} />
+            </div>
+            <div className="order-5 lg:order-none">
+              <QuoteCard quote={quoteForDate(today)} />
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -582,6 +582,59 @@ Five phases, each independently shippable and revertible.
         `xlsx-latest`, whose next release would have broken every `npm ci`
         against the lockfile's integrity hash.
 
+## P30 — My Day redesign: calendar, To Do, reminders, notifications, web push
+
+This is the separate notifications project that P25 Phase D was moved out to.
+It is built fresh on current `dev`; the unmerged D-1 branch was not used.
+
+- [x] **Database** (`20260923100000_p30_my_day_tasks_reminders_notifications.sql`,
+      pgTAP `012_my_day_tasks_reminders_notifications.sql`).
+      - `tasks`, `reminders`, `notifications`, `push_subscriptions`: all
+        strictly owner-only (`agent_id = auth.uid()` and `org_id =
+        private.my_org()`), with **no upline policy** (rule 2).
+      - `reminders.sent_at` is job-only (column grants). Users can update
+        only `notifications.read_at`. `push_subscriptions` is service-role
+        read only; users go through `save_push_subscription` /
+        `delete_push_subscription`.
+      - `private.enqueue_due_pushes()` runs every minute. It turns due
+        reminders, appointments starting within 15 min and an 8–11 AM local
+        morning brief into `notifications` rows. It is idempotent on
+        `(agent_id, source_key)`.
+      - Push-flagged rows go on pgmq `push_sends`, drained by
+        `/api/cron/push/drain`. `ping_push_drain` pings only when the queue
+        is non-empty. Retention: 60 days.
+      - `notification_prefs` gains `push_reminders`, `push_appointments`
+        and `push_morning_brief` (default on).
+      - Nothing touches `daily_metrics`.
+- [x] **My Day** (`src/app/(app)/today/`).
+      - Greeting header: time-of-day greeting in the agent's zone,
+        `lib/greeting.ts`.
+      - Clickable Due today / Overdue tiles open `/today/due`, which
+        replaces the Next up card; `next-up-card.tsx` is kept, unused.
+      - Day/Week/Month calendar: state in URL params, range helpers in
+        `lib/dates.ts`, own rows only via `lib/calendar.ts`.
+      - To Do and Reminders cards (Server Actions + Zod).
+      - Recent activity status pills.
+      - Daily quote (`lib/quotes.ts`, deterministic per local day).
+      - Summit photo as the page backdrop and in the header/quote cards
+        (static import, not `public/`).
+      - Two columns from `lg`, one column below.
+      - Yesterday's call count reads `daily_metrics` (rule 10).
+- [x] **Notifications**
+      - Header bell with an unread badge, a filterable sheet, mark-read, and
+        the per-device *Enable* control.
+      - iOS asks users to Add to Home Screen first.
+      - `sw.js` handles `push` / `notificationclick`.
+      - Settings has three push toggles.
+- [x] **Dependency:** `web-push` (approved, rule 11), server-side only.
+- [ ] **Before push works in an environment**
+      - Set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` in
+        Vercel; the public key reaches browsers from the server, so there
+        is no `NEXT_PUBLIC_` var.
+      - Vault `app_base_url` / `cron_secret` must exist (already required by
+        the email pipeline).
+      - Without VAPID keys the bell still works and pushes are skipped.
+
 ---
 
 ## Working with Claude Code on this repo (token discipline)

@@ -10,6 +10,9 @@ interface Prefs {
   eveningNudge: boolean;
   sundaySummary: boolean;
   mondayDigest: boolean;
+  pushReminders: boolean;
+  pushAppointments: boolean;
+  pushMorningBrief: boolean;
 }
 
 const ROWS: { key: keyof Prefs; label: string; description: string }[] = [
@@ -28,6 +31,23 @@ const ROWS: { key: keyof Prefs; label: string; description: string }[] = [
     label: 'Team cycle digest',
     description: 'Totals vs goal, who is quiet',
   },
+  // Push (P30) -- delivered to devices where you turned alerts on from the
+  // bell. They also always appear in the bell itself.
+  {
+    key: 'pushReminders',
+    label: 'Reminder alerts (push)',
+    description: 'When a reminder you set is due',
+  },
+  {
+    key: 'pushAppointments',
+    label: 'Appointment alerts (push)',
+    description: '15 minutes before a scheduled appointment',
+  },
+  {
+    key: 'pushMorningBrief',
+    label: 'Morning summary (push)',
+    description: 'Around 8:00 AM: today’s appointments and to-dos',
+  },
 ];
 
 // evening_nudge and sunday_summary fire for anyone who logs their own
@@ -42,8 +62,8 @@ const ROWS: { key: keyof Prefs; label: string; description: string }[] = [
 // that could never actually reach anyone. Filtering by role here is a
 // display fix; the backend is the source of truth.
 const ROWS_BY_ROLE: Record<'associate' | 'leader' | 'admin', (keyof Prefs)[]> = {
-  associate: ['eveningNudge', 'sundaySummary'],
-  leader: ['eveningNudge', 'sundaySummary', 'mondayDigest'],
+  associate: ['eveningNudge', 'sundaySummary', 'pushReminders', 'pushAppointments', 'pushMorningBrief'],
+  leader: ['eveningNudge', 'sundaySummary', 'mondayDigest', 'pushReminders', 'pushAppointments', 'pushMorningBrief'],
   admin: [],
 };
 
