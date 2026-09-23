@@ -89,6 +89,9 @@ export default async function SettingsPage() {
                 eveningNudge: prefs?.evening_nudge ?? true,
                 sundaySummary: prefs?.sunday_summary ?? true,
                 mondayDigest: prefs?.monday_digest ?? true,
+                pushReminders: prefs?.push_reminders ?? true,
+                pushAppointments: prefs?.push_appointments ?? true,
+                pushMorningBrief: prefs?.push_morning_brief ?? true,
               }}
             />
           </CardContent>

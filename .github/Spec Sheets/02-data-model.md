@@ -587,6 +587,53 @@ Added over P2–P11, none anticipated by the original P1 schema:
   scoped table (`contacts`/`call_logs`/`appointments`/`sales`/
   `recruiting_logs`) keeps the original raising version, which is exactly
   what stops an org-less admin from ever owning one of those rows.
+- **P30 — My Day planner and notifications**
+  (`20260923100000_p30_my_day_tasks_reminders_notifications.sql`).
+  Shared rules for all four tables:
+  - `org_id` is stamped by `set_org_from_agent()`.
+  - Every policy checks both `agent_id = auth.uid()` and
+    `org_id = private.my_org()`.
+  - **No upline policy.** An SMD never reads a downline's to-dos,
+    reminders or notifications, which can name prospects (rule 2).
+  - `anon`/`authenticated` are revoked by name, and each table's grants
+    are added back explicitly (rule 4).
+
+  The tables:
+  - **`tasks`**: `title`, `kind` (`call | task | meeting | follow_up`),
+    `due_on`, optional `due_at`, optional `contact_id`, `done_at`. Full CRUD
+    for the owner. The `assert_own_linked_records` trigger rejects another
+    agent's contact.
+  - **`reminders`**: `title`, `remind_at`, `lead_minutes` (0/5/10/15/30/60/
+    120/1440), `push`, optional `contact_id`/`appointment_id`, `sent_at`,
+    `dismissed_at`.
+    - `sent_at` is **job-only**: column-level INSERT/UPDATE grants leave it
+      out (rule 1).
+    - Moving `remind_at` or `lead_minutes` re-arms the reminder
+      (`rearm_reminder` trigger clears `sent_at`).
+  - **`notifications`**: the bell feed.
+    - Columns: `kind` (`reminder | appointment | morning_brief`), `title`,
+      `body`, in-app `link`, `source_key`, `push`, `pushed_at`, `read_at`.
+    - Unique `(agent_id, source_key)` makes the job idempotent.
+    - The owner can select, and can update **only `read_at`**. Rows are
+      written only by `private.enqueue_due_pushes()`.
+    - Rows older than 60 days are purged nightly.
+  - **`push_subscriptions`**: one row per browser endpoint (unique),
+    holding `p256dh` and `auth`.
+    - RLS is on with **no** authenticated policy, and there are no table
+      grants.
+    - Written only through `save_push_subscription()` /
+      `delete_push_subscription()` (definer RPCs), and read only by the
+      service-role drain route.
+  - **`notification_prefs`** gains `push_reminders`, `push_appointments` and
+    `push_morning_brief` (default `true`).
+
+  Delivery runs on pg_cron:
+  - `enqueue-due-pushes` (every minute) claims due items into
+    `notifications` and enqueues push-flagged ones on pgmq `push_sends`.
+  - `ping-push-drain` calls `/api/cron/push/drain` through
+    `ping_app_route`, only while the queue is non-empty.
+  - `purge-old-notifications` runs daily.
+  - None of this touches `daily_metrics`.
 
 ---
 

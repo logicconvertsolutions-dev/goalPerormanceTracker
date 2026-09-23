@@ -8,6 +8,9 @@ const prefsSchema = z.object({
   eveningNudge: z.boolean(),
   sundaySummary: z.boolean(),
   mondayDigest: z.boolean(),
+  pushReminders: z.boolean(),
+  pushAppointments: z.boolean(),
+  pushMorningBrief: z.boolean(),
 });
 
 export async function updateNotificationPrefsAction(
@@ -27,6 +30,9 @@ export async function updateNotificationPrefsAction(
     evening_nudge: parsed.data.eveningNudge,
     sunday_summary: parsed.data.sundaySummary,
     monday_digest: parsed.data.mondayDigest,
+    push_reminders: parsed.data.pushReminders,
+    push_appointments: parsed.data.pushAppointments,
+    push_morning_brief: parsed.data.pushMorningBrief,
     updated_at: new Date().toISOString(),
   });
 

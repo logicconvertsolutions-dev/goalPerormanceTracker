@@ -881,6 +881,9 @@ export type Database = {
           agent_id: string
           evening_nudge: boolean
           monday_digest: boolean
+          push_appointments: boolean
+          push_morning_brief: boolean
+          push_reminders: boolean
           sunday_summary: boolean
           updated_at: string
         }
@@ -888,6 +891,9 @@ export type Database = {
           agent_id: string
           evening_nudge?: boolean
           monday_digest?: boolean
+          push_appointments?: boolean
+          push_morning_brief?: boolean
+          push_reminders?: boolean
           sunday_summary?: boolean
           updated_at?: string
         }
@@ -895,6 +901,9 @@ export type Database = {
           agent_id?: string
           evening_nudge?: boolean
           monday_digest?: boolean
+          push_appointments?: boolean
+          push_morning_brief?: boolean
+          push_reminders?: boolean
           sunday_summary?: boolean
           updated_at?: string
         }
@@ -904,6 +913,66 @@ export type Database = {
             columns: ["agent_id"]
             isOneToOne: true
             referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          agent_id: string
+          body: string | null
+          created_at: string
+          id: string
+          kind: string
+          link: string | null
+          org_id: string
+          push: boolean
+          pushed_at: string | null
+          read_at: string | null
+          source_key: string
+          title: string
+        }
+        Insert: {
+          agent_id: string
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          link?: string | null
+          org_id: string
+          push?: boolean
+          pushed_at?: string | null
+          read_at?: string | null
+          source_key: string
+          title: string
+        }
+        Update: {
+          agent_id?: string
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          link?: string | null
+          org_id?: string
+          push?: boolean
+          pushed_at?: string | null
+          read_at?: string | null
+          source_key?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -939,6 +1008,57 @@ export type Database = {
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_subscriptions: {
+        Row: {
+          agent_id: string
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          last_seen_at: string
+          org_id: string
+          p256dh: string
+          user_agent: string | null
+        }
+        Insert: {
+          agent_id: string
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          last_seen_at?: string
+          org_id: string
+          p256dh: string
+          user_agent?: string | null
+        }
+        Update: {
+          agent_id?: string
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          last_seen_at?: string
+          org_id?: string
+          p256dh?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "push_subscriptions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -1010,6 +1130,80 @@ export type Database = {
           },
           {
             foreignKeyName: "recruiting_logs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reminders: {
+        Row: {
+          agent_id: string
+          appointment_id: string | null
+          contact_id: string | null
+          created_at: string
+          dismissed_at: string | null
+          id: string
+          lead_minutes: number
+          org_id: string
+          push: boolean
+          remind_at: string
+          sent_at: string | null
+          title: string
+        }
+        Insert: {
+          agent_id?: string
+          appointment_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          dismissed_at?: string | null
+          id?: string
+          lead_minutes?: number
+          org_id: string
+          push?: boolean
+          remind_at: string
+          sent_at?: string | null
+          title: string
+        }
+        Update: {
+          agent_id?: string
+          appointment_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          dismissed_at?: string | null
+          id?: string
+          lead_minutes?: number
+          org_id?: string
+          push?: boolean
+          remind_at?: string
+          sent_at?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reminders_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reminders_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reminders_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reminders_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -1195,6 +1389,67 @@ export type Database = {
             columns: ["set_by"]
             isOneToOne: false
             referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          agent_id: string
+          contact_id: string | null
+          created_at: string
+          done_at: string | null
+          due_at: string | null
+          due_on: string
+          id: string
+          kind: string
+          org_id: string
+          title: string
+        }
+        Insert: {
+          agent_id?: string
+          contact_id?: string | null
+          created_at?: string
+          done_at?: string | null
+          due_at?: string | null
+          due_on: string
+          id?: string
+          kind?: string
+          org_id: string
+          title: string
+        }
+        Update: {
+          agent_id?: string
+          contact_id?: string | null
+          created_at?: string
+          done_at?: string | null
+          due_at?: string | null
+          due_on?: string
+          id?: string
+          kind?: string
+          org_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -1480,6 +1735,10 @@ export type Database = {
       cycle_end: { Args: { d: string }; Returns: string }
       cycle_start: { Args: { d: string }; Returns: string }
       deactivate_agent: { Args: { p_agent_id: string }; Returns: undefined }
+      delete_push_subscription: {
+        Args: { p_endpoint: string }
+        Returns: undefined
+      }
       drain_metrics: { Args: { p_limit?: number }; Returns: number }
       my_followups: {
         Args: { p_as_of?: string }
@@ -1530,6 +1789,15 @@ export type Database = {
           invite_token: string
           org_id: string
         }[]
+      }
+      save_push_subscription: {
+        Args: {
+          p_auth: string
+          p_endpoint: string
+          p_p256dh: string
+          p_user_agent?: string
+        }
+        Returns: undefined
       }
       send_roster_training_reminder: {
         Args: { p_roster_id: string }
@@ -1871,3 +2139,4 @@ export const Constants = {
     },
   },
 } as const
+
