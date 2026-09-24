@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import { Sun } from 'lucide-react';
 import type { Quote } from '@/lib/quotes';
-import mountain from './my-day-mountain.avif';
+import mountain from '@/components/shell/page-backdrop-mountain.avif';
 
 /** "Today's thought" (P30) -- one curated quote per agent-local day. */
 export function QuoteCard({ quote }: { quote: Quote }) {

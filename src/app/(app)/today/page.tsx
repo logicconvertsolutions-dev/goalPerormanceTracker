@@ -21,10 +21,9 @@ import { KpiStat } from './kpi-stat';
 import { ActivityRow } from './activity-row';
 import { GreetingHero } from './greeting-hero';
 import { CalendarCard } from './calendar-card';
-import { TodoCard } from './todo-card';
-import { RemindersCard } from './reminders-card';
+import { TodoCard, TODO_CARD_DESKTOP } from './todo-card';
+import { RemindersCard, REMINDERS_CARD_DESKTOP } from './reminders-card';
 import { QuoteCard } from './quote-card';
-import { PageBackdrop } from './page-backdrop';
 import type { ActivityKind } from '@/components/shell/activity-icons';
 
 const ACTIVITY_EDIT_PATH: Record<ActivityKind, string> = {
@@ -59,8 +58,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     { data: yesterday },
     recentActivity,
     calendarItems,
-    { data: tasks },
-    { data: reminders },
+    { data: tasks, count: openTaskCount },
+    { data: reminders, count: upcomingReminderCount },
   ] = await Promise.all([
     // p_as_of: the agent's local calendar day, not the DB server's (UTC).
     supabase.rpc('my_followups', { p_as_of: today }),
@@ -79,24 +78,26 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       .maybeSingle(),
     fetchRecentActivity(supabase, agentId, 5),
     fetchCalendarItems(supabase, agentId, timeZone, range.from, range.to),
-    // To Do: today's tasks, plus anything still open from earlier days.
+    // To Do: open tasks only (P31) -- overdue, then today, then upcoming.
+    // The card shows 5 on a phone and 10 on desktop; the count feeds "+N more".
     supabase
       .from('tasks')
-      .select('id, title, kind, due_on, due_at, done_at')
+      .select('id, title, kind, due_on, due_at, done_at', { count: 'exact' })
       .eq('agent_id', agentId)
-      .or(`due_on.eq.${today},and(due_on.lt.${today},done_at.is.null)`)
-      .order('done_at', { ascending: true, nullsFirst: true })
+      .is('done_at', null)
       .order('due_on', { ascending: true })
-      .order('due_at', { ascending: true, nullsFirst: false }),
+      .order('due_at', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true })
+      .limit(TODO_CARD_DESKTOP),
     // Reminders: undismissed, from the start of today onward.
     supabase
       .from('reminders')
-      .select('id, title, remind_at, lead_minutes, push, sent_at')
+      .select('id, title, remind_at, lead_minutes, push, sent_at', { count: 'exact' })
       .eq('agent_id', agentId)
       .is('dismissed_at', null)
       .gte('remind_at', zonedDateTimeToIso(today, '00:00', timeZone))
       .order('remind_at', { ascending: true })
-      .limit(5),
+      .limit(REMINDERS_CARD_DESKTOP),
   ]);
 
   const rows = followUps ?? [];
@@ -107,8 +108,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <PageBackdrop />
-      <div className="relative z-[1] mx-auto max-w-lg space-y-4 lg:max-w-6xl">
+      <div className="mx-auto max-w-lg space-y-4 lg:max-w-6xl">
         <GreetingHero
           greeting={greetingFor(now, timeZone)}
           name={firstName(session.agent!.full_name)}
@@ -193,10 +193,15 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           </div>
           <div className="contents lg:flex lg:flex-col lg:gap-4">
             <div className="order-2 lg:order-none">
-              <TodoCard tasks={tasks ?? []} today={today} timeZone={timeZone} />
+              <TodoCard tasks={tasks ?? []} openCount={openTaskCount ?? 0} today={today} timeZone={timeZone} />
             </div>
             <div className="order-3 lg:order-none">
-              <RemindersCard reminders={reminders ?? []} today={today} timeZone={timeZone} />
+              <RemindersCard
+                reminders={reminders ?? []}
+                upcomingCount={upcomingReminderCount ?? 0}
+                today={today}
+                timeZone={timeZone}
+              />
             </div>
             <div className="order-5 lg:order-none">
               <QuoteCard quote={quoteForDate(today)} />

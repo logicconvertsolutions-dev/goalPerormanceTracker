@@ -105,7 +105,11 @@ and the Quote on the right.
   that filter. Overdue is warn-styled when > 0.
 
 **Calendar (Day / Week / Month).** State lives in the URL
-(`?view=&date=`). It shows the agent's own appointments, open call
+(`?view=&date=`). The card changes it in place (P31: fetch plus
+`history.replaceState`), so the page keeps its scroll position. Day and
+Week cover 12 AM–12 AM. Each day shows at most 3 to-dos (open first,
+oldest-created first), then "+N more to-dos", which opens
+`/today/tasks?date=`. It shows the agent's own appointments, open call
 follow-ups, to-dos and reminders, each with its own colour.
 - **Day:** a swipeable 3-week strip with dots, an "All day" band for
   date-only follow-ups and to-dos, and a scrollable timeline that opens at
@@ -113,19 +117,26 @@ follow-ups, to-dos and reminders, each with its own colour.
 - **Week:** an hour grid; overlapping items sit side by side.
 - **Month:** a dot grid; tapping a day lists its items.
 
-**To Do.** Quick add (type chips plus an optional time), tick off and
-delete. It shows today's tasks plus any still-open earlier ones, marked
-overdue.
+**To Do.** Quick add (type chips, a day from today on, and an optional
+time), tick off (with a chime), tap to edit, and delete. It shows **open
+tasks only**, overdue first, then today, then upcoming: 5 on a phone and
+10 from `lg` up, then "+N more open". **View all** opens `/today/tasks`
+(P31), with Open / Completed / All filters, grouped by day, and an
+optional `?date=`.
 
-**Reminders.** New (title, date, time, alert lead, push on/off) and
-dismiss. Upcoming ones are listed, soonest first.
+**Reminders.** New (title, date, time, alert lead, push on/off), tap to
+edit, and complete (with a chime). Upcoming ones are listed, soonest
+first: 5 on a phone, 10 from `lg` up. **View all** opens
+`/today/reminders` (P31): Upcoming / Done, with delete.
 
 **Daily quote.** One curated quote per agent-local day (`lib/quotes.ts`).
 
 **Notifications bell (app header, not admins).** Unread badge; tapping it
 opens a sheet with:
 - All / Reminders / Appointments filters
-- mark read and mark all read
+- **Clear all**; opening a notification clears it from the list (P31).
+  Touch screens swipe a row left to clear it; mouse/trackpad devices get a
+  × on each row instead.
 - the "Get alerts on this device" control. On iOS outside an installed
   PWA, it says to Add to Home Screen first.
 

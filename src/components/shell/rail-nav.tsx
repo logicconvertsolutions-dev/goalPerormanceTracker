@@ -52,7 +52,7 @@ export function RailNav({ role }: { role: AppRole }) {
   if (role === 'admin') {
     return (
       <nav
-        className="hidden md:flex md:flex-col md:w-[212px] md:shrink-0 md:border-r md:border-line md:bg-bg-2 md:p-3 md:gap-1 print:hidden"
+        className="hidden md:sticky md:top-0 md:flex md:h-screen md:flex-col md:w-[212px] md:shrink-0 md:overflow-y-auto md:border-r md:border-line md:bg-bg-2 md:p-3 md:gap-1 print:hidden"
         aria-label="Primary"
       >
         {ADMIN_NAV.map((item) => (
@@ -70,7 +70,7 @@ export function RailNav({ role }: { role: AppRole }) {
 
   return (
     <nav
-      className="hidden md:flex md:flex-col md:w-[212px] md:shrink-0 md:border-r md:border-line md:bg-bg-2 md:p-3 md:gap-1 print:hidden"
+      className="hidden md:sticky md:top-0 md:flex md:h-screen md:flex-col md:w-[212px] md:shrink-0 md:overflow-y-auto md:border-r md:border-line md:bg-bg-2 md:p-3 md:gap-1 print:hidden"
       aria-label="Primary"
     >
       {items.map((item) => (

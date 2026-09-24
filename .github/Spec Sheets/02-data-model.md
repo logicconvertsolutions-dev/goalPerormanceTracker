@@ -611,11 +611,16 @@ Added over P2–P11, none anticipated by the original P1 schema:
     - Moving `remind_at` or `lead_minutes` re-arms the reminder
       (`rearm_reminder` trigger clears `sent_at`).
   - **`notifications`**: the bell feed.
-    - Columns: `kind` (`reminder | appointment | morning_brief`), `title`,
+    - Columns: `kind` (`reminder | appointment | morning_brief |
+      evening_nudge`; `evening_nudge` since P31, written by
+      `enqueue_due_notifications()` alongside the email), `title`,
       `body`, in-app `link`, `source_key`, `push`, `pushed_at`, `read_at`.
     - Unique `(agent_id, source_key)` makes the job idempotent.
-    - The owner can select, and can update **only `read_at`**. Rows are
-      written only by `private.enqueue_due_pushes()`.
+    - The owner can select, and can update **only `read_at` and
+      `cleared_at`** (P31: the bell's "Clear all" / tap-to-clear, a soft
+      clear so the job's `source_key` dedupe still holds). Rows are
+      written only by `private.enqueue_due_pushes()`. Appointment alerts
+      read "<Type label> in N min" / "<contact> · <time>" (P31).
     - Rows older than 60 days are purged nightly.
   - **`push_subscriptions`**: one row per browser endpoint (unique),
     holding `p256dh` and `auth`.
