@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { Bell, CalendarDays, ChevronLeft, ChevronRight, ListChecks, Phone, Users, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CalendarItem, CalendarItemKind } from '@/lib/calendar';
+import { capTodosPerDay } from '@/lib/calendar-cap';
 import {
   CALENDAR_VIEWS,
   dayStripDates,
@@ -17,9 +18,14 @@ import {
   weekDates,
   type CalendarView,
 } from '@/lib/dates';
+import { loadCalendarAction } from './planner-actions';
 
 // My Day calendar (P30). View + date live in the URL (?view=&date=), same as
-// every other filter in the app, so back/forward and refresh keep your place.
+// every other filter in the app, so a reload or shared link keeps your place.
+// Since P31 the card changes view/date itself: it fetches the new range
+// through loadCalendarAction and rewrites the URL with history.replaceState.
+// A <Link> navigation re-rendered the whole page (and its loading.tsx
+// skeleton), which threw the window back to the top.
 
 const KIND_META: Record<CalendarItemKind, { label: string; icon: LucideIcon; chip: string; dot: string }> = {
   appointment: { label: 'Appointment', icon: Users, chip: 'bg-acc-dim border-acc text-acc', dot: 'bg-acc' },
@@ -35,8 +41,12 @@ const KIND_META: Record<CalendarItemKind, { label: string; icon: LucideIcon; chi
 
 const VIEW_LABEL: Record<CalendarView, string> = { day: 'Day', week: 'Week', month: 'Month' };
 const WEEKDAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const DAY_START_HOUR = 7;
-const DAY_END_HOUR = 21;
+// The full day, 12 AM to 12 AM (P31). The timeline opens scrolled to now or
+// the first item, so the early hours don't push the day out of view.
+const DAY_START_HOUR = 0;
+const DAY_END_HOUR = 24;
+
+type Go = (view: CalendarView, date: string) => void;
 
 function href(view: CalendarView, date: string) {
   return `/today?view=${view}&date=${date}`;
@@ -61,7 +71,8 @@ function byDate(items: CalendarItem[]) {
   return map;
 }
 
-/** Hour span to draw: the working day, widened to fit anything outside it. */
+/** Hour span to draw. Always the whole day now; kept as a function so a
+ * narrower default can widen to fit items again. */
 function hourSpan(items: CalendarItem[], timeZone: string | null) {
   let start = DAY_START_HOUR;
   let end = DAY_END_HOUR;
@@ -75,9 +86,9 @@ function hourSpan(items: CalendarItem[], timeZone: string | null) {
 }
 
 export function CalendarCard({
-  items,
-  view,
-  date,
+  items: initialItems,
+  view: initialView,
+  date: initialDate,
   today,
   nowIso,
   timeZone,
@@ -89,7 +100,39 @@ export function CalendarCard({
   nowIso: string;
   timeZone: string | null;
 }) {
-  const grouped = byDate(items);
+  const [view, setView] = useState(initialView);
+  const [date, setDate] = useState(initialDate);
+  const [items, setItems] = useState(initialItems);
+  const [loading, startLoading] = useTransition();
+  const request = useRef(0);
+
+  function load(nextView: CalendarView, nextDate: string) {
+    const id = ++request.current;
+    startLoading(async () => {
+      const result = await loadCalendarAction({ view: nextView, date: nextDate });
+      // Ignore a slow answer to an earlier click.
+      if (result.ok && id === request.current) setItems(result.items);
+    });
+  }
+
+  const go: Go = (nextView, nextDate) => {
+    setView(nextView);
+    setDate(nextDate);
+    window.history.replaceState(window.history.state, '', href(nextView, nextDate));
+    load(nextView, nextDate);
+  };
+
+  // The page re-renders after a to-do or reminder changes (revalidatePath).
+  // Take its fresh items when they are for the range on screen; otherwise
+  // re-fetch the range on screen so the change shows up here too.
+  useEffect(() => {
+    if (initialView === view && initialDate === date) setItems(initialItems);
+    else load(view, date);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialItems]);
+
+  const { items: shown, hiddenTodos } = capTodosPerDay(items);
+  const grouped = byDate(shown);
   const title =
     view === 'week'
       ? `${formatShortDate(weekDates(date)[0])} – ${formatShortDate(weekDates(date)[6])}`
@@ -104,10 +147,10 @@ export function CalendarCard({
         </h2>
         <nav className="flex rounded-sm bg-sunken p-[3px]" aria-label="Calendar view">
           {CALENDAR_VIEWS.map((v) => (
-            <Link
+            <button
               key={v}
-              href={href(v, date)}
-              scroll={false}
+              type="button"
+              onClick={() => go(v, date)}
               aria-current={v === view ? 'page' : undefined}
               className={cn(
                 'rounded-[8px] px-3 py-1.5 text-xs font-bold text-fg-2 transition-smooth',
@@ -115,7 +158,7 @@ export function CalendarCard({
               )}
             >
               {VIEW_LABEL[v]}
-            </Link>
+            </button>
           ))}
         </nav>
       </div>
@@ -124,41 +167,58 @@ export function CalendarCard({
         <p className="text-sm font-bold text-fg">{title}</p>
         <div className="flex items-center gap-1.5">
           {date !== today && (
-            <Link
-              href={href(view, today)}
-              scroll={false}
+            <button
+              type="button"
+              onClick={() => go(view, today)}
               className="flex h-8 items-center rounded-sm border border-line px-2.5 text-xs font-bold text-acc hover:bg-hover"
             >
               Today
-            </Link>
+            </button>
           )}
-          <Link
-            href={href(view, stepCalendarDate(view, date, -1))}
-            scroll={false}
+          <button
+            type="button"
+            onClick={() => go(view, stepCalendarDate(view, date, -1))}
             aria-label={`Previous ${view}`}
             className="flex h-8 w-8 items-center justify-center rounded-sm border border-line text-fg-2 hover:bg-hover"
           >
             <ChevronLeft className="h-4 w-4" />
-          </Link>
-          <Link
-            href={href(view, stepCalendarDate(view, date, 1))}
-            scroll={false}
+          </button>
+          <button
+            type="button"
+            onClick={() => go(view, stepCalendarDate(view, date, 1))}
             aria-label={`Next ${view}`}
             className="flex h-8 w-8 items-center justify-center rounded-sm border border-line text-fg-2 hover:bg-hover"
           >
             <ChevronRight className="h-4 w-4" />
-          </Link>
+          </button>
         </div>
       </div>
 
-      <div className="mt-3">
+      <div className={cn('mt-3 transition-opacity', loading && 'opacity-60')} aria-busy={loading}>
         {view === 'day' && (
-          <DayView grouped={grouped} date={date} today={today} nowIso={nowIso} timeZone={timeZone} />
+          <DayView
+            grouped={grouped}
+            hiddenTodos={hiddenTodos}
+            date={date}
+            today={today}
+            nowIso={nowIso}
+            timeZone={timeZone}
+            go={go}
+          />
         )}
         {view === 'week' && (
-          <WeekView grouped={grouped} date={date} today={today} nowIso={nowIso} timeZone={timeZone} />
+          <WeekView grouped={grouped} date={date} today={today} nowIso={nowIso} timeZone={timeZone} go={go} />
         )}
-        {view === 'month' && <MonthView grouped={grouped} date={date} today={today} timeZone={timeZone} />}
+        {view === 'month' && (
+          <MonthView
+            grouped={grouped}
+            hiddenTodos={hiddenTodos}
+            date={date}
+            today={today}
+            timeZone={timeZone}
+            go={go}
+          />
+        )}
       </div>
 
       <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] font-semibold text-fg-2">
@@ -219,22 +279,40 @@ function EventChip({ item, timeZone }: { item: CalendarItem; timeZone: string | 
   );
 }
 
+/** "+N more to-dos" under a capped day (P31); opens that day's task list. */
+function MoreTodos({ date, count }: { date: string; count: number | undefined }) {
+  if (!count) return null;
+  return (
+    <Link
+      href={`/today/tasks?status=all&date=${date}`}
+      className="flex items-center justify-center gap-1 rounded-sm border border-dashed border-ok px-2.5 py-1.5 text-xs font-bold text-ok hover:bg-ok-dim"
+    >
+      +{count} more {count === 1 ? 'to-do' : 'to-dos'}
+      <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+    </Link>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Day
 // ---------------------------------------------------------------------------
 
 function DayView({
   grouped,
+  hiddenTodos,
   date,
   today,
   nowIso,
   timeZone,
+  go,
 }: {
   grouped: Map<string, CalendarItem[]>;
+  hiddenTodos: Map<string, number>;
   date: string;
   today: string;
   nowIso: string;
   timeZone: string | null;
+  go: Go;
 }) {
   const stripRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -250,7 +328,11 @@ function DayView({
   // Keep the selected day in view in the strip, and open the timeline at
   // "now" (today) or the first event (any other day).
   useEffect(() => {
-    stripRef.current?.querySelector('[aria-current="date"]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+    // Centre the selected day by scrolling the strip itself -- scrollIntoView()
+    // would also scroll the window.
+    const strip = stripRef.current;
+    const chip = strip?.querySelector<HTMLElement>('[aria-current="date"]');
+    if (strip && chip) strip.scrollLeft = chip.offsetLeft - (strip.clientWidth - chip.offsetWidth) / 2;
     const timeline = timelineRef.current;
     if (!timeline) return;
     const firstHour = isToday
@@ -269,14 +351,14 @@ function DayView({
   return (
     <div>
       <div className="relative -mx-4">
-        <div ref={stripRef} className="flex snap-x gap-1 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+        <div ref={stripRef} className="relative flex snap-x gap-1 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
           {dayStripDates(date).map((d) => {
             const selected = d === date;
             return (
-              <Link
+              <button
                 key={d}
-                href={href('day', d)}
-                scroll={false}
+                type="button"
+                onClick={() => go('day', d)}
                 aria-current={selected ? 'date' : undefined}
                 aria-label={`${weekdayShort(d)} ${formatShortDate(d)}`}
                 className={cn(
@@ -290,7 +372,7 @@ function DayView({
                 </span>
                 <span className="text-[15px] font-bold leading-5">{dayNumber(d)}</span>
                 <Dots items={grouped.get(d)} light={selected} />
-              </Link>
+              </button>
             );
           })}
         </div>
@@ -300,12 +382,13 @@ function DayView({
         />
       </div>
 
-      {allDay.length > 0 && (
+      {(allDay.length > 0 || hiddenTodos.has(date)) && (
         <div className="mt-2 space-y-1.5">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-fg-3">All day</p>
+          {allDay.length > 0 && <p className="text-[11px] font-bold uppercase tracking-wide text-fg-3">All day</p>}
           {allDay.map((item) => (
             <EventChip key={`${item.kind}-${item.id}`} item={item} timeZone={timeZone} />
           ))}
+          <MoreTodos date={date} count={hiddenTodos.get(date)} />
         </div>
       )}
 
@@ -401,12 +484,14 @@ function WeekView({
   today,
   nowIso,
   timeZone,
+  go,
 }: {
   grouped: Map<string, CalendarItem[]>;
   date: string;
   today: string;
   nowIso: string;
   timeZone: string | null;
+  go: Go;
 }) {
   const hourNow = Math.floor(minutesIntoDayInZone(nowIso, timeZone) / 60);
   const days = weekDates(date);
@@ -420,11 +505,7 @@ function WeekView({
     const timedHours = all
       .filter((i) => i.startsAt)
       .map((i) => Math.floor(minutesIntoDayInZone(i.startsAt!, timeZone) / 60));
-    const h = days.includes(today)
-      ? Math.max(start, hourNow - 1)
-      : timedHours.length
-        ? Math.min(...timedHours)
-        : start;
+    const h = days.includes(today) ? Math.max(start, hourNow - 1) : timedHours.length ? Math.min(...timedHours) : start;
     if (scrollRef.current) scrollRef.current.scrollTop = Math.max(0, (h - start) * WEEK_ROW_PX - 4);
     // Only when the week changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -435,7 +516,7 @@ function WeekView({
       <div className="grid grid-cols-[32px_repeat(7,1fr)] text-center">
         <span />
         {days.map((d) => (
-          <Link key={d} href={href('day', d)} scroll={false} className="rounded-sm py-1 hover:bg-hover">
+          <button key={d} type="button" onClick={() => go('day', d)} className="rounded-sm py-1 hover:bg-hover">
             <span className="block text-[10px] font-bold uppercase text-fg-3">{weekdayShort(d)}</span>
             <span
               className={cn(
@@ -445,7 +526,7 @@ function WeekView({
             >
               {dayNumber(d)}
             </span>
-          </Link>
+          </button>
         ))}
       </div>
 
@@ -478,25 +559,27 @@ function WeekView({
                 ))}
                 {layoutWeekColumn(grouped.get(d) ?? [], start, timeZone).map(({ item, top, lane, lanes }) => {
                   const meta = KIND_META[item.kind];
-                  return (
-                    <Link
-                      key={`${item.kind}-${item.id}`}
-                      href={item.href ?? href('day', d)}
-                      scroll={false}
-                      style={{
-                        top,
-                        height: WEEK_BLOCK_PX,
-                        left: `calc(${(lane / lanes) * 100}% + 1px)`,
-                        width: `calc(${100 / lanes}% - 2px)`,
-                      }}
-                      title={`${meta.label} · ${item.title} · ${formatDisplayTime(item.startsAt!, timeZone)}`}
-                      className={cn(
-                        'absolute z-[1] truncate rounded-[5px] border-l-2 px-0.5 text-[9px] font-bold leading-[22px]',
-                        meta.chip
-                      )}
-                    >
+                  const common = {
+                    style: {
+                      top,
+                      height: WEEK_BLOCK_PX,
+                      left: `calc(${(lane / lanes) * 100}% + 1px)`,
+                      width: `calc(${100 / lanes}% - 2px)`,
+                    },
+                    title: `${meta.label} · ${item.title} · ${formatDisplayTime(item.startsAt!, timeZone)}`,
+                    className: cn(
+                      'absolute z-[1] truncate rounded-[5px] border-l-2 px-0.5 text-left text-[9px] font-bold leading-[22px]',
+                      meta.chip
+                    ),
+                  };
+                  return item.href ? (
+                    <Link key={`${item.kind}-${item.id}`} href={item.href} {...common}>
                       {item.title}
                     </Link>
+                  ) : (
+                    <button key={`${item.kind}-${item.id}`} type="button" onClick={() => go('day', d)} {...common}>
+                      {item.title}
+                    </button>
                   );
                 })}
               </div>
@@ -518,17 +601,22 @@ function WeekView({
 
 function MonthView({
   grouped,
+  hiddenTodos,
   date,
   today,
   timeZone,
+  go,
 }: {
   grouped: Map<string, CalendarItem[]>;
+  hiddenTodos: Map<string, number>;
   date: string;
   today: string;
   timeZone: string | null;
+  go: Go;
 }) {
   const month = date.slice(0, 7);
   const selected = grouped.get(date) ?? [];
+  const hidden = hiddenTodos.get(date) ?? 0;
 
   return (
     <div>
@@ -542,10 +630,10 @@ function MonthView({
           const inMonth = d.slice(0, 7) === month;
           const isSelected = d === date;
           return (
-            <Link
+            <button
               key={d}
-              href={href('month', d)}
-              scroll={false}
+              type="button"
+              onClick={() => go('month', d)}
               aria-current={isSelected ? 'date' : undefined}
               aria-label={formatShortDate(d)}
               className={cn(
@@ -557,14 +645,15 @@ function MonthView({
             >
               {dayNumber(d)}
               {inMonth && <Dots items={grouped.get(d)} light={isSelected} />}
-            </Link>
+            </button>
           );
         })}
       </div>
 
       <div className="mt-3 border-t border-line pt-2.5">
         <p className="mb-1.5 text-xs font-bold text-fg-2">
-          {weekdayShort(date)}, {formatShortDate(date)} · {selected.length} {selected.length === 1 ? 'item' : 'items'}
+          {weekdayShort(date)}, {formatShortDate(date)} · {selected.length + hidden}{' '}
+          {selected.length + hidden === 1 ? 'item' : 'items'}
         </p>
         {selected.length === 0 ? (
           <p className="text-sm text-fg-3">Nothing on this day.</p>
@@ -573,6 +662,7 @@ function MonthView({
             {selected.map((item) => (
               <EventChip key={`${item.kind}-${item.id}`} item={item} timeZone={timeZone} />
             ))}
+            <MoreTodos date={date} count={hidden} />
           </div>
         )}
       </div>

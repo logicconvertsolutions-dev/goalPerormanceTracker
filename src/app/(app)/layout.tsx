@@ -9,6 +9,8 @@ import { OfflineSync } from '@/components/shell/offline-sync';
 import { LogActivityDialogProvider } from '@/components/shell/log-activity-dialog';
 import { KautisMark } from '@/components/shell/kautis-logo';
 import { NotificationBell, type BellNotification } from '@/components/shell/notification-bell';
+import { RefreshButton } from '@/components/shell/refresh-button';
+import { PageBackdrop } from '@/components/shell/page-backdrop';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireAgent();
@@ -49,12 +51,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         .from('notifications')
         .select('id, kind, title, body, link, created_at, read_at')
         .eq('agent_id', session.userId)
+        .is('cleared_at', null)
         .order('created_at', { ascending: false })
         .limit(30),
       supabase
         .from('notifications')
         .select('id', { count: 'exact', head: true })
         .eq('agent_id', session.userId)
+        .is('cleared_at', null)
         .is('read_at', null),
     ]);
     bell = { items: items ?? [], unread: unread ?? 0 };
@@ -66,8 +70,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <LogActivityDialogProvider>
       <div className="flex min-h-screen bg-bg print:block">
+        <PageBackdrop />
         <RailNav role={role} />
-        <div className="flex-1 flex flex-col min-w-0 print:block">
+        <div className="relative z-[1] flex-1 flex flex-col min-w-0 print:block">
           <header className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-bg px-4 py-3 md:px-6 print:hidden">
             <Link
               href={role === 'admin' ? '/admin/agents' : '/today'}
@@ -87,6 +92,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               </span>
             </Link>
             <div className="flex shrink-0 items-center gap-1.5">
+              <RefreshButton className="md:hidden" />
               {bell && (
                 <NotificationBell
                   notifications={bell.items}

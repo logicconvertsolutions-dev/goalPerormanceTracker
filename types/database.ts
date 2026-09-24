@@ -921,6 +921,7 @@ export type Database = {
         Row: {
           agent_id: string
           body: string | null
+          cleared_at: string | null
           created_at: string
           id: string
           kind: string
@@ -935,6 +936,7 @@ export type Database = {
         Insert: {
           agent_id: string
           body?: string | null
+          cleared_at?: string | null
           created_at?: string
           id?: string
           kind: string
@@ -949,6 +951,7 @@ export type Database = {
         Update: {
           agent_id?: string
           body?: string | null
+          cleared_at?: string | null
           created_at?: string
           id?: string
           kind?: string

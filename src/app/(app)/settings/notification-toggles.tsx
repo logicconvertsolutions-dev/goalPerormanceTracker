@@ -19,7 +19,7 @@ const ROWS: { key: keyof Prefs; label: string; description: string }[] = [
   {
     key: 'eveningNudge',
     label: 'Evening nudge',
-    description: '7:00 PM, only if you haven’t logged anything today',
+    description: '7:00 PM email and push, only if you haven’t logged anything today',
   },
   {
     key: 'sundaySummary',

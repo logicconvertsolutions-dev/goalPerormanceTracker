@@ -448,6 +448,13 @@ export function minutesIntoDayInZone(isoTimestamp: string, timeZone?: string | n
   return p.hour * 60 + p.minute;
 }
 
+/** "HH:MM" (24h) that an instant reads as in `timeZone` -- the value an
+ * <input type="time"> needs when editing a stored timestamp. */
+export function isoToTimeInZone(isoTimestamp: string, timeZone?: string | null): string {
+  const m = minutesIntoDayInZone(isoTimestamp, timeZone);
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+
 /** The dates in the Day view's swipeable strip: the week before, the week
  * of, and the week after `iso` (21 days, Monday-start). */
 export function dayStripDates(iso: string): string[] {

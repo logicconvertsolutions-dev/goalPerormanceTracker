@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isIsoDate } from '@/lib/dates';
+import { CALENDAR_VIEWS, isIsoDate } from '@/lib/dates';
 
 // Input validation for the My Day To Do and Reminders actions (P30). Kept
 // out of planner-actions.ts because a 'use server' module may only export
@@ -33,6 +33,14 @@ export const createTaskSchema = z.object({
   contactId: z.string().uuid().optional(),
 });
 
+export const updateTaskSchema = z.object({
+  id: z.string().uuid(),
+  title,
+  kind: z.enum(TASK_KINDS),
+  dueOn: isoDate,
+  dueTime: optionalTime,
+});
+
 export const toggleTaskSchema = z.object({
   id: z.string().uuid(),
   done: z.boolean(),
@@ -46,6 +54,13 @@ export const createReminderSchema = z.object({
     .number()
     .refine((n) => (REMINDER_LEAD_MINUTES as readonly number[]).includes(n), 'Pick a lead time from the list.'),
   push: z.boolean().default(true),
+});
+
+export const updateReminderSchema = createReminderSchema.extend({ id: z.string().uuid() });
+
+export const calendarQuerySchema = z.object({
+  view: z.enum(CALENDAR_VIEWS),
+  date: isoDate,
 });
 
 export const idSchema = z.string().uuid();

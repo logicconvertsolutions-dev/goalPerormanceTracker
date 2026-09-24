@@ -20,6 +20,9 @@ export const metadata: Metadata = {
     // for why iOS needs this to force a refetch of the home-screen icon
     // (any time the artwork changes again, bump the folder to -v4 etc.).
     apple: '/apple-touch-icon-v3',
+    // Listed explicitly: once `icons` is set here, Next no longer emits the
+    // <link rel="icon"> for the icon.tsx file convention on its own.
+    icon: [{ url: '/icon', type: 'image/png', sizes: '512x512' }],
   },
 };
 
