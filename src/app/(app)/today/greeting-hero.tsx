@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import { Plus } from 'lucide-react';
 import { LogActivityButton } from '@/components/shell/log-activity-button';
-import mountain from './my-day-mountain.avif';
+import mountain from '@/components/shell/page-backdrop-mountain.avif';
 
 /**
  * My Day header (P30): date, time-of-day greeting and the Log Activity

@@ -16,6 +16,8 @@ export interface CalendarItem {
   startsAt: string | null;
   done: boolean;
   href: string | null;
+  /** When the row was added (to-dos only) -- orders the per-day to-do cap. */
+  createdAt: string | null;
 }
 
 /**
@@ -55,7 +57,7 @@ export async function fetchCalendarItems(
       .lte('follow_up_on', to),
     supabase
       .from('tasks')
-      .select('id, title, kind, due_on, due_at, done_at')
+      .select('id, title, kind, due_on, due_at, done_at, created_at')
       .eq('agent_id', agentId)
       .gte('due_on', from)
       .lte('due_on', to),
@@ -80,6 +82,7 @@ export async function fetchCalendarItems(
       startsAt: a.scheduled_for,
       done: a.status !== 'scheduled',
       href: `/appointments/${a.id}/edit`,
+      createdAt: null,
     })),
     ...(followUps ?? []).map((f) => ({
       id: f.id,
@@ -90,6 +93,7 @@ export async function fetchCalendarItems(
       startsAt: null,
       done: false,
       href: '/today/due',
+      createdAt: null,
     })),
     ...(tasks ?? []).map((t) => ({
       id: t.id,
@@ -99,7 +103,8 @@ export async function fetchCalendarItems(
       date: t.due_on,
       startsAt: t.due_at,
       done: t.done_at !== null,
-      href: null,
+      href: `/today/tasks?status=all&date=${t.due_on}`,
+      createdAt: t.created_at,
     })),
     ...(reminders ?? []).map((r) => ({
       id: r.id,
@@ -109,7 +114,8 @@ export async function fetchCalendarItems(
       date: isoToDateInZone(r.remind_at, timeZone),
       startsAt: r.remind_at,
       done: false,
-      href: null,
+      href: '/today/reminders',
+      createdAt: null,
     })),
   ];
 

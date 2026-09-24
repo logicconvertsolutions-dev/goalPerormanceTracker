@@ -635,6 +635,59 @@ It is built fresh on current `dev`; the unmerged D-1 branch was not used.
         the email pipeline).
       - Without VAPID keys the bell still works and pushes are skipped.
 
+
+## P31 — My Day follow-ups from staging testing
+
+Sixteen observations from testing P30 on staging (2026-09-24).
+
+- [x] **Database** (`20260924100000_p31_notifications_clear_and_appt_push_title.sql`,
+      pgTAP `013_p31_notifications_clear_and_appt_title.sql`).
+      - `notifications.cleared_at`: the bell's soft clear. Users can update
+        `read_at` and `cleared_at` only. It is not a DELETE, because
+        `enqueue_due_pushes` dedupes on `(agent_id, source_key)`: a deleted
+        row would come back and push again while its source is still due.
+      - `enqueue_due_pushes()`: the appointment alert title names the type,
+        e.g. "Marketing Presentation in 15 min". The body is "<contact> ·
+        <time>". Labels mirror `lib/appointment-types.ts`.
+      - The evening nudge also goes to the bell and out as a web push.
+        `notifications.kind` gains `evening_nudge`, and
+        `enqueue_due_notifications()` (rebuilt from P28's definition, loop
+        body only) writes the row when it claims a nudge. It uses the same
+        Evening nudge setting and the same `notification_log` claim as the
+        email, so it is one eligibility rule, not two.
+- [x] **Calendar**
+      - Covers 12 AM–12 AM.
+      - View/date changes fetch through `loadCalendarAction` and rewrite
+        the URL with `history.replaceState`. A `<Link>` navigation used to
+        swap in `today/loading.tsx` and jump the window to the top.
+      - At most 3 to-dos per day, open ones first, oldest-created first
+        (`lib/calendar-cap.ts`), plus "+N more to-dos" to
+        `/today/tasks?date=`.
+- [x] **To Do / Reminders**
+      - Cards list pending items only: 5 below `lg`, 10 from `lg` up
+        (CSS, no JS). "View all" opens the full lists.
+      - To-dos can be added for a future day, with or without a time.
+      - Tap a row to edit it (`updateTaskAction` / `updateReminderAction`).
+      - A Web Audio chime plays on completing a task or reminder
+        (`lib/chime.ts`, no file, no dependency).
+      - New pages: `/today/tasks` (Open / Completed / All) and
+        `/today/reminders` (Upcoming / Done).
+- [x] **Bell**
+      - "Clear all", and opening a notification clears it.
+      - Swipe left to clear on touch screens; a × on each row for
+        mouse/trackpad devices only.
+- [x] **Shell**
+      - Mobile header refresh button, plus an automatic refresh when the
+        app returns to the foreground (`refresh-button.tsx`).
+      - The backdrop is on every `(app)` page (`components/shell/page-backdrop.tsx`,
+        with a per-section image map ready for more photos).
+      - The rail is sticky on desktop.
+      - Tab icon: `<link rel="icon">` was never emitted, because setting
+        `metadata.icons` suppresses the `icon.tsx` convention; now listed
+        explicitly.
+- Not doable from web code: the "from …" line on a push notification is
+  added by the OS or browser.
+
 ---
 
 ## Working with Claude Code on this repo (token discipline)

@@ -3,14 +3,14 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { AlertTriangle, Bell, CalendarClock, Smartphone, Sun } from 'lucide-react';
+import { AlertTriangle, Bell, CalendarClock, Moon, Smartphone, Sun, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { formatDisplayDateTime, formatDisplayTime, isoToDateInZone, todayIso } from '@/lib/dates';
 import {
+  clearNotificationsAction,
   deletePushSubscriptionAction,
-  markNotificationsReadAction,
   savePushSubscriptionAction,
 } from './notifications-actions';
 
@@ -35,6 +35,7 @@ const KIND_ICON: Record<string, { icon: typeof Bell; tone: string }> = {
   reminder: { icon: Bell, tone: 'bg-warn-dim text-warn' },
   appointment: { icon: CalendarClock, tone: 'bg-acc-dim text-acc' },
   morning_brief: { icon: Sun, tone: 'bg-ok-dim text-ok' },
+  evening_nudge: { icon: Moon, tone: 'bg-[#4a3aa7]/10 text-[#4a3aa7]' },
 };
 
 type PushState = 'loading' | 'unsupported' | 'ios-install' | 'blocked' | 'off' | 'on' | 'not-configured';
@@ -77,6 +78,8 @@ export function NotificationBell({
   const [filter, setFilter] = useState<FilterKey>('all');
   const [pushState, setPushState] = useState<PushState>('loading');
   const [pending, startTransition] = useTransition();
+  // Hidden right away on tap / Clear all; the server refresh then drops them.
+  const [cleared, setCleared] = useState<Set<string> | 'all'>(() => new Set());
   // Fetched when the sheet opens, so the Enable tap can call subscribe()
   // straight away: iOS only allows it while the tap's user activation lasts.
   const registration = useRef<ServiceWorkerRegistration | null>(null);
@@ -94,23 +97,30 @@ export function NotificationBell({
     };
   }, [open, vapidPublicKey]);
 
-  const shown = notifications.filter((n) => filter === 'all' || n.kind === filter);
+  const visible = cleared === 'all' ? [] : notifications.filter((n) => !cleared.has(n.id));
+  const shown = visible.filter((n) => filter === 'all' || n.kind === filter);
   const today = todayIso(timeZone);
   const groups = [
     { label: 'Today', items: shown.filter((n) => isoToDateInZone(n.created_at, timeZone) === today) },
     { label: 'Earlier', items: shown.filter((n) => isoToDateInZone(n.created_at, timeZone) !== today) },
   ].filter((g) => g.items.length > 0);
 
-  function markAllRead() {
+  function clearAll() {
+    setCleared('all');
     startTransition(async () => {
-      const result = await markNotificationsReadAction();
-      if (!result.ok) toast.error(result.error);
+      const result = await clearNotificationsAction();
+      if (!result.ok) {
+        setCleared(new Set());
+        toast.error(result.error);
+      }
     });
   }
 
-  function markRead(id: string) {
+  // Opening a notification also clears it from the list (P31).
+  function clearOne(id: string) {
+    setCleared((s) => (s === 'all' ? s : new Set(s).add(id)));
     startTransition(async () => {
-      await markNotificationsReadAction([id]);
+      await clearNotificationsAction([id]);
     });
   }
 
@@ -189,14 +199,14 @@ export function NotificationBell({
           <div className="mx-auto mt-2.5 h-1.5 w-10 rounded-full bg-line-3 sm:hidden" aria-hidden="true" />
           <div className="flex items-center justify-between px-4 pb-1 pt-3 pr-12">
             <DialogTitle className="text-[20px] font-bold tracking-heading-tight text-fg">Notifications</DialogTitle>
-            {unreadCount > 0 && (
+            {visible.length > 0 && (
               <button
                 type="button"
-                onClick={markAllRead}
+                onClick={clearAll}
                 disabled={pending}
                 className="text-sm font-bold text-acc hover:underline"
               >
-                Mark all read
+                Clear all
               </button>
             )}
           </div>
@@ -253,20 +263,39 @@ export function NotificationBell({
                       );
                       return (
                         <li key={n.id}>
-                          {n.link ? (
-                            <Link
-                              href={n.link}
-                              onClick={() => {
-                                if (!n.read_at) markRead(n.id);
-                                setOpen(false);
-                              }}
-                              className="flex gap-3 py-3 hover:bg-hover"
-                            >
-                              {inner}
-                            </Link>
-                          ) : (
-                            <div className="flex gap-3 py-3">{inner}</div>
-                          )}
+                          <SwipeToClear onClear={() => clearOne(n.id)}>
+                            <div className="flex items-start bg-panel">
+                              {n.link ? (
+                                <Link
+                                  href={n.link}
+                                  onClick={() => {
+                                    clearOne(n.id);
+                                    setOpen(false);
+                                  }}
+                                  className="flex min-w-0 flex-1 gap-3 py-3 hover:bg-hover"
+                                >
+                                  {inner}
+                                </Link>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => clearOne(n.id)}
+                                  className="flex min-w-0 flex-1 gap-3 py-3 text-left hover:bg-hover"
+                                >
+                                  {inner}
+                                </button>
+                              )}
+                              {/* Mouse/trackpad only; touch screens swipe instead. */}
+                              <button
+                                type="button"
+                                onClick={() => clearOne(n.id)}
+                                aria-label={`Clear "${n.title}"`}
+                                className="ml-1 mt-2.5 hidden h-8 w-8 shrink-0 items-center justify-center rounded-sm text-fg-3 hover:bg-hover hover:text-fg [@media(hover:hover)_and_(pointer:fine)]:flex"
+                              >
+                                <X className="h-4 w-4" aria-hidden="true" />
+                              </button>
+                            </div>
+                          </SwipeToClear>
                         </li>
                       );
                     })}
@@ -280,6 +309,95 @@ export function NotificationBell({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+/** Swipe past this (px) and let go to clear; less springs back. */
+const SWIPE_CLEAR_PX = 90;
+
+/**
+ * Swipe a row left to clear it (P31), for touch. Written with pointer events
+ * -- no gesture library. `touch-action: pan-y` keeps vertical scrolling of
+ * the list native; a gesture only becomes a swipe once it is clearly
+ * horizontal and leftward. A swipe never also counts as a tap on the row.
+ * Mouse and trackpad users get the row's x button instead (hidden on touch screens).
+ */
+function SwipeToClear({ onClear, children }: { onClear: () => void; children: React.ReactNode }) {
+  const [dx, setDx] = useState(0);
+  const [animating, setAnimating] = useState(false);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const swiping = useRef(false);
+  const swallowClick = useRef(false);
+  const width = useRef(0);
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (e.pointerType === 'mouse') return;
+    start.current = { x: e.clientX, y: e.clientY };
+    swiping.current = false;
+    width.current = e.currentTarget.offsetWidth;
+    setAnimating(false);
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!start.current) return;
+    const moveX = e.clientX - start.current.x;
+    const moveY = e.clientY - start.current.y;
+    if (!swiping.current) {
+      if (Math.abs(moveY) > 10 && Math.abs(moveY) > Math.abs(moveX)) {
+        start.current = null; // a vertical scroll, not a swipe
+        return;
+      }
+      if (moveX > -10 || Math.abs(moveX) < Math.abs(moveY) * 1.5) return;
+      swiping.current = true;
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
+    setDx(Math.min(0, moveX));
+  }
+
+  function onPointerEnd() {
+    if (!start.current) return;
+    start.current = null;
+    if (!swiping.current) return;
+    swiping.current = false;
+    swallowClick.current = true;
+    setAnimating(true);
+    if (dx <= -SWIPE_CLEAR_PX) {
+      setDx(-width.current);
+      setTimeout(onClear, 180);
+    } else {
+      setDx(0);
+    }
+  }
+
+  return (
+    <div className="relative overflow-hidden">
+      <div
+        className={cn(
+          'absolute inset-y-0 right-0 flex items-center justify-end bg-bad pr-4 text-xs font-bold text-white',
+          dx === 0 && 'invisible'
+        )}
+        style={{ width: Math.max(0, -dx) }}
+        aria-hidden="true"
+      >
+        Clear
+      </div>
+      <div
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerEnd}
+        onPointerCancel={onPointerEnd}
+        onClickCapture={(e) => {
+          if (!swallowClick.current) return;
+          swallowClick.current = false;
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        className={cn('relative touch-pan-y', animating && 'transition-transform duration-200 ease-out')}
+        style={{ transform: dx ? `translateX(${dx}px)` : undefined }}
+      >
+        {children}
+      </div>
+    </div>
   );
 }
 

@@ -10,7 +10,7 @@ type Result = { ok: true } | { ok: false; error: string };
 const markReadSchema = z.array(z.string().uuid()).max(200).optional();
 
 /** Marks the given notifications (or every unread one) as read. Only
- * read_at is writable on notifications -- see the P30 migration. */
+ * read_at and cleared_at are writable on notifications (P30/P31 migrations). */
 export async function markNotificationsReadAction(ids?: string[]): Promise<Result> {
   const parsed = markReadSchema.safeParse(ids);
   if (!parsed.success) return { ok: false, error: 'Invalid request.' };
@@ -27,6 +27,28 @@ export async function markNotificationsReadAction(ids?: string[]): Promise<Resul
 
   revalidatePath('/', 'layout');
   return error ? { ok: false, error: 'Could not update notifications.' } : { ok: true };
+}
+
+/** Clears the given notifications (or all of them) from the bell. A soft
+ * clear (cleared_at, P31) that also marks them read -- see the P31
+ * migration for why the rows are not deleted. */
+export async function clearNotificationsAction(ids?: string[]): Promise<Result> {
+  const parsed = markReadSchema.safeParse(ids);
+  if (!parsed.success) return { ok: false, error: 'Invalid request.' };
+  const session = await requireAgent();
+  const supabase = await createClient();
+
+  const now = new Date().toISOString();
+  let query = supabase
+    .from('notifications')
+    .update({ cleared_at: now, read_at: now })
+    .eq('agent_id', session.agent!.id)
+    .is('cleared_at', null);
+  if (parsed.data) query = query.in('id', parsed.data);
+  const { error } = await query;
+
+  revalidatePath('/', 'layout');
+  return error ? { ok: false, error: 'Could not clear notifications.' } : { ok: true };
 }
 
 // The browser's PushSubscription.toJSON() shape.
