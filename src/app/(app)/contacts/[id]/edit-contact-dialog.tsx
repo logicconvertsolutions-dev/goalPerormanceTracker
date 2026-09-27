@@ -15,15 +15,18 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { PhoneNumberField } from '@/components/shell/phone-number-field';
 import { updateContactAction } from '../actions';
 
 export function EditContactDialog({
   contactId,
   fullName,
+  phoneNumber,
   notes,
 }: {
   contactId: string;
   fullName: string;
+  phoneNumber: string | null;
   notes: string | null;
 }) {
   const router = useRouter();
@@ -62,6 +65,7 @@ export function EditContactDialog({
             <Label htmlFor="fullName">Name</Label>
             <Input id="fullName" name="fullName" defaultValue={fullName} required />
           </div>
+          <PhoneNumberField defaultValue={phoneNumber} />
           <div className="space-y-1.5">
             <Label htmlFor="notes">Notes</Label>
             <Textarea

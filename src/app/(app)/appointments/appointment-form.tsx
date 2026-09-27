@@ -66,6 +66,7 @@ export function AppointmentForm({
   defaultValues,
   prefillContactName,
   prefillContactId,
+  prefillSlot,
   onSuccess,
   onCancel,
   returnTo = APPOINTMENTS_FALLBACK,
@@ -75,6 +76,8 @@ export function AppointmentForm({
   returnTo?: string;
   prefillContactName?: string;
   prefillContactId?: string;
+  /** Create mode: the slot tapped on the My Day calendar (P32). */
+  prefillSlot?: { date: string; time: string };
   /** When set (e.g. inside a modal), called instead of navigating away on success/cancel. */
   onSuccess?: () => void;
   onCancel?: () => void;
@@ -145,9 +148,9 @@ export function AppointmentForm({
   const persistedSlot = defaultValues?.scheduledFor ?? defaultValues?.appointmentAt ?? null;
   const defaultAppointment = persistedSlot ? isoToLocalParts(persistedSlot) : null;
   const [appointmentDate, setAppointmentDate] = useState(
-    defaultAppointment?.date ?? defaultValues?.apptDate ?? todayIso(browserTimeZone())
+    defaultAppointment?.date ?? defaultValues?.apptDate ?? prefillSlot?.date ?? todayIso(browserTimeZone())
   );
-  const [appointmentTime, setAppointmentTime] = useState(defaultAppointment?.time ?? '');
+  const [appointmentTime, setAppointmentTime] = useState(defaultAppointment?.time ?? prefillSlot?.time ?? '');
   // "Log as a Sale" (apptType === 'application') and "Recruited?" (apptType
   // === 'marketing_presentation'). Pre-checked in edit mode when this
   // appointment already has a linked sale/recruiting log, so re-saving

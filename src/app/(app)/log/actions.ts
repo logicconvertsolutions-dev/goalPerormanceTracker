@@ -29,6 +29,8 @@ const CALL_OUTCOMES = [
   'not_interested',
 ] as const;
 
+const CALL_CHANNELS = ['phone', 'whatsapp'] as const;
+
 // Derived from the shared picklist rather than restated, so adding a type
 // in one place can't leave the call form rejecting it.
 const APPT_TYPE_VALUES = APPT_TYPES.map((t) => t.value) as unknown as [string, ...string[]];
@@ -41,6 +43,8 @@ const logCallSchema = z
     callDate: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date.'),
     source: z.enum(CALL_SOURCES),
     outcome: z.enum(CALL_OUTCOMES),
+    // P34: which tap-to-call button, when the call came from one.
+    channel: z.enum(CALL_CHANNELS).optional(),
     notes: z.string().max(2000).optional(),
     followUpOn: z.string().optional(),
     // ISO instant (client combines the date+time pickers in the browser's own
@@ -79,6 +83,7 @@ export async function logCallAction(formData: FormData) {
     callDate: formData.get('callDate') || todayIso(session.agent!.time_zone),
     source: formData.get('source'),
     outcome: formData.get('outcome'),
+    channel: formData.get('channel') || undefined,
     notes: formData.get('notes') || undefined,
     followUpOn: formData.get('followUpOn') || undefined,
     appointmentAt: formData.get('appointmentAt') || undefined,
@@ -130,6 +135,7 @@ export async function logCallAction(formData: FormData) {
       call_date: parsed.data.callDate,
       source: parsed.data.source,
       outcome: parsed.data.outcome,
+      channel: parsed.data.channel ?? null,
       notes: parsed.data.notes || null,
       follow_up_on: isAppointmentSet ? null : parsed.data.followUpOn || null,
       // Still written for back-compat; retired in Phase E once nothing
@@ -459,12 +465,89 @@ export async function fetchLogPrefillAction(contactId: string) {
 
   const { data: pastCalls } = await supabase
     .from('call_logs')
-    .select('call_date, outcome, notes')
+    .select('call_date, outcome, notes, source')
     .eq('contact_id', contact.id)
     .order('call_date', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(3);
 
-  return { contact, history: pastCalls ?? [] };
+  const history = (pastCalls ?? []).map(({ call_date, outcome, notes }) => ({ call_date, outcome, notes }));
+  return { contact, history, lastSource: pastCalls?.[0]?.source ?? null };
+}
+
+const callAttemptSchema = z.object({
+  contactId: z.string().uuid(),
+  channel: z.enum(CALL_CHANNELS),
+  clientRequestId: z.string().min(1).max(100),
+});
+
+/**
+ * P34: the agent tapped call/WhatsApp, came back, and closed the "how did it
+ * go?" prompt without answering. The attempt is still saved -- a dismissed
+ * prompt must not mean no record the call happened -- with no outcome, which
+ * the app shows as "Outcome needed" until they fill it in (My Day list, the
+ * contact's call history, /log/[id]/edit).
+ *
+ * It counts as a call made on today's date straight away; see the P34
+ * migration for why that is the right event to count. Source is the
+ * contact's last known one ('other' for a first call), since there was no
+ * form to ask. Idempotent on client_request_id like every other log path, so
+ * a double close or a retry saves one row.
+ */
+export async function logCallAttemptAction(
+  input: z.input<typeof callAttemptSchema>
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const parsed = callAttemptSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'Invalid call.' };
+
+  const session = await requireAgent();
+  const supabase = await createClient();
+  const agentId = session.agent!.id;
+
+  const { data: withinLimit } = await supabase.rpc('check_rate_limit', {
+    p_scope: 'log_call',
+    p_limit: 60,
+    p_window_seconds: 60,
+  });
+  if (withinLimit === false) return { ok: false, error: 'Too many calls logged too quickly.' };
+
+  const { data: contact } = await supabase
+    .from('contacts')
+    .select('id')
+    .eq('id', parsed.data.contactId)
+    .eq('agent_id', agentId)
+    .maybeSingle();
+  if (!contact) return { ok: false, error: 'Contact not found.' };
+
+  const { data: last } = await supabase
+    .from('call_logs')
+    .select('source')
+    .eq('contact_id', contact.id)
+    .order('call_date', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { error } = await supabase.from('call_logs').insert({
+    agent_id: agentId,
+    org_id: session.agent!.org_id!,
+    contact_id: contact.id,
+    call_date: todayIso(session.agent!.time_zone),
+    source: last?.source ?? 'other',
+    outcome: null,
+    channel: parsed.data.channel,
+    client_request_id: parsed.data.clientRequestId,
+  });
+  if (error && error.code !== UNIQUE_VIOLATION) {
+    console.error('logCallAttemptAction: insert failed', error);
+    return { ok: false, error: 'Could not save the call.' };
+  }
+
+  revalidatePath('/today');
+  revalidatePath('/contacts');
+  revalidatePath(`/contacts/${contact.id}`);
+  revalidatePath('/logs');
+  return { ok: true };
 }
 
 export async function deleteCallAction(id: string) {

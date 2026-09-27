@@ -10,7 +10,7 @@ export function DataActions({ showDownloadEverything = false }: { showDownloadEv
       <Button variant="secondary" asChild>
         <a href="/settings/export">Download everything</a>
       </Button>
-      <p className="text-xs text-fg-3 mt-1">JSON of everything you&apos;ve logged.</p>
+      <p className="text-xs text-fg-3 mt-1">A JSON file of everything Kautis holds about you: your profile, contacts, activity, to-dos, reminders and settings.</p>
     </div>
   );
 }

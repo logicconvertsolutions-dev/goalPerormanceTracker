@@ -690,6 +690,121 @@ Sixteen observations from testing P30 on staging (2026-09-24).
 
 ---
 
+## P32 — Add to the My Day calendar
+
+Part of the next combined release (with P30/P31, P33 and P34). No schema change.
+
+- [x] **Tap to add**, as on a real calendar (`today/calendar-card.tsx`).
+      - Day and Week views: tap an empty time slot. The time rounds down to
+        its half hour (`minutesToSlotTime` in `lib/dates.ts`).
+      - Month view: the first tap selects a day, and tapping the selected
+        day again adds to it. The day panel also has "Add to this day".
+      - The calendar header has an Add button: the next half hour today, or
+        9 AM on any other day (`defaultSlotTime`).
+      - Tapping an existing item keeps its own behaviour.
+- [x] **Add sheet** (`today/calendar-add-dialog.tsx`): Appointment | Task | Reminder.
+      - Appointment is the existing `AppointmentForm` with the slot filled in
+        (new `prefillSlot` prop), so it counts as Appts Set exactly like
+        `/appointments/new`. It is not a to-do labelled "meeting".
+      - Task goes through `createTaskAction`. Reminder uses `ReminderForm`,
+        split out of `ReminderDialog` so both share one form.
+      - A to-do or reminder can't be in the past, so a past slot moves up to
+        today for those two. An appointment keeps the tapped date.
+- [x] Tests: `today/calendar-add-dialog.test.tsx`.
+
+---
+
+## P33 — Contact phone numbers, tap-to-call / WhatsApp, privacy + terms rewrite
+
+Part of the next combined release (with P30/P31, P32 and P34).
+
+- [x] **Database** (`20260928100000_p33_contact_phone_number.sql`, pgTAP
+      `014_p33_contact_phone_number.sql`). Types: the three
+      `contacts.phone_number` lines, generated from the local database.
+      - `contacts.phone_number`, optional, E.164 only (check constraint).
+      - pgTAP proves owner-only reads/writes, and that no SECURITY DEFINER
+        function reads the column.
+- [x] **Entry** (`lib/phone.ts`, `components/shell/phone-number-field.tsx`).
+      - Phone field on Add/Edit contact. A number without a country code is
+        refused, with a one-tap "+1" fix for North American numbers.
+      - Server Actions re-validate with `optionalPhoneSchema`. Adding a
+        contact whose name already exists fills in a missing number but
+        never replaces a different one.
+      - Contact picker asks for `tel` (where supported) after a notice
+        saying what is saved. A local North American number becomes +1;
+        anything it can't place imports the name only. Never overwrites an
+        existing number.
+- [x] **Call buttons** (`components/shell/contact-call-buttons.tsx`):
+      Phone (`tel:`) and WhatsApp (`wa.me`, opens a chat — no deep link can
+      start a WhatsApp call to a personal number).
+      - On the contact page, the contacts list, the follow-up queue
+        (`/today/due`), and open appointments/follow-ups in the My Day
+        calendar's Day and Month lists.
+      - Greyed out with "Add phone number to enable calling" when there is
+        no number. `onDial` is the hook P34's call tracking uses.
+      - Tasks and reminders are never linked to a contact in the UI, so
+        they have no buttons.
+- [x] **Compliance**
+      - `/privacy` and `/terms` rewritten for the whole app (see
+        04-security.md "Privacy", P33).
+      - Re-acceptance gate on `LEGAL_VERSION_DATE` (`lib/legal.ts`).
+      - Export completed; "Download everything" is shown to every user.
+- [ ] **Before release**
+      - [x] `LEGAL_OPERATOR` ("Kautis") and `PRIVACY_CONTACT_EMAIL`
+        (privacy@kautis.ca) confirmed by the product owner, 2026-09-27.
+        Make sure the mailbox is monitored.
+      - [x] Migration reviewed and approved, 2026-09-27.
+      - Set `LEGAL_VERSION_DATE` to the release day.
+      - Have the privacy notice and terms reviewed by a lawyer.
+      - Regenerate types with `npm run types` after the migration is live.
+
+---
+
+## P34 — Call tracking after tap-to-call / WhatsApp
+
+Part of the next combined release (with P30/P31, P32 and P33).
+
+- [x] **Database** (`20260928110000_p34_call_channel_and_pending_outcome.sql`,
+      pgTAP `015_p34_call_channel_and_pending_outcome.sql`). Types: the
+      `call_logs` channel/outcome lines, generated from the local database.
+      - `call_logs.channel` is `phone` | `whatsapp` | null. Null means an
+        ordinary log with no channel given.
+      - `call_logs.outcome` is now nullable: null means "Outcome needed".
+      - `recompute_day` is unchanged. The attempt counts in `calls_made` on
+        its day and in no `out_*` bucket until it has an outcome. Filling
+        the outcome in re-marks the day, fills the bucket, and doesn't
+        change `calls_made` or the day (rule 12, proven in pgTAP 015).
+- [x] **Detection** (`lib/pending-call.ts`,
+      `components/shell/call-log-prompt.tsx`, mounted in the app shell).
+      - `ContactCallButtons` records the contact, channel and a request id
+        in sessionStorage before handing off.
+      - `visibilitychange`/`pagehide` record that the agent left the app.
+        Coming back (or a reload after leaving) opens "How did the call
+        go?" once.
+      - The pop-up is `LogForm` with the contact locked, the channel shown,
+        the source taken from the contact's last call, and No answer
+        suggesting a follow-up tomorrow.
+- [x] **Outcome needed**
+      - Save logs the call normally.
+      - "Fill in later", ✕ or tapping outside saves the attempt with no
+        outcome (`logCallAttemptAction`: today, the tapped channel, last
+        source or `other`, idempotent on `client_request_id`).
+      - "I didn't make this call" saves nothing.
+      - Unanswered attempts appear in "Calls needing an outcome" on My Day,
+        as "Add outcome" in the contact's call history, and as an "Outcome
+        needed" badge everywhere an outcome is shown (`outcomeLabel`).
+      - They are completed on `/log/[id]/edit` (new `returnTo`).
+- [x] **Manual fallback**: "Log a call" (contact page and everywhere else)
+      now has optional Phone / WhatsApp chips.
+- [x] Tests: `lib/pending-call.test.ts`,
+      `components/shell/call-log-prompt.test.tsx`, `log/call-attempt.test.ts`.
+- [x] Migration reviewed and approved, 2026-09-27.
+- [ ] **Staging**: try the round trip on a real iPhone (installed app and
+      Safari) and an Android phone, for both Phone and WhatsApp. Detection
+      varies by browser, and the manual button is the fallback.
+
+---
+
 ## Working with Claude Code on this repo (token discipline)
 > Session-by-session prompts live in `docs/07-getting-started.md`. If the two
 > ever disagree, that file wins for *how to run a session*; this one wins for

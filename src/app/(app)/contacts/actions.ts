@@ -6,9 +6,11 @@ import { redirect } from 'next/navigation';
 import { requireAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { findOrCreateContact } from '@/lib/contacts';
+import { E164, optionalPhoneSchema } from '@/lib/phone';
 
 const createContactSchema = z.object({
   fullName: z.string().min(1, 'Enter a name.').max(200),
+  phoneNumber: optionalPhoneSchema,
   notes: z
     .string()
     .max(2000)
@@ -22,6 +24,7 @@ const createContactSchema = z.object({
 export async function createContactAction(formData: FormData) {
   const parsed = createContactSchema.safeParse({
     fullName: formData.get('fullName'),
+    phoneNumber: formData.get('phoneNumber') ?? '',
     notes: formData.get('notes') ?? '',
   });
   if (!parsed.success) {
@@ -37,9 +40,34 @@ export async function createContactAction(formData: FormData) {
     session.agent!.org_id!,
     parsed.data.fullName,
     null,
-    parsed.data.notes
+    parsed.data.notes,
+    parsed.data.phoneNumber
   );
   if ('error' in contact) return { ok: false, error: contact.error };
+
+  // The name already existed: give it the number if it has none, but never
+  // silently replace a different one.
+  if (!contact.created && parsed.data.phoneNumber) {
+    const { data: existing } = await supabase
+      .from('contacts')
+      .select('phone_number')
+      .eq('id', contact.id)
+      .eq('agent_id', session.agent!.id)
+      .maybeSingle();
+    if (existing?.phone_number && existing.phone_number !== parsed.data.phoneNumber) {
+      return {
+        ok: false,
+        error: `You already have a contact named ${parsed.data.fullName} with a different number. Edit that contact instead.`,
+      };
+    }
+    if (!existing?.phone_number) {
+      await supabase
+        .from('contacts')
+        .update({ phone_number: parsed.data.phoneNumber })
+        .eq('id', contact.id)
+        .eq('agent_id', session.agent!.id);
+    }
+  }
 
   revalidatePath('/contacts');
   return { ok: true, id: contact.id };
@@ -47,6 +75,8 @@ export async function createContactAction(formData: FormData) {
 
 const deviceContactSchema = z.object({
   fullName: z.string().min(1).max(200),
+  // Already normalised by the client (phoneFromDevice); re-checked here.
+  phoneNumber: z.string().regex(E164).nullable().optional(),
 });
 // A phone's full contact list can easily run into the thousands; the old
 // 500 cap rejected the whole import outright above that (see below for why
@@ -59,8 +89,10 @@ const INSERT_CHUNK_SIZE = 200;
  * Bulk-import contacts picked from the device's native contact list via the
  * browser Contact Picker API (Android Chrome/Edge only — the client
  * component feature-detects and never renders its trigger elsewhere).
- * Only the name is imported — phone numbers are never requested from the
- * picker, stored, or matched on.
+ * Name and, since P33, the contact's first phone number (when the agent
+ * picks one; E.164, see lib/phone.ts). Contacts still match on name only. A
+ * contact that already exists gets the picked number only if it has none --
+ * an import never overwrites a number the agent already has.
  *
  * Deliberately NOT a loop of findOrCreateContact() calls: that issues
  * sequential network round-trips per contact (name lookup, insert), which
@@ -71,7 +103,7 @@ const INSERT_CHUNK_SIZE = 200;
  * new in a handful of chunked bulk inserts.
  */
 export async function importDeviceContactsAction(
-  contacts: { fullName: string }[]
+  contacts: { fullName: string; phoneNumber?: string | null }[]
 ): Promise<{ ok: true; imported: number; failed: number } | { ok: false; error: string }> {
   const parsed = deviceContactsSchema.safeParse(contacts);
   if (!parsed.success) return { ok: false, error: 'No contacts to import.' };
@@ -94,17 +126,18 @@ export async function importDeviceContactsAction(
 
   const { data: existingRows } = await supabase
     .from('contacts')
-    .select('id, full_name')
+    .select('id, full_name, phone_number')
     .eq('agent_id', agentId);
 
-  const byName = new Map<string, { id: string }>();
+  const byName = new Map<string, { id: string; phone_number: string | null }>();
   for (const row of existingRows ?? []) {
     byName.set(row.full_name.toLowerCase(), row);
   }
 
   let imported = 0;
   let failed = 0;
-  const toInsert: { agent_id: string; org_id: string; full_name: string }[] = [];
+  const toInsert: { agent_id: string; org_id: string; full_name: string; phone_number: string | null }[] = [];
+  const phoneBackfill: { id: string; phone_number: string }[] = [];
   const seenNames = new Set<string>();
 
   for (const c of parsed.data) {
@@ -115,7 +148,12 @@ export async function importDeviceContactsAction(
     }
     const nameKey = trimmed.toLowerCase();
 
-    if (byName.has(nameKey)) {
+    const existing = byName.get(nameKey);
+    if (existing) {
+      if (c.phoneNumber && !existing.phone_number) {
+        phoneBackfill.push({ id: existing.id, phone_number: c.phoneNumber });
+        existing.phone_number = c.phoneNumber;
+      }
       imported += 1;
       continue;
     }
@@ -128,7 +166,7 @@ export async function importDeviceContactsAction(
     }
     seenNames.add(nameKey);
 
-    toInsert.push({ agent_id: agentId, org_id: orgId, full_name: trimmed });
+    toInsert.push({ agent_id: agentId, org_id: orgId, full_name: trimmed, phone_number: c.phoneNumber ?? null });
   }
 
   for (let i = 0; i < toInsert.length; i += INSERT_CHUNK_SIZE) {
@@ -142,6 +180,18 @@ export async function importDeviceContactsAction(
     }
   }
 
+  // Existing contacts that had no number. One update each (they're a
+  // number, not a row, so no bulk upsert); the picker hands back a few
+  // hundred at most and most of those are new rows above.
+  for (const row of phoneBackfill) {
+    await supabase
+      .from('contacts')
+      .update({ phone_number: row.phone_number })
+      .eq('id', row.id)
+      .eq('agent_id', agentId)
+      .is('phone_number', null);
+  }
+
   revalidatePath('/contacts');
   return { ok: true, imported, failed };
 }
@@ -149,6 +199,7 @@ export async function importDeviceContactsAction(
 const updateContactSchema = z.object({
   id: z.string().uuid(),
   fullName: z.string().min(1, 'Enter a name.').max(200),
+  phoneNumber: optionalPhoneSchema,
   notes: z
     .string()
     .max(2000)
@@ -156,12 +207,13 @@ const updateContactSchema = z.object({
     .transform((v) => (v?.trim() ? v.trim() : null)),
 });
 
-/** Edits a contact's own fields (name, notes) -- not the activity logged
+/** Edits a contact's own fields (name, phone, notes) -- not the activity logged
  * against them, which is edited from each log's own edit page. */
 export async function updateContactAction(formData: FormData) {
   const parsed = updateContactSchema.safeParse({
     id: formData.get('id'),
     fullName: formData.get('fullName'),
+    phoneNumber: formData.get('phoneNumber') ?? '',
     notes: formData.get('notes') ?? '',
   });
   if (!parsed.success) {
@@ -173,7 +225,11 @@ export async function updateContactAction(formData: FormData) {
 
   const { error } = await supabase
     .from('contacts')
-    .update({ full_name: parsed.data.fullName, notes: parsed.data.notes })
+    .update({
+      full_name: parsed.data.fullName,
+      phone_number: parsed.data.phoneNumber,
+      notes: parsed.data.notes,
+    })
     .eq('id', parsed.data.id)
     .eq('agent_id', session.agent!.id);
 

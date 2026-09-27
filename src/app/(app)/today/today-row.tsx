@@ -15,6 +15,7 @@ import {
 import { useFollowUpActions, isResolvable, canSnooze, RESOLVE_OPTIONS, type DueItemKind } from './use-follow-up-actions';
 import { ResolveAppointmentDialog, type ResolveMode } from '../appointments/resolve-appointment-dialog';
 import { useLogActivityDialog } from '@/components/shell/log-activity-dialog';
+import { ContactCallButtons } from '@/components/shell/contact-call-buttons';
 import { dueItemHref } from './due-item-target';
 import { formatDisplayTime } from '@/lib/dates';
 
@@ -33,6 +34,7 @@ export function TodayRow({
   daysLate,
   appointmentAt,
   timeZone,
+  phoneNumber = null,
   overdue = false,
 }: {
   kind: DueItemKind;
@@ -45,6 +47,8 @@ export function TodayRow({
   daysLate: number;
   appointmentAt: string | null;
   timeZone: string | null;
+  /** The contact's number, for tap-to-call (P33). */
+  phoneNumber?: string | null;
   overdue?: boolean;
 }) {
   const { pending, handleSnooze, handleMarkDone } = useFollowUpActions(kind, rowId);
@@ -72,6 +76,8 @@ export function TodayRow({
       </button>
 
       {overdue && <Badge variant="bad">{daysLate}d overdue</Badge>}
+
+      <ContactCallButtons contactId={contactId} phoneNumber={phoneNumber} contactName={contactName} size="sm" />
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

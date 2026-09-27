@@ -203,29 +203,55 @@ function ReminderDialog({
   timeZone: string | null;
   reminder: ReminderItem | null;
 }) {
-  const [title, setTitle] = useState('');
-  const [date, setDate] = useState(today);
-  const [time, setTime] = useState('09:00');
-  const [lead, setLead] = useState(15);
-  const [push, setPush] = useState(true);
-  const [pending, startTransition] = useTransition();
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[calc(100vw-32px)] sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{reminder ? 'Edit reminder' : 'New reminder'}</DialogTitle>
+        </DialogHeader>
+        {/* DialogContent unmounts when closed, so the form starts fresh on every open. */}
+        <ReminderForm
+          today={today}
+          timeZone={timeZone}
+          reminder={reminder}
+          onSaved={() => onOpenChange(false)}
+          onCancel={() => onOpenChange(false)}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
 
-  useEffect(() => {
-    if (!open) return;
-    if (reminder) {
-      setTitle(reminder.title);
-      setDate(isoToDateInZone(reminder.remind_at, timeZone));
-      setTime(isoToTimeInZone(reminder.remind_at, timeZone));
-      setLead(reminder.lead_minutes);
-      setPush(reminder.push);
-    } else {
-      setTitle('');
-      setDate(today);
-      setTime('09:00');
-      setLead(15);
-      setPush(true);
-    }
-  }, [open, reminder, today, timeZone]);
+/** The reminder fields and save. Shared by the dialog above and the My Day
+ * calendar's add sheet (P32), which passes the tapped slot as
+ * `initialDate`/`initialTime`. */
+export function ReminderForm({
+  today,
+  timeZone,
+  reminder,
+  initialDate,
+  initialTime,
+  onSaved,
+  onCancel,
+}: {
+  today: string;
+  timeZone: string | null;
+  reminder: ReminderItem | null;
+  initialDate?: string;
+  initialTime?: string;
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState(reminder?.title ?? '');
+  const [date, setDate] = useState(
+    reminder ? isoToDateInZone(reminder.remind_at, timeZone) : (initialDate ?? today)
+  );
+  const [time, setTime] = useState(
+    reminder ? isoToTimeInZone(reminder.remind_at, timeZone) : (initialTime ?? '09:00')
+  );
+  const [lead, setLead] = useState(reminder?.lead_minutes ?? 15);
+  const [push, setPush] = useState(reminder?.push ?? true);
+  const [pending, startTransition] = useTransition();
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -239,79 +265,72 @@ function ReminderDialog({
         return;
       }
       toast.success('Reminder saved');
-      onOpenChange(false);
+      onSaved();
     });
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[calc(100vw-32px)] sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{reminder ? 'Edit reminder' : 'New reminder'}</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={submit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="reminder-title">What should we remind you about?</Label>
-            <Input
-              id="reminder-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Send proposal to Prasanjit"
-              maxLength={200}
-              required
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="reminder-date">Date</Label>
-              <Input
-                id="reminder-date"
-                type="date"
-                value={date}
-                min={reminder ? undefined : today}
-                onChange={(e) => setDate(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="reminder-time">Time</Label>
-              <Input id="reminder-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="reminder-lead">Alert me</Label>
-            <select
-              id="reminder-lead"
-              value={lead}
-              onChange={(e) => setLead(Number(e.target.value))}
-              className="flex h-11 w-full rounded-sm border border-line-2 bg-sunken px-3 text-sm text-fg"
-            >
-              {REMINDER_LEAD_MINUTES.map((m) => (
-                <option key={m} value={m}>
-                  {leadLabel(m)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <label className="flex items-center gap-2.5 text-sm text-fg">
-            <input
-              type="checkbox"
-              checked={push}
-              onChange={(e) => setPush(e.target.checked)}
-              className="h-4 w-4 accent-[#0B1E3D]"
-            />
-            Send a push notification to my devices
-          </label>
-          <div className="flex justify-end gap-2 pt-1">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" disabled={pending || !title.trim()}>
-              Save reminder
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <form onSubmit={submit} className="space-y-4">
+      <div className="space-y-1.5">
+        <Label htmlFor="reminder-title">What should we remind you about?</Label>
+        <Input
+          id="reminder-title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="e.g. Send proposal to Prasanjit"
+          maxLength={200}
+          required
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="reminder-date">Date</Label>
+          <Input
+            id="reminder-date"
+            type="date"
+            value={date}
+            min={reminder ? undefined : today}
+            onChange={(e) => setDate(e.target.value)}
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="reminder-time">Time</Label>
+          <Input id="reminder-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="reminder-lead">Alert me</Label>
+        <select
+          id="reminder-lead"
+          value={lead}
+          onChange={(e) => setLead(Number(e.target.value))}
+          className="flex h-11 w-full rounded-sm border border-line-2 bg-sunken px-3 text-sm text-fg"
+        >
+          {REMINDER_LEAD_MINUTES.map((m) => (
+            <option key={m} value={m}>
+              {leadLabel(m)}
+            </option>
+          ))}
+        </select>
+      </div>
+      <label className="flex items-center gap-2.5 text-sm text-fg">
+        <input
+          type="checkbox"
+          checked={push}
+          onChange={(e) => setPush(e.target.checked)}
+          className="h-4 w-4 accent-[#0B1E3D]"
+        />
+        Send a push notification to my devices
+      </label>
+      <div className="flex justify-end gap-2 pt-1">
+        <Button type="button" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit" variant="primary" disabled={pending || !title.trim()}>
+          Save reminder
+        </Button>
+      </div>
+    </form>
   );
 }

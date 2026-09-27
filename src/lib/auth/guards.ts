@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getSessionAgent, type SessionAgent } from './session';
+import { needsLegalAcceptance } from '@/lib/legal';
 
 /** Any signed-in agent with an active status. Redirects to /login otherwise. */
 export async function requireAgent(): Promise<SessionAgent> {
@@ -34,10 +35,11 @@ export async function requireVerifiedAgent(): Promise<SessionAgent> {
     redirect(session.mfaEnrolled ? '/mfa/verify' : '/mfa/setup?required=login');
   }
   // Existing agents from before terms_accepted_at existed, plus anyone whose
-  // acceptInvitation() write somehow didn't land, get a one-time gate here.
-  // /terms/accept itself must keep calling requireAgent() directly, same
-  // reasoning as mfa/setup and mfa/verify above.
-  if (!session.agent!.terms_accepted_at) {
+  // acceptInvitation() write somehow didn't land, get a one-time gate here --
+  // and, since P33, anyone who accepted a version older than the current one
+  // (lib/legal.ts LEGAL_VERSION_DATE). /terms/accept itself must keep calling
+  // requireAgent() directly, same reasoning as mfa/setup and mfa/verify above.
+  if (needsLegalAcceptance(session.agent!.terms_accepted_at)) {
     redirect('/terms/accept');
   }
   return session;

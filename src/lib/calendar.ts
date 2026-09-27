@@ -18,6 +18,8 @@ export interface CalendarItem {
   href: string | null;
   /** When the row was added (to-dos only) -- orders the per-day to-do cap. */
   createdAt: string | null;
+  /** Appointments and follow-ups: who it's with, for tap-to-call (P33). */
+  contact?: { id: string; name: string; phoneNumber: string | null } | null;
 }
 
 /**
@@ -41,7 +43,7 @@ export async function fetchCalendarItems(
   const [{ data: appts }, { data: followUps }, { data: tasks }, { data: reminders }] = await Promise.all([
     supabase
       .from('appointments')
-      .select('id, scheduled_for, appt_date, status, appt_type, contacts(full_name)')
+      .select('id, scheduled_for, appt_date, status, appt_type, contacts(id, full_name, phone_number)')
       .eq('agent_id', agentId)
       .neq('status', 'rescheduled')
       .or(
@@ -50,7 +52,7 @@ export async function fetchCalendarItems(
       ),
     supabase
       .from('call_logs')
-      .select('id, follow_up_on, contacts(full_name)')
+      .select('id, follow_up_on, contacts(id, full_name, phone_number)')
       .eq('agent_id', agentId)
       .is('follow_up_done_at', null)
       .gte('follow_up_on', from)
@@ -70,7 +72,12 @@ export async function fetchCalendarItems(
       .lt('remind_at', endIso),
   ]);
 
-  const name = (c: unknown) => (c as { full_name: string } | null)?.full_name ?? 'Contact';
+  type ContactEmbed = { id: string; full_name: string; phone_number: string | null } | null;
+  const name = (c: unknown) => (c as ContactEmbed)?.full_name ?? 'Contact';
+  const contact = (c: unknown) => {
+    const row = c as ContactEmbed;
+    return row ? { id: row.id, name: row.full_name, phoneNumber: row.phone_number } : null;
+  };
 
   const items: CalendarItem[] = [
     ...(appts ?? []).map((a) => ({
@@ -83,6 +90,7 @@ export async function fetchCalendarItems(
       done: a.status !== 'scheduled',
       href: `/appointments/${a.id}/edit`,
       createdAt: null,
+      contact: contact(a.contacts),
     })),
     ...(followUps ?? []).map((f) => ({
       id: f.id,
@@ -94,6 +102,7 @@ export async function fetchCalendarItems(
       done: false,
       href: '/today/due',
       createdAt: null,
+      contact: contact(f.contacts),
     })),
     ...(tasks ?? []).map((t) => ({
       id: t.id,

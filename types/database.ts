@@ -462,6 +462,7 @@ export type Database = {
           appointment_at: string | null
           appointment_done_at: string | null
           call_date: string
+          channel: string | null
           client_request_id: string | null
           contact_id: string
           created_at: string
@@ -471,7 +472,7 @@ export type Database = {
           import_row_hash: string | null
           notes: string | null
           org_id: string
-          outcome: Database["public"]["Enums"]["call_outcome"]
+          outcome: Database["public"]["Enums"]["call_outcome"] | null
           source: Database["public"]["Enums"]["call_source"]
         }
         Insert: {
@@ -479,6 +480,7 @@ export type Database = {
           appointment_at?: string | null
           appointment_done_at?: string | null
           call_date?: string
+          channel?: string | null
           client_request_id?: string | null
           contact_id: string
           created_at?: string
@@ -488,7 +490,7 @@ export type Database = {
           import_row_hash?: string | null
           notes?: string | null
           org_id: string
-          outcome: Database["public"]["Enums"]["call_outcome"]
+          outcome?: Database["public"]["Enums"]["call_outcome"] | null
           source: Database["public"]["Enums"]["call_source"]
         }
         Update: {
@@ -496,6 +498,7 @@ export type Database = {
           appointment_at?: string | null
           appointment_done_at?: string | null
           call_date?: string
+          channel?: string | null
           client_request_id?: string | null
           contact_id?: string
           created_at?: string
@@ -505,7 +508,7 @@ export type Database = {
           import_row_hash?: string | null
           notes?: string | null
           org_id?: string
-          outcome?: Database["public"]["Enums"]["call_outcome"]
+          outcome?: Database["public"]["Enums"]["call_outcome"] | null
           source?: Database["public"]["Enums"]["call_source"]
         }
         Relationships: [
@@ -540,6 +543,7 @@ export type Database = {
           id: string
           notes: string | null
           org_id: string
+          phone_number: string | null
         }
         Insert: {
           agent_id: string
@@ -548,6 +552,7 @@ export type Database = {
           id?: string
           notes?: string | null
           org_id: string
+          phone_number?: string | null
         }
         Update: {
           agent_id?: string
@@ -556,6 +561,7 @@ export type Database = {
           id?: string
           notes?: string | null
           org_id?: string
+          phone_number?: string | null
         }
         Relationships: [
           {

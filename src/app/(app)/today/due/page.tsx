@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { todayIso } from '@/lib/dates';
 import { cn } from '@/lib/utils';
 import { TodayRow } from '../today-row';
+import { fetchContactPhones } from '@/lib/contacts';
 import type { DueItemKind } from '../use-follow-up-actions';
 
 const FILTERS = [
@@ -29,6 +30,11 @@ export default async function DueQueuePage({ searchParams }: { searchParams: Pro
 
   const { data } = await supabase.rpc('my_followups', { p_as_of: todayIso(session.agent!.time_zone) });
   const rows = (data ?? []).map((r) => ({ ...r, kind: r.kind as DueItemKind }));
+  const phones = await fetchContactPhones(
+    supabase,
+    session.agent!.id,
+    rows.map((r) => r.contact_id)
+  );
   const counts = {
     today: rows.filter((r) => r.days_late === 0).length,
     overdue: rows.filter((r) => r.days_late > 0).length,
@@ -80,6 +86,7 @@ export default async function DueQueuePage({ searchParams }: { searchParams: Pro
               rowId={row.call_id}
               contactId={row.contact_id}
               contactName={row.contact_name}
+              phoneNumber={phones.get(row.contact_id) ?? null}
               lastNote={row.last_note}
               timesCalled={row.times_called}
               daysLate={row.days_late}

@@ -8,12 +8,15 @@ import { formatDisplayDate } from '@/lib/dates';
 import { AddContactDialog } from './add-contact-dialog';
 import { ImportFromPhoneButton } from './import-from-phone-button';
 import { ContactsSearch } from './contacts-search';
+import { ContactCallButtons } from '@/components/shell/contact-call-buttons';
+import { outcomeLabel } from '@/lib/call-outcomes';
 
 interface ContactRow {
   id: string;
+  phone_number: string | null;
   full_name: string;
   notes: string | null;
-  call_logs: { call_date: string; outcome: string; follow_up_on: string | null; follow_up_done_at: string | null }[];
+  call_logs: { call_date: string; outcome: string | null; follow_up_on: string | null; follow_up_done_at: string | null }[];
 }
 
 export default async function ContactsPage({
@@ -28,7 +31,7 @@ export default async function ContactsPage({
 
   let query = supabase
     .from('contacts')
-    .select('id, full_name, notes, call_logs(call_date, outcome, follow_up_on, follow_up_done_at)')
+    .select('id, full_name, phone_number, notes, call_logs(call_date, outcome, follow_up_on, follow_up_done_at)')
     .eq('agent_id', session.agent!.id);
 
   if (q) {
@@ -85,7 +88,8 @@ export default async function ContactsPage({
                 .sort((a, b) => (a.follow_up_on! < b.follow_up_on! ? -1 : 1))[0]?.follow_up_on;
 
               return (
-                <Link key={c.id} href={`/contacts/${c.id}`} className="block py-3">
+                <div key={c.id} className="flex items-center gap-2 py-3">
+                <Link href={`/contacts/${c.id}`} className="block min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
                     <p className="truncate text-[15px] font-semibold text-fg">{c.full_name}</p>
                     <span className="shrink-0 text-xs text-fg-3">{calls.length} calls</span>
@@ -93,11 +97,13 @@ export default async function ContactsPage({
                   {c.notes && <p className="mt-0.5 truncate text-sm text-fg-2">{c.notes}</p>}
                   <p className="mt-0.5 truncate text-sm text-fg-3">
                     {last
-                      ? `${formatDisplayDate(last.call_date)} · ${last.outcome.replace('_', ' ')}`
+                      ? `${formatDisplayDate(last.call_date)} · ${outcomeLabel(last.outcome)}`
                       : 'No calls yet'}
                     {nextFollowUp && ` · Follow-up ${formatDisplayDate(nextFollowUp)}`}
                   </p>
                 </Link>
+                <ContactCallButtons contactId={c.id} phoneNumber={c.phone_number} contactName={c.full_name} size="sm" />
+                </div>
               );
             })}
           </div>
@@ -113,6 +119,9 @@ export default async function ContactsPage({
                   <th className="text-left font-medium px-4 py-2.5">Last called</th>
                   <th className="text-left font-medium px-4 py-2.5">Last outcome</th>
                   <th className="text-left font-medium px-4 py-2.5">Next follow-up</th>
+                  <th className="px-4 py-2.5">
+                    <span className="sr-only">Call</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -136,10 +145,19 @@ export default async function ContactsPage({
                         {last ? formatDisplayDate(last.call_date) : '—'}
                       </td>
                       <td className="px-4 py-2.5 text-fg-2">
-                        {last ? last.outcome.replace('_', ' ') : '—'}
+                        {last ? outcomeLabel(last.outcome) : '—'}
                       </td>
                       <td className="px-4 py-2.5 text-fg-2">
                         {nextFollowUp ? formatDisplayDate(nextFollowUp) : '—'}
+                      </td>
+                      <td className="px-4 py-2">
+                        <ContactCallButtons
+                          contactId={c.id}
+                          phoneNumber={c.phone_number}
+                          contactName={c.full_name}
+                          size="sm"
+                          className="justify-end"
+                        />
                       </td>
                     </tr>
                   );
