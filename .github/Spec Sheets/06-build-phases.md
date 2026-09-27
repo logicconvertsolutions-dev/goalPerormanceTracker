@@ -690,6 +690,30 @@ Sixteen observations from testing P30 on staging (2026-09-24).
 
 ---
 
+## P32 — Add to the My Day calendar
+
+Part of the next combined release (with P30/P31, P33 and P34). No schema change.
+
+- [x] **Tap to add**, as on a real calendar (`today/calendar-card.tsx`).
+      - Day and Week views: tap an empty time slot. The time rounds down to
+        its half hour (`minutesToSlotTime` in `lib/dates.ts`).
+      - Month view: the first tap selects a day, and tapping the selected
+        day again adds to it. The day panel also has "Add to this day".
+      - The calendar header has an Add button: the next half hour today, or
+        9 AM on any other day (`defaultSlotTime`).
+      - Tapping an existing item keeps its own behaviour.
+- [x] **Add sheet** (`today/calendar-add-dialog.tsx`): Appointment | Task | Reminder.
+      - Appointment is the existing `AppointmentForm` with the slot filled in
+        (new `prefillSlot` prop), so it counts as Appts Set exactly like
+        `/appointments/new`. It is not a to-do labelled "meeting".
+      - Task goes through `createTaskAction`. Reminder uses `ReminderForm`,
+        split out of `ReminderDialog` so both share one form.
+      - A to-do or reminder can't be in the past, so a past slot moves up to
+        today for those two. An appointment keeps the tapped date.
+- [x] Tests: `today/calendar-add-dialog.test.tsx`.
+
+---
+
 ## Working with Claude Code on this repo (token discipline)
 > Session-by-session prompts live in `docs/07-getting-started.md`. If the two
 > ever disagree, that file wins for *how to run a session*; this one wins for

@@ -2,23 +2,27 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { Bell, CalendarDays, ChevronLeft, ChevronRight, ListChecks, Phone, Users, type LucideIcon } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Bell, CalendarDays, ChevronLeft, ChevronRight, ListChecks, Phone, Plus, Users, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CalendarItem, CalendarItemKind } from '@/lib/calendar';
 import { capTodosPerDay } from '@/lib/calendar-cap';
 import {
   CALENDAR_VIEWS,
   dayStripDates,
+  defaultSlotTime,
   formatDisplayTime,
   formatMonthYear,
   formatShortDate,
   minutesIntoDayInZone,
+  minutesToSlotTime,
   monthGridDates,
   stepCalendarDate,
   weekDates,
   type CalendarView,
 } from '@/lib/dates';
 import { loadCalendarAction } from './planner-actions';
+import { CalendarAddDialog, type CalendarSlot } from './calendar-add-dialog';
 
 // My Day calendar (P30). View + date live in the URL (?view=&date=), same as
 // every other filter in the app, so a reload or shared link keeps your place.
@@ -26,6 +30,9 @@ import { loadCalendarAction } from './planner-actions';
 // through loadCalendarAction and rewrites the URL with history.replaceState.
 // A <Link> navigation re-rendered the whole page (and its loading.tsx
 // skeleton), which threw the window back to the top.
+// Since P32 it is also where you add things, like a real calendar: tap an
+// empty time slot (Day/Week), tap the selected day again (Month), or use the
+// Add button, and pick Appointment, Task or Reminder.
 
 const KIND_META: Record<CalendarItemKind, { label: string; icon: LucideIcon; chip: string; dot: string }> = {
   appointment: { label: 'Appointment', icon: Users, chip: 'bg-acc-dim border-acc text-acc', dot: 'bg-acc' },
@@ -47,6 +54,22 @@ const DAY_START_HOUR = 0;
 const DAY_END_HOUR = 24;
 
 type Go = (view: CalendarView, date: string) => void;
+/** Open the add sheet; no `time` = the default for that day. */
+type Add = (date: string, time?: string) => void;
+
+/** True when a tap landed on an existing item (or any control) rather than
+ * on empty calendar space -- that tap keeps its own behaviour. */
+function onItem(e: React.MouseEvent) {
+  return Boolean((e.target as HTMLElement).closest('a, button, [data-cal-item]'));
+}
+
+/** Minutes into the day for a tap inside an element spanning `fromMinutes`
+ * to `fromMinutes + spanMinutes` from top to bottom. */
+function tappedMinutes(e: React.MouseEvent<HTMLElement>, fromMinutes: number, spanMinutes: number) {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const fraction = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0;
+  return fromMinutes + fraction * spanMinutes;
+}
 
 function href(view: CalendarView, date: string) {
   return `/today?view=${view}&date=${date}`;
@@ -105,6 +128,11 @@ export function CalendarCard({
   const [items, setItems] = useState(initialItems);
   const [loading, startLoading] = useTransition();
   const request = useRef(0);
+  const router = useRouter();
+  const [addSlot, setAddSlot] = useState<CalendarSlot | null>(null);
+
+  const add: Add = (slotDate, time) =>
+    setAddSlot({ date: slotDate, time: time ?? defaultSlotTime(slotDate, today, nowIso, timeZone) });
 
   function load(nextView: CalendarView, nextDate: string) {
     const id = ++request.current;
@@ -166,6 +194,14 @@ export function CalendarCard({
       <div className="mt-3 flex items-center justify-between gap-2">
         <p className="text-sm font-bold text-fg">{title}</p>
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => add(date)}
+            className="flex h-8 items-center gap-1 rounded-sm bg-acc px-2.5 text-xs font-bold text-white hover:brightness-110"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            Add
+          </button>
           {date !== today && (
             <button
               type="button"
@@ -204,10 +240,19 @@ export function CalendarCard({
             nowIso={nowIso}
             timeZone={timeZone}
             go={go}
+            add={add}
           />
         )}
         {view === 'week' && (
-          <WeekView grouped={grouped} date={date} today={today} nowIso={nowIso} timeZone={timeZone} go={go} />
+          <WeekView
+            grouped={grouped}
+            date={date}
+            today={today}
+            nowIso={nowIso}
+            timeZone={timeZone}
+            go={go}
+            add={add}
+          />
         )}
         {view === 'month' && (
           <MonthView
@@ -217,6 +262,7 @@ export function CalendarCard({
             today={today}
             timeZone={timeZone}
             go={go}
+            add={add}
           />
         )}
       </div>
@@ -229,6 +275,17 @@ export function CalendarCard({
           </li>
         ))}
       </ul>
+
+      <CalendarAddDialog
+        slot={addSlot}
+        onClose={() => setAddSlot(null)}
+        // Appointments don't revalidate /today themselves; the refresh
+        // brings the new item (and the To Do / Reminders cards) in, and the
+        // initialItems effect above re-fetches if another range is on screen.
+        onSaved={() => router.refresh()}
+        today={today}
+        timeZone={timeZone}
+      />
     </section>
   );
 }
@@ -271,11 +328,13 @@ function EventChip({ item, timeZone }: { item: CalendarItem; timeZone: string | 
   );
   const className = cn('flex items-center gap-2.5 rounded-sm border-l-[3px] px-2.5 py-2', meta.chip);
   return item.href ? (
-    <Link href={item.href} className={cn(className, 'hover:brightness-95')}>
+    <Link href={item.href} data-cal-item className={cn(className, 'hover:brightness-95')}>
       {body}
     </Link>
   ) : (
-    <div className={className}>{body}</div>
+    <div data-cal-item className={className}>
+      {body}
+    </div>
   );
 }
 
@@ -305,6 +364,7 @@ function DayView({
   nowIso,
   timeZone,
   go,
+  add,
 }: {
   grouped: Map<string, CalendarItem[]>;
   hiddenTodos: Map<string, number>;
@@ -313,6 +373,7 @@ function DayView({
   nowIso: string;
   timeZone: string | null;
   go: Go;
+  add: Add;
 }) {
   const stripRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -404,7 +465,12 @@ function DayView({
             return (
               <div key={h} data-hour={h} className="grid min-h-[48px] grid-cols-[44px_1fr] items-start">
                 <span className="pt-1.5 text-[11px] font-semibold text-fg-3">{hourLabel(h)}</span>
-                <div className="min-w-0 space-y-1 border-t border-dashed border-line py-1">
+                <div
+                  className="min-w-0 cursor-pointer space-y-1 border-t border-dashed border-line py-1 hover:bg-hover/60"
+                  onClick={(e) => {
+                    if (!onItem(e)) add(date, minutesToSlotTime(tappedMinutes(e, h * 60, 60)));
+                  }}
+                >
                   {before.map((item) => (
                     <EventChip key={`${item.kind}-${item.id}`} item={item} timeZone={timeZone} />
                   ))}
@@ -428,7 +494,7 @@ function DayView({
       </div>
 
       {dayItems.length === 0 && (
-        <p className="mt-2 text-sm text-fg-3">Nothing scheduled. Add a to-do or reminder below.</p>
+        <p className="mt-2 text-sm text-fg-3">Nothing scheduled. Tap a time to add an appointment, task or reminder.</p>
       )}
     </div>
   );
@@ -485,6 +551,7 @@ function WeekView({
   nowIso,
   timeZone,
   go,
+  add,
 }: {
   grouped: Map<string, CalendarItem[]>;
   date: string;
@@ -492,6 +559,7 @@ function WeekView({
   nowIso: string;
   timeZone: string | null;
   go: Go;
+  add: Add;
 }) {
   const hourNow = Math.floor(minutesIntoDayInZone(nowIso, timeZone) / 60);
   const days = weekDates(date);
@@ -553,7 +621,13 @@ function WeekView({
               ))}
             </div>
             {days.map((d) => (
-              <div key={d} className="relative border-l border-line/60">
+              <div
+                key={d}
+                className="relative cursor-pointer border-l border-line/60 hover:bg-hover/40"
+                onClick={(e) => {
+                  if (!onItem(e)) add(d, minutesToSlotTime(tappedMinutes(e, start * 60, (end - start) * 60)));
+                }}
+              >
                 {hours.map((h) => (
                   <div key={h} style={{ height: WEEK_ROW_PX }} className="border-t border-dashed border-line" />
                 ))}
@@ -606,6 +680,7 @@ function MonthView({
   today,
   timeZone,
   go,
+  add,
 }: {
   grouped: Map<string, CalendarItem[]>;
   hiddenTodos: Map<string, number>;
@@ -613,6 +688,7 @@ function MonthView({
   today: string;
   timeZone: string | null;
   go: Go;
+  add: Add;
 }) {
   const month = date.slice(0, 7);
   const selected = grouped.get(date) ?? [];
@@ -633,7 +709,8 @@ function MonthView({
             <button
               key={d}
               type="button"
-              onClick={() => go('month', d)}
+              // First tap selects the day; tapping the selected day adds to it.
+              onClick={() => (isSelected ? add(d) : go('month', d))}
               aria-current={isSelected ? 'date' : undefined}
               aria-label={formatShortDate(d)}
               className={cn(
@@ -651,10 +728,20 @@ function MonthView({
       </div>
 
       <div className="mt-3 border-t border-line pt-2.5">
-        <p className="mb-1.5 text-xs font-bold text-fg-2">
-          {weekdayShort(date)}, {formatShortDate(date)} · {selected.length + hidden}{' '}
-          {selected.length + hidden === 1 ? 'item' : 'items'}
-        </p>
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <p className="text-xs font-bold text-fg-2">
+            {weekdayShort(date)}, {formatShortDate(date)} · {selected.length + hidden}{' '}
+            {selected.length + hidden === 1 ? 'item' : 'items'}
+          </p>
+          <button
+            type="button"
+            onClick={() => add(date)}
+            className="flex items-center gap-1 text-xs font-bold text-acc hover:underline"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            Add to this day
+          </button>
+        </div>
         {selected.length === 0 ? (
           <p className="text-sm text-fg-3">Nothing on this day.</p>
         ) : (
