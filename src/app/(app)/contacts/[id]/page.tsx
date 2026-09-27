@@ -13,6 +13,8 @@ import { apptTypeLabel } from '@/lib/appointment-types';
 import { DeleteContactButton } from './delete-contact-button';
 import { EditContactDialog } from './edit-contact-dialog';
 import { withReturnTo } from '@/lib/return-to';
+import { ContactCallButtons } from '@/components/shell/contact-call-buttons';
+import { formatPhone } from '@/lib/phone';
 
 export default async function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -21,7 +23,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
 
   const { data: contact } = await supabase
     .from('contacts')
-    .select('id, full_name, notes, created_at')
+    .select('id, full_name, phone_number, notes, created_at')
     .eq('id', id)
     .eq('agent_id', session.agent!.id)
     .maybeSingle();
@@ -54,7 +56,12 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
         title={contact.full_name}
         action={
           <div className="flex flex-wrap gap-2">
-            <EditContactDialog contactId={contact.id} fullName={contact.full_name} notes={contact.notes} />
+            <EditContactDialog
+              contactId={contact.id}
+              fullName={contact.full_name}
+              phoneNumber={contact.phone_number}
+              notes={contact.notes}
+            />
             <Button asChild variant="secondary" size="sm">
               <Link href={withReturnTo(`/appointments/new?contact=${contact.id}`, `/contacts/${contact.id}`)}>
                 Log appointment
@@ -72,6 +79,22 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           </div>
         }
       />
+
+      <Card>
+        <CardContent className="flex items-center justify-between gap-3 pt-4">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wide text-fg-3">Phone</p>
+            <p className="truncate text-sm text-fg">
+              {contact.phone_number ? (
+                formatPhone(contact.phone_number)
+              ) : (
+                <span className="text-fg-3">No number yet. Tap Edit to add one.</span>
+              )}
+            </p>
+          </div>
+          <ContactCallButtons phoneNumber={contact.phone_number} contactName={contact.full_name} />
+        </CardContent>
+      </Card>
 
       {contact.notes && (
         <Card>

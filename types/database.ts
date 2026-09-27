@@ -540,6 +540,7 @@ export type Database = {
           id: string
           notes: string | null
           org_id: string
+          phone_number: string | null
         }
         Insert: {
           agent_id: string
@@ -548,6 +549,7 @@ export type Database = {
           id?: string
           notes?: string | null
           org_id: string
+          phone_number?: string | null
         }
         Update: {
           agent_id?: string
@@ -556,6 +558,7 @@ export type Database = {
           id?: string
           notes?: string | null
           org_id?: string
+          phone_number?: string | null
         }
         Relationships: [
           {
