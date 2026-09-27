@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { PhoneNumberField } from '@/components/shell/phone-number-field';
 import { createContactAction } from './actions';
 
 export function AddContactDialog() {
@@ -53,6 +54,7 @@ export function AddContactDialog() {
             <Label htmlFor="fullName">Name</Label>
             <Input id="fullName" name="fullName" placeholder="Full name" required />
           </div>
+          <PhoneNumberField />
           <div className="space-y-1.5">
             <Label htmlFor="notes">Notes (optional)</Label>
             <Textarea id="notes" name="notes" placeholder="Anything worth remembering about this contact" />

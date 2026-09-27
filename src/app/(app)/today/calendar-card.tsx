@@ -23,6 +23,7 @@ import {
 } from '@/lib/dates';
 import { loadCalendarAction } from './planner-actions';
 import { CalendarAddDialog, type CalendarSlot } from './calendar-add-dialog';
+import { ContactCallButtons } from '@/components/shell/contact-call-buttons';
 
 // My Day calendar (P30). View + date live in the URL (?view=&date=), same as
 // every other filter in the app, so a reload or shared link keeps your place.
@@ -327,13 +328,22 @@ function EventChip({ item, timeZone }: { item: CalendarItem; timeZone: string | 
     </>
   );
   const className = cn('flex items-center gap-2.5 rounded-sm border-l-[3px] px-2.5 py-2', meta.chip);
-  return item.href ? (
+  const chip = item.href ? (
     <Link href={item.href} data-cal-item className={cn(className, 'hover:brightness-95')}>
       {body}
     </Link>
   ) : (
     <div data-cal-item className={className}>
       {body}
+    </div>
+  );
+  // Open appointments and follow-ups: call or WhatsApp them from here (P33).
+  // Beside the chip, not inside it -- a link can't hold another link.
+  if (!item.contact || item.done) return chip;
+  return (
+    <div data-cal-item className="flex items-center gap-1.5">
+      <div className="min-w-0 flex-1">{chip}</div>
+      <ContactCallButtons phoneNumber={item.contact.phoneNumber} contactName={item.contact.name} size="sm" />
     </div>
   );
 }

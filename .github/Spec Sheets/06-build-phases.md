@@ -714,6 +714,50 @@ Part of the next combined release (with P30/P31, P33 and P34). No schema change.
 
 ---
 
+## P33 — Contact phone numbers, tap-to-call / WhatsApp, privacy + terms rewrite
+
+Part of the next combined release (with P30/P31, P32 and P34).
+
+- [x] **Database** (`20260928100000_p33_contact_phone_number.sql`, pgTAP
+      `014_p33_contact_phone_number.sql`). Types: the three
+      `contacts.phone_number` lines, generated from the local database.
+      - `contacts.phone_number`, optional, E.164 only (check constraint).
+      - pgTAP proves owner-only reads/writes, and that no SECURITY DEFINER
+        function reads the column.
+- [x] **Entry** (`lib/phone.ts`, `components/shell/phone-number-field.tsx`).
+      - Phone field on Add/Edit contact. A number without a country code is
+        refused, with a one-tap "+1" fix for North American numbers.
+      - Server Actions re-validate with `optionalPhoneSchema`. Adding a
+        contact whose name already exists fills in a missing number but
+        never replaces a different one.
+      - Contact picker asks for `tel` (where supported) after a notice
+        saying what is saved. A local North American number becomes +1;
+        anything it can't place imports the name only. Never overwrites an
+        existing number.
+- [x] **Call buttons** (`components/shell/contact-call-buttons.tsx`):
+      Phone (`tel:`) and WhatsApp (`wa.me`, opens a chat — no deep link can
+      start a WhatsApp call to a personal number).
+      - On the contact page, the contacts list, the follow-up queue
+        (`/today/due`), and open appointments/follow-ups in the My Day
+        calendar's Day and Month lists.
+      - Greyed out with "Add phone number to enable calling" when there is
+        no number. `onDial` is the hook P34's call tracking uses.
+      - Tasks and reminders are never linked to a contact in the UI, so
+        they have no buttons.
+- [x] **Compliance**
+      - `/privacy` and `/terms` rewritten for the whole app (see
+        04-security.md "Privacy", P33).
+      - Re-acceptance gate on `LEGAL_VERSION_DATE` (`lib/legal.ts`).
+      - Export completed; "Download everything" is shown to every user.
+- [ ] **Before release**
+      - Confirm `LEGAL_OPERATOR` and `PRIVACY_CONTACT_EMAIL` in
+        `lib/legal.ts` are real, and that the mailbox is monitored.
+      - Set `LEGAL_VERSION_DATE` to the release day.
+      - Have the privacy notice and terms reviewed by a lawyer.
+      - Regenerate types with `npm run types` after the migration is live.
+
+---
+
 ## Working with Claude Code on this repo (token discipline)
 > Session-by-session prompts live in `docs/07-getting-started.md`. If the two
 > ever disagree, that file wins for *how to run a session*; this one wins for

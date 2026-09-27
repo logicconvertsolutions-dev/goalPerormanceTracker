@@ -75,6 +75,17 @@ export function formatDisplayDate(iso: string): string {
   });
 }
 
+/** "September 28, 2026" -- for dates that must stand on their own, like a
+ * legal effective date (P33). */
+export function formatLongDate(iso: string): string {
+  return new Date(iso + 'T00:00:00Z').toLocaleDateString('en-CA', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
 /** Same as {@link formatDisplayDate} with the full weekday name, e.g. "Tuesday, Aug 26" — used for the My Day page header. */
 export function formatFullDisplayDate(iso: string): string {
   const d = new Date(iso + 'T00:00:00Z');
