@@ -42,7 +42,7 @@ function dayLabel(iso: string, today: string) {
   return formatDisplayDate(iso);
 }
 
-function KindPicker({ value, onChange }: { value: TaskKind; onChange: (k: TaskKind) => void }) {
+export function KindPicker({ value, onChange }: { value: TaskKind; onChange: (k: TaskKind) => void }) {
   return (
     <>
       {TASK_KINDS.map((k) => (

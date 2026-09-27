@@ -461,3 +461,17 @@ export function dayStripDates(iso: string): string[] {
   const start = addDays(weekStart(new Date(iso + 'T00:00:00')), -7);
   return Array.from({ length: 21 }, (_, i) => addDays(start, i));
 }
+
+/** "HH:MM" for a spot tapped on the calendar timeline (P32): `minutes` since
+ * midnight, floored to its half-hour slot and kept inside the day. */
+export function minutesToSlotTime(minutes: number): string {
+  const slot = Math.min(23 * 60 + 30, Math.max(0, Math.floor(minutes / 30) * 30));
+  return `${String(Math.floor(slot / 60)).padStart(2, '0')}:${String(slot % 60).padStart(2, '0')}`;
+}
+
+/** Starting time for a calendar entry added without tapping a slot (P32):
+ * the next half hour when `date` is today, 9 AM on any other day. */
+export function defaultSlotTime(date: string, today: string, nowIso: string, timeZone?: string | null): string {
+  if (date !== today) return '09:00';
+  return minutesToSlotTime(minutesIntoDayInZone(nowIso, timeZone) + 30);
+}
