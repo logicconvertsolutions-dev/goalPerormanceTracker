@@ -798,6 +798,7 @@ Part of the next combined release (with P30/P31, P32 and P33).
       now has optional Phone / WhatsApp chips.
 - [x] Tests: `lib/pending-call.test.ts`,
       `components/shell/call-log-prompt.test.tsx`, `log/call-attempt.test.ts`.
+- [x] Migration reviewed and approved, 2026-09-27.
 - [ ] **Staging**: try the round trip on a real iPhone (installed app and
       Safari) and an Android phone, for both Phone and WhatsApp. Detection
       varies by browser, and the manual button is the fallback.
