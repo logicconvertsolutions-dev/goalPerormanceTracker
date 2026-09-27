@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { formatDisplayDate } from '@/lib/dates';
+import { outcomeLabel } from '@/lib/call-outcomes';
 import { LogTypeSwitcher } from '@/app/(app)/log/log-type-switcher';
 import { fetchLogPrefillAction } from '@/app/(app)/log/actions';
 
@@ -29,7 +30,7 @@ export function LogActivityDialogProvider({ children }: { children: ReactNode })
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [prefill, setPrefill] = useState<OpenOptions>({});
-  const [history, setHistory] = useState<{ call_date: string; outcome: string; notes: string | null }[]>([]);
+  const [history, setHistory] = useState<{ call_date: string; outcome: string | null; notes: string | null }[]>([]);
 
   const open = useCallback((opts: OpenOptions = {}) => {
     setPrefill(opts);
@@ -72,7 +73,7 @@ export function LogActivityDialogProvider({ children }: { children: ReactNode })
               {history.map((h, i) => (
                 <div key={i} className="text-sm border-b border-line pb-2 last:border-0 last:pb-0">
                   <p className="text-fg-2">
-                    {formatDisplayDate(h.call_date)} · {h.outcome.replace('_', ' ')}
+                    {formatDisplayDate(h.call_date)} · {outcomeLabel(h.outcome)}
                   </p>
                   {h.notes && <p className="text-fg-3 text-xs mt-0.5">{h.notes}</p>}
                 </div>

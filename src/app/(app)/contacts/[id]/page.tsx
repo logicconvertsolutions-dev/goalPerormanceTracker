@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/shell/page-header';
 import { LogActivityButton } from '@/components/shell/log-activity-button';
 import { formatDisplayDate } from '@/lib/dates';
-import { outcomeBadgeVariant } from '@/lib/call-outcomes';
+import { outcomeBadgeVariant, outcomeLabel } from '@/lib/call-outcomes';
 import { apptTypeLabel } from '@/lib/appointment-types';
 import { DeleteContactButton } from './delete-contact-button';
 import { EditContactDialog } from './edit-contact-dialog';
@@ -33,7 +33,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
   const [{ data: calls }, { data: appointments }, { data: sales }] = await Promise.all([
     supabase
       .from('call_logs')
-      .select('id, call_date, source, outcome, notes, follow_up_on, follow_up_done_at')
+      .select('id, call_date, source, outcome, channel, notes, follow_up_on, follow_up_done_at')
       .eq('contact_id', contact.id)
       .order('call_date', { ascending: false }),
     supabase
@@ -92,7 +92,11 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
               )}
             </p>
           </div>
-          <ContactCallButtons phoneNumber={contact.phone_number} contactName={contact.full_name} />
+          <ContactCallButtons
+            contactId={contact.id}
+            phoneNumber={contact.phone_number}
+            contactName={contact.full_name}
+          />
         </CardContent>
       </Card>
 
@@ -143,9 +147,24 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           {calls && calls.length > 0 ? (
             calls.map((c) => (
               <div key={c.id} className="border-b border-line pb-3 last:border-0 last:pb-0">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-fg font-medium">{formatDisplayDate(c.call_date)}</p>
-                  <Badge variant={outcomeBadgeVariant(c.outcome)}>{c.outcome.replace('_', ' ')}</Badge>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm text-fg font-medium">
+                    {formatDisplayDate(c.call_date)}
+                    {c.channel && (
+                      <span className="font-normal text-fg-3"> · {c.channel === 'whatsapp' ? 'WhatsApp' : 'Phone'}</span>
+                    )}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    {!c.outcome && (
+                      <Link
+                        href={withReturnTo(`/log/${c.id}/edit`, `/contacts/${contact.id}`)}
+                        className="text-xs font-bold text-acc hover:underline"
+                      >
+                        Add outcome
+                      </Link>
+                    )}
+                    <Badge variant={outcomeBadgeVariant(c.outcome)}>{outcomeLabel(c.outcome)}</Badge>
+                  </div>
                 </div>
                 {c.notes && <p className="text-sm text-fg-2 mt-1">{c.notes}</p>}
                 {c.follow_up_on && (

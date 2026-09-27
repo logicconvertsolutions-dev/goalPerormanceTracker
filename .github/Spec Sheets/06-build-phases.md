@@ -760,6 +760,50 @@ Part of the next combined release (with P30/P31, P32 and P34).
 
 ---
 
+## P34 — Call tracking after tap-to-call / WhatsApp
+
+Part of the next combined release (with P30/P31, P32 and P33).
+
+- [x] **Database** (`20260928110000_p34_call_channel_and_pending_outcome.sql`,
+      pgTAP `015_p34_call_channel_and_pending_outcome.sql`). Types: the
+      `call_logs` channel/outcome lines, generated from the local database.
+      - `call_logs.channel` is `phone` | `whatsapp` | null. Null means an
+        ordinary log with no channel given.
+      - `call_logs.outcome` is now nullable: null means "Outcome needed".
+      - `recompute_day` is unchanged. The attempt counts in `calls_made` on
+        its day and in no `out_*` bucket until it has an outcome. Filling
+        the outcome in re-marks the day, fills the bucket, and doesn't
+        change `calls_made` or the day (rule 12, proven in pgTAP 015).
+- [x] **Detection** (`lib/pending-call.ts`,
+      `components/shell/call-log-prompt.tsx`, mounted in the app shell).
+      - `ContactCallButtons` records the contact, channel and a request id
+        in sessionStorage before handing off.
+      - `visibilitychange`/`pagehide` record that the agent left the app.
+        Coming back (or a reload after leaving) opens "How did the call
+        go?" once.
+      - The pop-up is `LogForm` with the contact locked, the channel shown,
+        the source taken from the contact's last call, and No answer
+        suggesting a follow-up tomorrow.
+- [x] **Outcome needed**
+      - Save logs the call normally.
+      - "Fill in later", ✕ or tapping outside saves the attempt with no
+        outcome (`logCallAttemptAction`: today, the tapped channel, last
+        source or `other`, idempotent on `client_request_id`).
+      - "I didn't make this call" saves nothing.
+      - Unanswered attempts appear in "Calls needing an outcome" on My Day,
+        as "Add outcome" in the contact's call history, and as an "Outcome
+        needed" badge everywhere an outcome is shown (`outcomeLabel`).
+      - They are completed on `/log/[id]/edit` (new `returnTo`).
+- [x] **Manual fallback**: "Log a call" (contact page and everywhere else)
+      now has optional Phone / WhatsApp chips.
+- [x] Tests: `lib/pending-call.test.ts`,
+      `components/shell/call-log-prompt.test.tsx`, `log/call-attempt.test.ts`.
+- [ ] **Staging**: try the round trip on a real iPhone (installed app and
+      Safari) and an Android phone, for both Phone and WhatsApp. Detection
+      varies by browser, and the manual button is the fallback.
+
+---
+
 ## Working with Claude Code on this repo (token discipline)
 > Session-by-session prompts live in `docs/07-getting-started.md`. If the two
 > ever disagree, that file wins for *how to run a session*; this one wins for

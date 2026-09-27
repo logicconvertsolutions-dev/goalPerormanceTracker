@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/shell/page-header';
 import { apptTypeLabel } from '@/lib/appointment-types';
 import { NotesContactPicker } from './notes-contact-picker';
 import { NotesTable, type TimelineEntry } from './notes-table';
+import { outcomeLabel } from '@/lib/call-outcomes';
 
 export default async function NotesPage({
   searchParams,
@@ -52,7 +53,7 @@ export default async function NotesPage({
       ...(calls ?? []).map((c) => ({
         date: c.call_date,
         type: 'Call' as const,
-        summary: c.outcome.replace('_', ' '),
+        summary: outcomeLabel(c.outcome),
         notes: c.notes,
         actionType: null,
         followUpOn: c.follow_up_on,

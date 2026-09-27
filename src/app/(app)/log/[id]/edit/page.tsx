@@ -4,9 +4,17 @@ import { createClient } from '@/lib/supabase/server';
 import { PageHeader } from '@/components/shell/page-header';
 import { LogForm } from '../../log-form';
 import { callFormAppointmentAt } from './linked-appointment';
+import { safeReturnTo } from '@/lib/return-to';
 
-export default async function EditCallPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditCallPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ returnTo?: string }>;
+}) {
   const { id } = await params;
+  const { returnTo } = await searchParams;
   const session = await requireVerifiedAgent();
   const supabase = await createClient();
 
@@ -28,14 +36,16 @@ export default async function EditCallPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="max-w-md space-y-4">
-      <PageHeader title="Edit call" />
+      {/* P34: a call saved from a dismissed post-call prompt has no outcome yet. */}
+      <PageHeader title={call.outcome ? 'Edit call' : 'How did the call go?'} />
       <LogForm
         mode="edit"
+        returnTo={safeReturnTo(returnTo, '/logs')}
         defaultValues={{
           id: call.id,
           callDate: call.call_date,
           source: call.source,
-          outcome: call.outcome,
+          outcome: call.outcome ?? '',
           notes: call.notes,
           followUpOn: call.follow_up_on,
           appointmentAt: callFormAppointmentAt(call.appointment_at, linked),

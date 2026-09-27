@@ -4,8 +4,9 @@ import { Phone } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { telHref, whatsAppHref } from '@/lib/phone';
+import { recordPendingCall, type CallChannel } from '@/lib/pending-call';
 
-export type CallChannel = 'phone' | 'whatsapp';
+export type { CallChannel };
 
 const NO_NUMBER = 'Add phone number to enable calling';
 
@@ -25,23 +26,30 @@ function WhatsAppIcon({ className }: { className?: string }) {
  *
  * Phone opens the device dialer (tel:). WhatsApp opens a chat (wa.me) --
  * there is no link that starts a WhatsApp voice call to a personal number,
- * so the agent taps call inside WhatsApp. `onDial` fires before either
- * leaves the app, so call tracking (P34) can record which contact and
- * channel was tapped.
+ * so the agent taps call inside WhatsApp.
+ *
+ * Before either leaves the app, the tap is recorded (P34, lib/pending-call)
+ * so CallLogPrompt can ask how the call went when the agent comes back.
+ * `onDial`, when passed, replaces that (tests, or a caller with its own
+ * tracking).
  */
 export function ContactCallButtons({
+  contactId,
   phoneNumber,
   contactName,
   size = 'md',
   className,
   onDial,
 }: {
+  contactId: string;
   phoneNumber: string | null;
   contactName: string;
   size?: 'sm' | 'md';
   className?: string;
   onDial?: (channel: CallChannel) => void;
 }) {
+  const dial = (channel: CallChannel) =>
+    onDial ? onDial(channel) : recordPendingCall({ contactId, contactName, channel });
   const box = size === 'sm' ? 'h-8 w-8' : 'h-10 w-10';
   const icon = size === 'sm' ? 'h-4 w-4' : 'h-[18px] w-[18px]';
   const base = cn('flex shrink-0 items-center justify-center rounded-full border transition-smooth', box);
@@ -73,7 +81,7 @@ export function ContactCallButtons({
         title={`Call ${contactName}`}
         onClick={(e) => {
           e.stopPropagation();
-          onDial?.('phone');
+          dial('phone');
         }}
         className={cn(base, 'border-acc-line bg-acc-dim text-acc hover:bg-acc hover:text-white')}
       >
@@ -87,7 +95,7 @@ export function ContactCallButtons({
         title={`WhatsApp ${contactName}`}
         onClick={(e) => {
           e.stopPropagation();
-          onDial?.('whatsapp');
+          dial('whatsapp');
         }}
         className={cn(base, 'border-[#25D366]/40 bg-[#25D366]/10 text-[#128C4B] hover:bg-[#25D366] hover:text-white')}
       >
