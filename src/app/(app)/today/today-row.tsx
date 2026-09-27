@@ -77,7 +77,7 @@ export function TodayRow({
 
       {overdue && <Badge variant="bad">{daysLate}d overdue</Badge>}
 
-      <ContactCallButtons phoneNumber={phoneNumber} contactName={contactName} size="sm" />
+      <ContactCallButtons contactId={contactId} phoneNumber={phoneNumber} contactName={contactName} size="sm" />
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

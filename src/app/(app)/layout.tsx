@@ -7,6 +7,7 @@ import { AccountMenu } from '@/components/shell/account-menu';
 import { AnnouncementBanner } from '@/components/shell/announcement-banner';
 import { OfflineSync } from '@/components/shell/offline-sync';
 import { LogActivityDialogProvider } from '@/components/shell/log-activity-dialog';
+import { CallLogPrompt } from '@/components/shell/call-log-prompt';
 import { KautisMark } from '@/components/shell/kautis-logo';
 import { NotificationBell, type BellNotification } from '@/components/shell/notification-bell';
 import { RefreshButton } from '@/components/shell/refresh-button';
@@ -116,6 +117,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <TabBar role={role} />
         <OfflineSync />
       </div>
+      {/* P34: asks how a tap-to-call went when the agent comes back. */}
+      <CallLogPrompt />
     </LogActivityDialogProvider>
   );
 }

@@ -9,13 +9,14 @@ import { AddContactDialog } from './add-contact-dialog';
 import { ImportFromPhoneButton } from './import-from-phone-button';
 import { ContactsSearch } from './contacts-search';
 import { ContactCallButtons } from '@/components/shell/contact-call-buttons';
+import { outcomeLabel } from '@/lib/call-outcomes';
 
 interface ContactRow {
   id: string;
   phone_number: string | null;
   full_name: string;
   notes: string | null;
-  call_logs: { call_date: string; outcome: string; follow_up_on: string | null; follow_up_done_at: string | null }[];
+  call_logs: { call_date: string; outcome: string | null; follow_up_on: string | null; follow_up_done_at: string | null }[];
 }
 
 export default async function ContactsPage({
@@ -96,12 +97,12 @@ export default async function ContactsPage({
                   {c.notes && <p className="mt-0.5 truncate text-sm text-fg-2">{c.notes}</p>}
                   <p className="mt-0.5 truncate text-sm text-fg-3">
                     {last
-                      ? `${formatDisplayDate(last.call_date)} · ${last.outcome.replace('_', ' ')}`
+                      ? `${formatDisplayDate(last.call_date)} · ${outcomeLabel(last.outcome)}`
                       : 'No calls yet'}
                     {nextFollowUp && ` · Follow-up ${formatDisplayDate(nextFollowUp)}`}
                   </p>
                 </Link>
-                <ContactCallButtons phoneNumber={c.phone_number} contactName={c.full_name} size="sm" />
+                <ContactCallButtons contactId={c.id} phoneNumber={c.phone_number} contactName={c.full_name} size="sm" />
                 </div>
               );
             })}
@@ -144,13 +145,14 @@ export default async function ContactsPage({
                         {last ? formatDisplayDate(last.call_date) : '—'}
                       </td>
                       <td className="px-4 py-2.5 text-fg-2">
-                        {last ? last.outcome.replace('_', ' ') : '—'}
+                        {last ? outcomeLabel(last.outcome) : '—'}
                       </td>
                       <td className="px-4 py-2.5 text-fg-2">
                         {nextFollowUp ? formatDisplayDate(nextFollowUp) : '—'}
                       </td>
                       <td className="px-4 py-2">
                         <ContactCallButtons
+                          contactId={c.id}
                           phoneNumber={c.phone_number}
                           contactName={c.full_name}
                           size="sm"

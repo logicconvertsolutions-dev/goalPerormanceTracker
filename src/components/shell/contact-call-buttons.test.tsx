@@ -18,7 +18,7 @@ window.addEventListener('click', (e) => e.preventDefault(), true);
 describe('ContactCallButtons', () => {
   it('dials the number and opens WhatsApp chat in a new tab', () => {
     const onDial = vi.fn();
-    render(<ContactCallButtons phoneNumber="+14165550123" contactName="Jane Doe" onDial={onDial} />);
+    render(<ContactCallButtons contactId="c1" phoneNumber="+14165550123" contactName="Jane Doe" onDial={onDial} />);
 
     const call = screen.getByRole('link', { name: 'Call Jane Doe' });
     const wa = screen.getByRole('link', { name: 'WhatsApp Jane Doe' });
@@ -34,7 +34,7 @@ describe('ContactCallButtons', () => {
 
   it('greys both out without a number and says why on tap', () => {
     const onDial = vi.fn();
-    render(<ContactCallButtons phoneNumber={null} contactName="Jane Doe" onDial={onDial} />);
+    render(<ContactCallButtons contactId="c1" phoneNumber={null} contactName="Jane Doe" onDial={onDial} />);
 
     expect(screen.queryByRole('link')).toBeNull();
     const call = screen.getByRole('button', { name: /Call Jane Doe/ });

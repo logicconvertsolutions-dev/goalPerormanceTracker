@@ -343,7 +343,12 @@ function EventChip({ item, timeZone }: { item: CalendarItem; timeZone: string | 
   return (
     <div data-cal-item className="flex items-center gap-1.5">
       <div className="min-w-0 flex-1">{chip}</div>
-      <ContactCallButtons phoneNumber={item.contact.phoneNumber} contactName={item.contact.name} size="sm" />
+      <ContactCallButtons
+        contactId={item.contact.id}
+        phoneNumber={item.contact.phoneNumber}
+        contactName={item.contact.name}
+        size="sm"
+      />
     </div>
   );
 }
