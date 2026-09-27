@@ -750,8 +750,10 @@ Part of the next combined release (with P30/P31, P32 and P34).
       - Re-acceptance gate on `LEGAL_VERSION_DATE` (`lib/legal.ts`).
       - Export completed; "Download everything" is shown to every user.
 - [ ] **Before release**
-      - Confirm `LEGAL_OPERATOR` and `PRIVACY_CONTACT_EMAIL` in
-        `lib/legal.ts` are real, and that the mailbox is monitored.
+      - [x] `LEGAL_OPERATOR` ("Kautis") and `PRIVACY_CONTACT_EMAIL`
+        (privacy@kautis.ca) confirmed by the product owner, 2026-09-27.
+        Make sure the mailbox is monitored.
+      - [x] Migration reviewed and approved, 2026-09-27.
       - Set `LEGAL_VERSION_DATE` to the release day.
       - Have the privacy notice and terms reviewed by a lawyer.
       - Regenerate types with `npm run types` after the migration is live.

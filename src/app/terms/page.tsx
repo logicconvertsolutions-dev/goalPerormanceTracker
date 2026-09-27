@@ -40,7 +40,7 @@ export default function TermsPage() {
         <Section title="1. About these terms">
           <p>
             These terms are an agreement between you and {LEGAL_OPERATOR} (&quot;we&quot;,
-            &quot;us&quot;), the operator of Kautis. You accept them, together with the{' '}
+            &quot;us&quot;), the operator of the Kautis app. You accept them, together with the{' '}
             <Link href="/privacy" className="text-acc hover:underline">
               privacy notice
             </Link>

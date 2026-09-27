@@ -18,8 +18,8 @@ export const LEGAL_CHANGES = [
 ] as const;
 
 // Who operates the app and answers privacy requests (PIPEDA Principle 1,
-// Accountability). Must be real before release -- see 06-build-phases.md P33.
-export const LEGAL_OPERATOR = 'Logic Convert Solutions';
+// Accountability). Confirmed by the product owner 2026-09-27.
+export const LEGAL_OPERATOR = 'Kautis';
 export const PRIVACY_OFFICER_TITLE = 'Privacy Officer';
 export const PRIVACY_CONTACT_EMAIL = 'privacy@kautis.ca';
 

@@ -91,9 +91,9 @@ export default function PrivacyPage() {
 
         <Section id="who" title="Who we are">
           <p>
-            Kautis is operated by <strong>{LEGAL_OPERATOR}</strong> (&quot;we&quot;, &quot;us&quot;).
-            It is provided to you through your organization (your SMD&apos;s team) to track your own
-            sales and recruiting activity.
+            <strong>{LEGAL_OPERATOR}</strong> (&quot;we&quot;, &quot;us&quot;) operates the Kautis app. It
+            is provided to you through your organization (your SMD&apos;s team) to track your own sales
+            and recruiting activity.
           </p>
           <p>
             We are accountable for the personal information in Kautis. Our {PRIVACY_OFFICER_TITLE} is
