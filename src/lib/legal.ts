@@ -8,7 +8,8 @@
 // back through /terms/accept once (requireVerifiedAgent), which is how a
 // material change gets fresh consent instead of "continuing to use the app
 // means you accept".
-export const LEGAL_VERSION_DATE = '2026-09-28';
+// Set to the release day before promoting to master (06-build-phases.md P33).
+export const LEGAL_VERSION_DATE = '2026-09-27';
 
 /** What changed in LEGAL_VERSION_DATE, shown to people re-accepting. */
 export const LEGAL_CHANGES = [
@@ -23,10 +24,22 @@ export const LEGAL_OPERATOR = 'Kautis';
 export const PRIVACY_OFFICER_TITLE = 'Privacy Officer';
 export const PRIVACY_CONTACT_EMAIL = 'privacy@kautis.ca';
 
-/** True when the agent has not accepted the current version. */
-export function needsLegalAcceptance(termsAcceptedAt: string | null | undefined): boolean {
+/**
+ * True when the agent has not accepted the current version.
+ *
+ * A version dated in the future isn't in effect yet, so nobody is asked to
+ * re-accept it until that day. Without this, accepting before the version
+ * day saved a timestamp still "older" than the version, and /terms/accept
+ * sent the agent straight back to itself -- stuck on "Saving…" (staging,
+ * 2026-09-27). Once the day arrives, an acceptance made now is always on or
+ * after it, so accepting can never loop.
+ */
+export function needsLegalAcceptance(termsAcceptedAt: string | null | undefined, now = Date.now()): boolean {
   if (!termsAcceptedAt) return true;
+  // Midnight UTC starts the version day everywhere.
+  const versionStart = Date.parse(`${LEGAL_VERSION_DATE}T00:00:00Z`);
+  if (now < versionStart) return false;
   // Postgres hands back "2026-09-27 21:00:00.1+00" style strings, so compare
-  // instants, not text. Midnight UTC starts the version day everywhere.
-  return new Date(termsAcceptedAt).getTime() < Date.parse(`${LEGAL_VERSION_DATE}T00:00:00Z`);
+  // instants, not text.
+  return new Date(termsAcceptedAt).getTime() < versionStart;
 }
