@@ -6,26 +6,166 @@
 @tailwind utilities;
 
 :root {
-  --navy: #0B1E3D;
-  --navy-2: #122A54;
-  --canvas: #FFFFFF;
-  --surface: #FFFFFF;
-  --gold: #C9A227;
-  --gold-dark: #9C7C1A;
-  --gold-light: #FBF3D9;
-  --border: #E7E2D3;
-  --text-1: #14213D;
-  --text-2: #5C6580;
-  --text-3: #94A0B8;
-  --ok-fg: #1B7A43;
-  --ok-bg: #E4F5EA;
-  --warn-fg: #9C6A0A;
-  --warn-bg: #FBF0DA;
-  --bad-fg: #B0392A;
-  --bad-bg: #FBE6E2;
+  /*
+   * Theme tokens (P36). Values are space-separated RGB channels so Tailwind
+   * can wrap them as rgb(var(--x) / <alpha-value>) -- that keeps opacity
+   * modifiers (bg-ok/15, border-bad/30, ...) working while letting `.dark`
+   * re-point every token. tailwind.config.ts maps class names to these; this
+   * block is the single source of truth for the values themselves.
+   *
+   * Every text/surface pair here is contrast-checked in both themes by
+   * src/lib/theme-contrast.test.ts -- change a value, run `npm test`.
+   */
+  color-scheme: light;
+
+  /* Ground */
+  --c-bg: 255 255 255;
+  --c-panel: 255 255 255;
+  --c-panel-2: 255 255 255;
+  --c-hover: 244 244 245;
+  --c-sunken: 244 244 245;
+
+  /* Text. fg-3 was #94A0B8 (2.6:1 on white, below WCAG AA) until P36. */
+  --c-fg: 20 33 61; /* #14213D */
+  --c-fg-2: 92 101 128; /* #5C6580 */
+  --c-fg-3: 98 109 134; /* #626D86 */
+  --c-fg-4: 127 138 162; /* #7F8AA2 -- icons and decorative glyphs only (>=3:1); text uses fg-3 */
+
+  /* Accent: primary actions. on-acc is the text/icon colour on an acc fill. */
+  --c-acc: 11 30 61; /* #0B1E3D */
+  --c-acc-2: 18 42 84; /* #122A54 */
+  --c-on-acc: 255 255 255;
+  --acc-dim-alpha: 0.07;
+  --acc-line-alpha: 0.28;
+
+  /* Brand gold (mark & "filed/complete" only). gold-dark is used as text. */
+  --c-gold: 201 162 39; /* #C9A227 */
+  --c-gold-dark: 132 104 19; /* #846813 (was #9C7C1A, 3.6:1 on hover) */
+  --c-gold-light: 251 243 217; /* #FBF3D9 */
+
+  /* Attainment */
+  --c-ok: 27 122 67; /* #1B7A43 */
+  --c-ok-dim: 228 245 234;
+  --c-warn: 143 97 9; /* #8F6109 (was #9C6A0A, 4.1:1 on its badge) */
+  --c-warn-dim: 251 240 218;
+  --c-bad: 176 57 42; /* #B0392A */
+  --c-bad-dim: 251 230 226;
+
+  /* Lines. line-2/line-3 are fg at low opacity (see tailwind.config.ts). */
+  --c-line: 231 226 211; /* #E7E2D3 */
+
+  /* Categorical accents outside the token set (calendar, tasks, WhatsApp) */
+  --c-violet: 74 58 167; /* #4A3AA7 */
+  --c-blue: 42 120 214; /* #2A78D6 */
+  --c-blue-text: 31 95 174; /* #1F5FAE */
+  --c-whatsapp: 37 211 102; /* #25D366 */
+  --c-whatsapp-text: 13 110 58; /* #0D6E3A */
+
+  /* Chart palette (lib/chart-colors.ts). Validated with the dataviz
+     validator: categorical adjacent CVD dE >= 8.4, >= 3:1 on the dark panel;
+     ordinal ramp monotone with a >= 2:1 light end on its track. The slot
+     order is the colorblind-safety mechanism -- do not reorder. */
+  --chart-blue: 42 120 214; /* #2a78d6 */
+  --chart-orange: 235 104 52; /* #eb6834 */
+  --chart-aqua: 27 175 122; /* #1baf7a */
+  --chart-yellow: 237 161 0; /* #eda100 */
+  --chart-magenta: 232 123 164; /* #e87ba4 */
+  --chart-green: 0 131 0; /* #008300 */
+  --chart-violet: 74 58 167; /* #4a3aa7 */
+  --chart-red: 227 73 72; /* #e34948 */
+  --chart-ramp-1: 134 182 239; /* #86b6ef */
+  --chart-ramp-2: 85 152 231; /* #5598e7 */
+  --chart-ramp-3: 42 120 214; /* #2a78d6 */
+  --chart-ramp-4: 24 79 149; /* #184f95 */
+
+  /* Elevation */
+  --shadow-lift: 0 1px 3px 0 rgba(11, 30, 61, 0.1), 0 1px 2px -1px rgba(11, 30, 61, 0.08);
+  --shadow-float: 0 8px 24px -4px rgba(11, 30, 61, 0.16), 0 2px 8px -2px rgba(11, 30, 61, 0.1);
+  --shadow-card: 0 14px 32px -8px rgba(11, 30, 61, 0.2), 0 4px 12px -2px rgba(11, 30, 61, 0.12);
+
+  /* Page photo wash (page-backdrop.tsx): top / middle / bottom */
+  --backdrop-wash: rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.82) 38%,
+    rgba(255, 255, 255, 0.93) 100%;
+
+  /* Fixed brand surfaces -- the same navy in both themes (greeting hero,
+     quote card, announcement banner, login panel, app icon). */
+  --navy: #0b1e3d;
+  --navy-2: #122a54;
 
   --font-ui: 'Plus Jakarta Sans', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+}
+
+/*
+ * Dark theme. Applied by the `dark` class on <html>, which the inline
+ * bootstrap in app/layout.tsx sets before first paint from the
+ * `kautis-theme` cookie (light | dark | system). Elevation comes from
+ * progressively lighter surfaces, not shadow.
+ */
+/* Screen only: printing (e.g. the Notes print view) always uses the light
+   tokens above, so a dark-mode user still gets dark-on-white paper. */
+@media screen {
+  .dark {
+    color-scheme: dark;
+
+    --c-bg: 14 22 38; /* #0E1626 */
+    --c-panel: 22 32 54; /* #162036 */
+    --c-panel-2: 27 39 64; /* #1B2740 */
+    --c-hover: 34 48 77; /* #22304D */
+    --c-sunken: 10 17 32; /* #0A1120 */
+
+    --c-fg: 232 236 244; /* #E8ECF4 */
+    --c-fg-2: 179 188 208; /* #B3BCD0 */
+    --c-fg-3: 151 163 188; /* #97A3BC */
+    --c-fg-4: 124 136 162; /* #7C88A2 */
+
+    --c-acc: 141 180 255; /* #8DB4FF */
+    --c-acc-2: 169 198 255; /* #A9C6FF */
+    --c-on-acc: 11 30 61; /* #0B1E3D */
+    --acc-dim-alpha: 0.14;
+    --acc-line-alpha: 0.4;
+
+    --c-gold: 217 180 74; /* #D9B44A */
+    --c-gold-dark: 224 190 92; /* #E0BE5C */
+    --c-gold-light: 58 48 22; /* #3A3016 */
+
+    --c-ok: 76 201 126; /* #4CC97E */
+    --c-ok-dim: 18 48 31; /* #12301F */
+    --c-warn: 232 176 74; /* #E8B04A */
+    --c-warn-dim: 51 39 15; /* #33270F */
+    --c-bad: 242 128 111; /* #F2806F */
+    --c-bad-dim: 58 26 22; /* #3A1A16 */
+
+    --c-line: 42 53 80; /* #2A3550 */
+
+    --c-violet: 169 155 255; /* #A99BFF */
+    --c-blue: 111 168 240; /* #6FA8F0 */
+    --c-blue-text: 141 190 248; /* #8DBEF8 */
+    --c-whatsapp: 37 211 102;
+    --c-whatsapp-text: 61 220 132; /* #3DDC84 */
+
+    /* Same hues stepped for the dark surface, not a new palette. The ordinal
+       ramp runs dark -> light so later stages still gain contrast. */
+    --chart-blue: 57 135 229; /* #3987e5 */
+    --chart-orange: 217 89 38; /* #d95926 */
+    --chart-aqua: 25 158 112; /* #199e70 */
+    --chart-yellow: 201 133 0; /* #c98500 */
+    --chart-magenta: 213 81 129; /* #d55181 */
+    --chart-green: 0 131 0; /* #008300 */
+    --chart-violet: 144 133 233; /* #9085e9 */
+    --chart-red: 230 103 103; /* #e66767 */
+    --chart-ramp-1: 37 106 191; /* #256abf */
+    --chart-ramp-2: 57 135 229; /* #3987e5 */
+    --chart-ramp-3: 109 167 236; /* #6da7ec */
+    --chart-ramp-4: 158 197 244; /* #9ec5f4 */
+
+    --shadow-lift: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
+    --shadow-float: 0 8px 24px -4px rgba(0, 0, 0, 0.55), 0 2px 8px -2px rgba(0, 0, 0, 0.4);
+    --shadow-card: 0 14px 32px -8px rgba(0, 0, 0, 0.6), 0 4px 12px -2px rgba(0, 0, 0, 0.4);
+
+    --backdrop-wash: rgba(14, 22, 38, 0.72) 0%, rgba(14, 22, 38, 0.9) 38%,
+      rgba(14, 22, 38, 0.97) 100%;
+  }
 }
 
 * {
@@ -40,21 +180,19 @@ html {
 
 body {
   @apply bg-bg text-fg font-ui;
-  background-color: var(--canvas);
-  color: var(--text-1);
 }
 
 /* Custom utility for the signature lift effect (kept in sync with the
    `lift` boxShadow token in tailwind.config.ts) */
 .lift {
-  box-shadow: 0 1px 3px 0 rgba(11, 30, 61, 0.1), 0 1px 2px -1px rgba(11, 30, 61, 0.08);
+  box-shadow: var(--shadow-lift);
 }
 
 /* Focus ring styling */
 *:focus-visible {
-  outline: 2px solid var(--surface);
+  outline: 2px solid rgb(var(--c-panel));
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px var(--navy);
+  box-shadow: 0 0 0 4px rgb(var(--c-acc));
 }
 
 /* Disable outline on active focus for buttons */

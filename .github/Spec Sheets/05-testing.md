@@ -285,6 +285,25 @@ reused tokens rejected.
    row and does not break today's streak calculation
 10. Every empty state in `docs/09-account-and-auth.md` renders its named action —
     assert no screen shows a bare "No data"
+11. **Themes (P36, built — `e2e/theme-public.spec.ts`, `e2e/theme-app.spec.ts`).**
+    Every page in light and dark, per role: `<html>` class + `color-scheme` +
+    painted background match, axe-core `color-contrast` (WCAG AA) has no
+    violations, full-page screenshot attached to the report. Plus: default is
+    light even on a dark device; no light flash on first paint; System switches
+    live without a reload; explicit choice ignores the OS; tampered cookie falls
+    back to light and never executes; print is light; cookie attributes;
+    keyboard operation; account menu + notifications dialog in dark. Runs on
+    desktop Chromium/Firefox/WebKit and Pixel 7 / iPhone 14.
+    - Public pages need nothing. Signed-in pages need dedicated **staging**
+      test accounts in env vars (`E2E_{AGENT,LEADER,ADMIN}_{EMAIL,PASSWORD,TOTP_SECRET}`);
+      without them those tests skip. `auth.setup.ts` signs in (TOTP computed
+      locally) and saves sessions to the git-ignored `e2e/.auth/`.
+    - Against a deployed env: `E2E_BASE_URL=https://staging.kautis.ca npm run e2e`.
+      Never production.
+    - Unit-level companions (vitest, always in CI): `lib/theme.test.ts`,
+      `lib/theme-contrast.test.ts` (every token pair, both themes),
+      `lib/theme-guard.test.ts` (no hard-coded colours),
+      `settings/appearance-setting.test.tsx`.
 
 
 ## 5. Non-functional

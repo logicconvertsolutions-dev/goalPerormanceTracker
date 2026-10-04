@@ -9,7 +9,7 @@ const badgeVariants = cva(
       variant: {
         default: 'border-acc-line bg-acc-dim text-acc',
         neutral: 'border-line-2 bg-panel-2 text-fg-2',
-        ok: 'border-transparent bg-ok/15 text-ok',
+        ok: 'border-transparent bg-ok-dim text-ok',
         warn: 'border-transparent bg-warn-dim text-warn',
         bad: 'border-transparent bg-bad-dim text-bad',
       },

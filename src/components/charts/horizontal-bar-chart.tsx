@@ -1,7 +1,7 @@
 'use client';
 
 import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from 'recharts';
-import { CATEGORICAL_ORDER, CHART_COLORS } from '@/lib/chart-colors';
+import { CATEGORICAL_ORDER, CHART_CHROME, CHART_COLORS } from '@/lib/chart-colors';
 
 export interface BarDatum {
   label: string;
@@ -35,12 +35,12 @@ export function HorizontalBarChart({
       <div className="h-56 min-w-[280px] overflow-x-auto">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={sorted} layout="vertical" margin={{ left: 8, right: 16, top: 4, bottom: 4 }}>
-            <CartesianGrid horizontal={false} stroke="rgba(11,30,61,.08)" />
-            <XAxis type="number" tick={{ fill: '#94A0B8', fontSize: 11 }} axisLine={{ stroke: 'rgba(11,30,61,.08)' }} tickLine={false} />
+            <CartesianGrid horizontal={false} stroke={CHART_CHROME.grid} />
+            <XAxis type="number" tick={{ fill: CHART_CHROME.tick, fontSize: 11 }} axisLine={{ stroke: CHART_CHROME.grid }} tickLine={false} />
             <YAxis
               type="category"
               dataKey="label"
-              tick={{ fill: '#5C6580', fontSize: 11 }}
+              tick={{ fill: CHART_CHROME.label, fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               width={90}
@@ -52,7 +52,7 @@ export function HorizontalBarChart({
                 ))}
             </Bar>
             {target !== undefined && (
-              <ReferenceLine x={target} stroke="#94A0B8" strokeDasharray="3 3" />
+              <ReferenceLine x={target} stroke={CHART_CHROME.reference} strokeDasharray="3 3" />
             )}
           </BarChart>
         </ResponsiveContainer>

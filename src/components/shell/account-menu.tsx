@@ -82,7 +82,7 @@ export function AccountMenu({
           Sign out
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <div className="px-2 py-1.5 text-[11px] text-fg-4">{formatVersion()}</div>
+        <div className="px-2 py-1.5 text-[11px] text-fg-3">{formatVersion()}</div>
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -1,9 +1,11 @@
 # 15 — Dark mode + "match my device" (plan, not built)
 
-Status: **proposal, awaiting sign-off.** `CLAUDE.md` and `03-ui.md` both say
-"Light theme only … do not build a dark mode or a theme toggle without
-asking." This document is the ask. Once approved, both of those lines get
-updated in the same PR that ships the work.
+Status: **approved 2026-10-04 and built as P36** (see `06-build-phases.md`).
+Decisions taken: (1) light-only rule lifted; (2) default Light for everyone;
+(3) per-device cookie, no database column; (4) hand-rolled provider (no
+`next-themes`) + `@axe-core/playwright` for automated contrast checks;
+(5) light-mode `fg-3` contrast fixed. Where the build differs from the plan
+below, `03-ui.md` "Themes" describes what shipped.
 
 ## Goal
 

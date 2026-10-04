@@ -77,7 +77,7 @@ export default async function AdminReportsPage({
             href={`?type=${rt.id}`}
             className={
               rt.id === type
-                ? 'inline-flex min-h-[32px] items-center rounded-sm bg-acc px-3 py-1.5 text-xs font-medium text-bg'
+                ? 'inline-flex min-h-[32px] items-center rounded-sm bg-acc px-3 py-1.5 text-xs font-medium text-on-acc'
                 : 'inline-flex min-h-[32px] items-center rounded-sm px-3 py-1.5 text-xs font-medium text-fg-2 hover:bg-hover hover:text-fg'
             }
           >

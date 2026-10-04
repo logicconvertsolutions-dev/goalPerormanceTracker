@@ -10,11 +10,11 @@ import mountain from '@/components/shell/page-backdrop-mountain.avif';
  * off-limits), so next/image resizes and serves it per screen size. AVIF on
  * purpose: Next generates a blur preview (via sharp) at build time for every
  * static .jpg/.png/.webp import, and the Node 18 CI job has no sharp (sharp
- * 0.35 needs Node >= 20.9). The navy bg-acc shows while the photo loads.
+ * 0.35 needs Node >= 20.9). The navy bg-navy shows while the photo loads.
  */
 export function GreetingHero({ greeting, name, dateLabel }: { greeting: string; name: string; dateLabel: string }) {
   return (
-    <section className="relative flex items-center gap-3 overflow-hidden rounded-lg bg-acc px-4 py-3.5 text-white shadow-card lg:py-5">
+    <section className="relative flex items-center gap-3 overflow-hidden rounded-lg bg-navy px-4 py-3.5 text-white shadow-card dark:ring-1 dark:ring-inset dark:ring-white/10 lg:py-5">
       <Image
         src={mountain}
         alt=""
@@ -37,7 +37,7 @@ export function GreetingHero({ greeting, name, dateLabel }: { greeting: string; 
       </div>
       <LogActivityButton
         size="sm"
-        className="relative shrink-0 rounded-full border-0 bg-white text-acc shadow-lift hover:bg-white/90"
+        className="relative shrink-0 rounded-full border-0 bg-white text-navy shadow-lift hover:bg-white/90"
       >
         <Plus className="h-4 w-4" aria-hidden="true" />
         Log

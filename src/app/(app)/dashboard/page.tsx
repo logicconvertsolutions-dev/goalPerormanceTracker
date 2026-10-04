@@ -111,7 +111,7 @@ export default async function DashboardPage({
                 href={`/dashboard?${next.toString()}`}
                 className={
                   view === v
-                    ? 'rounded-sm bg-acc px-3 py-1.5 text-xs font-medium text-bg min-h-[32px] flex items-center'
+                    ? 'rounded-sm bg-acc px-3 py-1.5 text-xs font-medium text-on-acc min-h-[32px] flex items-center'
                     : 'rounded-sm px-3 py-1.5 text-xs font-medium text-fg-2 hover:bg-hover hover:text-fg min-h-[32px] flex items-center'
                 }
               >

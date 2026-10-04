@@ -319,7 +319,7 @@ export function ReminderForm({
           type="checkbox"
           checked={push}
           onChange={(e) => setPush(e.target.checked)}
-          className="h-4 w-4 accent-[#0B1E3D]"
+          className="h-4 w-4 accent-acc"
         />
         Send a push notification to my devices
       </label>

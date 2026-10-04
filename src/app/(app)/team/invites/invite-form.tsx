@@ -44,7 +44,7 @@ export function InviteForm() {
             value={emails}
             onChange={(e) => setEmails(e.target.value)}
             rows={3}
-            className="w-full rounded-sm border border-line-2 bg-sunken px-3 py-2 text-sm text-fg placeholder:text-fg-4 outline-none focus-visible:border-acc-line"
+            className="w-full rounded-sm border border-line-2 bg-sunken px-3 py-2 text-sm text-fg placeholder:text-fg-3 outline-none focus-visible:border-acc-line"
           />
         </div>
         <Button type="submit" variant="primary" disabled={pending || !emails.trim()}>

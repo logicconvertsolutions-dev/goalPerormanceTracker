@@ -79,7 +79,7 @@ export function CalendarAddDialog({
               onClick={() => setKind(value)}
               className={cn(
                 'flex items-center justify-center gap-1.5 rounded-[8px] px-2 py-2 text-xs font-bold text-fg-2 transition-smooth',
-                kind === value ? 'bg-acc text-white' : 'hover:text-fg'
+                kind === value ? 'bg-acc text-on-acc' : 'hover:text-fg'
               )}
             >
               <Icon className="h-3.5 w-3.5" aria-hidden="true" />

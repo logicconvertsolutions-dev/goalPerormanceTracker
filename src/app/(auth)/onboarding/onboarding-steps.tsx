@@ -93,8 +93,8 @@ export function OnboardingSteps({ target }: { target: Target | null }) {
             <div className="rounded-sm border border-line-2 bg-panel-2 p-3 text-sm space-y-1">
               <p className="text-fg">✓ Calls made this cycle: 37</p>
               <p className="text-fg">✓ Appointments held: 4</p>
-              <p className="text-fg-4 line-through">✗ Contact names</p>
-              <p className="text-fg-4 line-through">✗ Call notes</p>
+              <p className="text-fg-3 line-through">✗ Contact names</p>
+              <p className="text-fg-3 line-through">✗ Call notes</p>
             </div>
           </CardContent>
         </Card>

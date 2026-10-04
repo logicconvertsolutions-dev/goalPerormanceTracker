@@ -53,10 +53,10 @@ export function DailyGrid({ dates, columns }: { dates: string[]; columns: DailyG
                       className={cn(
                         'inline-flex h-7 w-9 items-center justify-center rounded-sm font-mono text-xs tabular-nums',
                         minMet
-                          ? 'bg-acc text-bg shadow-[0_0_8px_rgba(11,30,61,.35)]'
+                          ? 'bg-acc text-on-acc shadow-[0_0_8px_rgb(var(--c-acc)/0.35)]'
                           : calls > 0
                             ? 'bg-acc-dim text-acc-2'
-                            : 'bg-sunken text-fg-4 border border-line'
+                            : 'bg-sunken text-fg-3 border border-line'
                       )}
                     >
                       {calls}

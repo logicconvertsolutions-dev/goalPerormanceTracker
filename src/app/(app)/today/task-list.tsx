@@ -28,7 +28,7 @@ export interface TodoItem {
 const KIND_TAG: Record<TaskKind, string> = {
   call: 'bg-acc-dim text-acc',
   task: 'bg-ok-dim text-ok',
-  meeting: 'bg-[#4a3aa7]/10 text-[#4a3aa7]',
+  meeting: 'bg-kind-violet/10 text-kind-violet',
   follow_up: 'bg-warn-dim text-warn',
 };
 
@@ -53,7 +53,7 @@ export function KindPicker({ value, onChange }: { value: TaskKind; onChange: (k:
           aria-pressed={value === k}
           className={cn(
             'rounded-full border px-2.5 py-1 text-[11.5px] font-bold',
-            value === k ? 'border-acc bg-acc text-white' : 'border-line text-fg-2'
+            value === k ? 'border-acc bg-acc text-on-acc' : 'border-line text-fg-2'
           )}
         >
           {TASK_KIND_LABEL[k]}
@@ -100,13 +100,13 @@ export function AddTaskForm({ today, defaultDate }: { today: string; defaultDate
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Add a new task…"
           maxLength={200}
-          className="h-11 min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-4"
+          className="h-11 min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-3"
         />
         <button
           type="submit"
           disabled={pending || !title.trim()}
           aria-label="Add task"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-acc text-white disabled:opacity-40"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-acc text-on-acc disabled:opacity-40"
         >
           <Plus className="h-4 w-4" />
         </button>
@@ -236,7 +236,7 @@ export function TaskList({
                 onClick={() => toggle(task)}
                 className={cn(
                   'flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border-2 transition-smooth',
-                  done ? 'border-acc bg-acc text-white' : 'border-[#C7CCD8]'
+                  done ? 'border-acc bg-acc text-on-acc' : 'border-line-3'
                 )}
               >
                 {done && <Check className="h-3 w-3" strokeWidth={3} />}

@@ -35,7 +35,7 @@ export function PlannerPageHeader({
             aria-current={f.key === current ? 'page' : undefined}
             className={cn(
               'rounded-full border px-3 py-1.5 text-xs font-bold',
-              f.key === current ? 'border-acc bg-acc text-white' : 'border-line bg-panel text-fg-2 hover:bg-hover'
+              f.key === current ? 'border-acc bg-acc text-on-acc' : 'border-line bg-panel text-fg-2 hover:bg-hover'
             )}
           >
             {f.label} ({f.count})

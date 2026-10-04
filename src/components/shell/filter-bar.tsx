@@ -68,7 +68,7 @@ export function FilterBar({ preset, customFrom, customTo, chips = [], children }
               onClick={() => setPreset(p)}
               className={
                 p === preset
-                  ? 'rounded-sm bg-acc px-3 py-1.5 text-xs font-medium text-bg min-h-[32px]'
+                  ? 'rounded-sm bg-acc px-3 py-1.5 text-xs font-medium text-on-acc min-h-[32px]'
                   : 'rounded-sm px-3 py-1.5 text-xs font-medium text-fg-2 hover:bg-hover hover:text-fg min-h-[32px]'
               }
             >

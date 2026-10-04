@@ -30,7 +30,7 @@ export function AnnouncementBanner({ announcements }: { announcements: Announcem
   return (
     <div className="flex flex-col gap-px print:hidden">
       {visible.map((a) => (
-        <div key={a.id} className="flex items-start gap-2.5 bg-acc px-4 py-2.5 text-sm text-white md:px-6">
+        <div key={a.id} className="flex items-start gap-2.5 bg-navy px-4 py-2.5 text-sm text-white md:px-6">
           <Megaphone className="mt-0.5 h-4 w-4 shrink-0 text-gold" aria-hidden="true" />
           <p className="min-w-0 flex-1">{a.message}</p>
           <button

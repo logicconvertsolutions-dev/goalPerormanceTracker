@@ -68,7 +68,7 @@ export function OrgLogoUpload({ currentLogoUrl }: { currentLogoUrl: string | nul
       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-sm border border-line-2 bg-sunken flex items-center justify-center">
         {preview ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={preview} alt="Organization logo" className="h-full w-full object-contain" />
+          <img src={preview} alt="Organization logo" className="h-full w-full object-contain dark:bg-white dark:p-1" />
         ) : (
           <KautisMark size={64} className="h-16 w-16" />
         )}

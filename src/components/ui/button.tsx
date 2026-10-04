@@ -11,7 +11,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: 'bg-acc text-bg shadow-lift hover:bg-acc-2 hover:shadow-float',
+        primary: 'bg-acc text-on-acc shadow-lift hover:bg-acc-2 hover:shadow-float',
         secondary:
           'bg-panel-2 text-fg border border-line-2 shadow-lift hover:bg-hover',
         // Tinted navy — a middle weight between ghost and primary for

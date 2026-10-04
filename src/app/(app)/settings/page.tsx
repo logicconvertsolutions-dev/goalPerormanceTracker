@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/shell/page-header';
 import { NotificationToggles } from './notification-toggles';
 import { TimeZoneSelect } from './time-zone-select';
 import { DataActions } from './data-actions';
+import { AppearanceSetting } from './appearance-setting';
 
 export default async function SettingsPage() {
   const session = await requireVerifiedAgent();
@@ -37,6 +38,16 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-4 max-w-lg">
       <PageHeader title="Settings" />
+
+      {/* Every role, admins included -- it's a per-device display choice. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Appearance</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <AppearanceSetting />
+        </CardContent>
+      </Card>
 
       {!isAdmin && (
         <Card>

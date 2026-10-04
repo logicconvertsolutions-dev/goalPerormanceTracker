@@ -100,7 +100,7 @@ export function CallsToFinish({
                     key: c.id,
                   })
                 }
-                className="shrink-0 rounded-full bg-acc px-3 py-1.5 text-xs font-bold text-white hover:brightness-110"
+                className="shrink-0 rounded-full bg-acc px-3 py-1.5 text-xs font-bold text-on-acc hover:brightness-110"
               >
                 Add outcome
               </button>

@@ -60,7 +60,7 @@ export function NotesTable({
           </Button>
         </div>
       </CardHeader>
-      <p className="hidden print:block px-4 pt-4 text-lg font-semibold text-black">
+      <p className="hidden print:block px-4 pt-4 text-lg font-semibold print:text-black">
         Meeting Notes — {contactName}
       </p>
       <CardContent>

@@ -83,7 +83,7 @@ export function ContactCallButtons({
           e.stopPropagation();
           dial('phone');
         }}
-        className={cn(base, 'border-acc-line bg-acc-dim text-acc hover:bg-acc hover:text-white')}
+        className={cn(base, 'border-acc-line bg-acc-dim text-acc hover:bg-acc hover:text-on-acc')}
       >
         <Phone className={icon} aria-hidden="true" />
       </a>
@@ -97,7 +97,7 @@ export function ContactCallButtons({
           e.stopPropagation();
           dial('whatsapp');
         }}
-        className={cn(base, 'border-[#25D366]/40 bg-[#25D366]/10 text-[#128C4B] hover:bg-[#25D366] hover:text-white')}
+        className={cn(base, 'border-whatsapp/40 bg-whatsapp/10 text-whatsapp-text hover:bg-whatsapp hover:text-white')}
       >
         <WhatsAppIcon className={icon} />
       </a>

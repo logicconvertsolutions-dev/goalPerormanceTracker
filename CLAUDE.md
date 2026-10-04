@@ -13,9 +13,11 @@ RLS) · Tailwind + shadcn/ui · Recharts · Zod · Vercel · Resend (transaction
 email).
 (Started on Next.js 14 per the original P0 scaffold; upgraded to 15 during
 build-out. `package.json` is the source of truth if this drifts again.)
-**Light theme only** (see `.github/Spec Sheets/03-ui.md` — supersedes an
-earlier dark-theme direction shipped through P0–P2). No second theme, no
-theme toggle in v1.
+**Light (default) + opt-in dark** (P36 — Settings → Appearance: Light / Dark /
+System, per-device cookie; see `03-ui.md` "Themes"). Exactly two themes. Every
+colour goes through a token in `globals.css` — never a literal hex or
+`text-white` in a component (`theme-guard.test.ts` enforces it); text on an
+accent fill is `text-on-acc`.
 
 ## Environments
 - `master` → production (Vercel production deployment + Supabase production project). Protected: requires a PR and passing `ci (18.x)`/`ci (20.x)` checks — no direct pushes, no bypass, including for admins.
@@ -241,7 +243,7 @@ reference you see pointing at `docs/*.md`.
 | Scope, roles, user stories | `.github/Spec Sheets/01-requirements.md` |
 | Schema, RLS, RPCs | `.github/Spec Sheets/02-data-model.md` |
 | Visual direction, tokens, routes | `.github/Spec Sheets/03-ui.md` |
-| Rendered reference for all screens | `.github/Spec Sheets/ui-mockup.html` — **stale, still shows the old dark theme; the live app is the light navy/gold theme in `03-ui.md`. Regenerate before relying on it.** |
+| Rendered reference for all screens | `.github/Spec Sheets/ui-mockup.html` — **stale, shows the retired P0–P2 dark theme, not the current light theme or the P36 dark theme in `03-ui.md`. Regenerate before relying on it.** |
 | Per-page KPIs, filters, charts | `.github/Spec Sheets/08-screen-specs.md` |
 | Auth, profile, settings, app shell | `.github/Spec Sheets/09-account-and-auth.md` |
 | User journeys and empty states | `.github/Spec Sheets/10-journeys.md` |
@@ -254,11 +256,12 @@ reference you see pointing at `docs/*.md`.
 | P25 appointment lifecycle remediation | `.github/Spec Sheets/12-appointment-lifecycle-remediation.md` |
 | P25 Phase C promotion + staging test plan | `.github/Spec Sheets/13-p25-phase-c-staging-verification.md` |
 | Conversion funnel + sale attribution (requirements, not built) | `.github/Spec Sheets/14-conversion-funnel-and-sale-attribution.md` |
+| P36 dark mode + System theme (design, decisions) | `.github/Spec Sheets/15-dark-mode-plan.md` |
 
 ## Commands
 `npm run dev` · `npm test` (vitest — now blocking in CI, no more
-`continue-on-error`) · `npm run e2e` (playwright — config exists, no specs
-written yet, see `05-testing.md` and `TODOS.md`) · `npm run test:rls` (pgTAP —
+`continue-on-error`) · `npm run e2e` (playwright — P36 theme specs in `e2e/`; signed-in pages need
+the `E2E_*` test-account env vars, see `e2e/auth.setup.ts`) · `npm run test:rls` (pgTAP —
 all 5 suites currently green) · `npm run types` · `supabase db reset`
 
 ## Definition of done (every phase)

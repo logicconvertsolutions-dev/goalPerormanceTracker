@@ -40,8 +40,8 @@ const KIND_META: Record<CalendarItemKind, { label: string; icon: LucideIcon; chi
   follow_up: {
     label: 'Follow-up',
     icon: Phone,
-    chip: 'bg-[#2a78d6]/10 border-[#2a78d6] text-[#1f5fae]',
-    dot: 'bg-[#2a78d6]',
+    chip: 'bg-kind-blue/10 border-kind-blue text-kind-blue-text',
+    dot: 'bg-kind-blue',
   },
   todo: { label: 'To do', icon: ListChecks, chip: 'bg-ok-dim border-ok text-ok', dot: 'bg-ok' },
   reminder: { label: 'Reminder', icon: Bell, chip: 'bg-warn-dim border-warn text-warn', dot: 'bg-warn' },
@@ -183,7 +183,7 @@ export function CalendarCard({
               aria-current={v === view ? 'page' : undefined}
               className={cn(
                 'rounded-[8px] px-3 py-1.5 text-xs font-bold text-fg-2 transition-smooth',
-                v === view ? 'bg-acc text-white' : 'hover:text-fg'
+                v === view ? 'bg-acc text-on-acc' : 'hover:text-fg'
               )}
             >
               {VIEW_LABEL[v]}
@@ -198,7 +198,7 @@ export function CalendarCard({
           <button
             type="button"
             onClick={() => add(date)}
-            className="flex h-8 items-center gap-1 rounded-sm bg-acc px-2.5 text-xs font-bold text-white hover:brightness-110"
+            className="flex h-8 items-center gap-1 rounded-sm bg-acc px-2.5 text-xs font-bold text-on-acc hover:brightness-110"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
             Add
@@ -302,7 +302,7 @@ function Dots({ items, light }: { items: CalendarItem[] | undefined; light?: boo
       {kinds.map((k) => (
         <span
           key={k}
-          className={cn('h-[5px] w-[5px] rounded-full', light && k === 'appointment' ? 'bg-white' : KIND_META[k].dot)}
+          className={cn('h-[5px] w-[5px] rounded-full', light && k === 'appointment' ? 'bg-on-acc' : KIND_META[k].dot)}
         />
       ))}
     </span>
@@ -315,7 +315,7 @@ function EventChip({ item, timeZone }: { item: CalendarItem; timeZone: string | 
   const time = item.startsAt ? formatDisplayTime(item.startsAt, timeZone) : 'All day';
   const body = (
     <>
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] bg-white/80">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] bg-panel/80">
         <Icon className="h-3.5 w-3.5" aria-hidden="true" />
       </span>
       <span className="min-w-0 flex-1">
@@ -439,11 +439,11 @@ function DayView({
                 aria-label={`${weekdayShort(d)} ${formatShortDate(d)}`}
                 className={cn(
                   'flex w-[42px] shrink-0 snap-center flex-col items-center rounded-sm py-1.5',
-                  selected ? 'bg-acc text-white' : 'hover:bg-hover',
+                  selected ? 'bg-acc text-on-acc' : 'hover:bg-hover',
                   d === today && !selected && 'ring-1 ring-inset ring-acc-line'
                 )}
               >
-                <span className={cn('text-[10.5px] font-bold uppercase', selected ? 'text-white/70' : 'text-fg-3')}>
+                <span className={cn('text-[10.5px] font-bold uppercase', selected ? 'text-on-acc/70' : 'text-fg-3')}>
                   {weekdayShort(d)}
                 </span>
                 <span className="text-[15px] font-bold leading-5">{dayNumber(d)}</span>
@@ -604,7 +604,7 @@ function WeekView({
             <span
               className={cn(
                 'mx-auto mt-0.5 block w-6 rounded-[7px] text-[13px] font-bold',
-                d === today ? 'bg-acc text-white' : 'text-fg'
+                d === today ? 'bg-acc text-on-acc' : 'text-fg'
               )}
             >
               {dayNumber(d)}
@@ -618,7 +618,7 @@ function WeekView({
         {days.map((d) => {
           const n = (grouped.get(d) ?? []).filter((i) => !i.startsAt).length;
           return (
-            <span key={d} className="text-[10px] font-bold leading-5 text-[#1f5fae]">
+            <span key={d} className="text-[10px] font-bold leading-5 text-kind-blue-text">
               {n > 0 ? n : ''}
             </span>
           );
@@ -730,8 +730,8 @@ function MonthView({
               aria-label={formatShortDate(d)}
               className={cn(
                 'h-10 rounded-sm pt-1 text-[13px] font-semibold',
-                !inMonth && 'text-fg-4',
-                isSelected ? 'bg-acc text-white' : 'hover:bg-hover',
+                !inMonth && 'text-fg-3',
+                isSelected ? 'bg-acc text-on-acc' : 'hover:bg-hover',
                 d === today && !isSelected && 'ring-1 ring-inset ring-acc'
               )}
             >

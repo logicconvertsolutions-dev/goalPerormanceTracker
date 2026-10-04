@@ -6,7 +6,7 @@ import mountain from '@/components/shell/page-backdrop-mountain.avif';
 /** "Today's thought" (P30) -- one curated quote per agent-local day. */
 export function QuoteCard({ quote }: { quote: Quote }) {
   return (
-    <figure className="relative overflow-hidden rounded-lg bg-acc px-5 py-5 text-white shadow-card">
+    <figure className="relative overflow-hidden rounded-lg bg-navy px-5 py-5 text-white shadow-card dark:ring-1 dark:ring-inset dark:ring-white/10">
       <Image
         src={mountain}
         alt=""

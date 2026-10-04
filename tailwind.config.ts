@@ -1,6 +1,9 @@
 import type { Config } from 'tailwindcss';
 import animate from 'tailwindcss-animate';
 
+/** A theme colour backed by a `--c-<name>` RGB-channel variable in globals.css. */
+const token = (name: string) => `rgb(var(--c-${name}) / <alpha-value>)`;
+
 const config = {
   darkMode: ['class'],
   content: [
@@ -11,57 +14,66 @@ const config = {
   theme: {
     extend: {
       colors: {
-        // Values are kept as literal hex (not var(--x)) so Tailwind's built-in opacity
-        // modifiers (bg-ok/15, bg-bad/20, ...) keep working — Tailwind can only derive
-        // an alpha-channel variant from a color it can parse itself, not from an opaque
-        // var() reference. The same values are declared as CSS custom properties in
-        // globals.css :root as the source of truth / for use outside Tailwind classes.
+        // Every value is a CSS variable from src/app/globals.css (`:root` for
+        // light, `.dark` for dark) wrapped as rgb(var(--x) / <alpha-value>),
+        // so the theme switches by re-pointing variables and Tailwind's
+        // opacity modifiers (bg-ok/15, border-bad/30, ...) keep working.
+        // Never put a literal hex here -- it would not follow the theme.
         //
-        // Ground — page background & chrome now match the white surface tone.
-        // hover/sunken stay a hair off pure white so row-hover feedback and
-        // input fields remain visible against a white page.
-        bg: '#FFFFFF',
-        'bg-2': '#FFFFFF',
-        panel: '#FFFFFF',
-        'panel-2': '#FFFFFF',
-        hover: '#F4F4F5',
-        sunken: '#F4F4F5',
-        // Text
-        fg: '#14213D',
-        'fg-2': '#5C6580',
-        'fg-3': '#94A0B8',
-        // fg-4: no --text-4 token in the spec; derived as a washed-out --text-3 for the
-        // most muted/disabled labels (e.g. strikethrough list items).
-        'fg-4': 'rgba(148, 160, 184, 0.7)',
-        // Accent — primary actions use navy, never gold (see brand-mark exception below)
-        acc: '#0B1E3D',
-        'acc-2': '#122A54',
-        // acc-dim/acc-line: no dedicated tokens given; derived from --navy at low opacity,
-        // same pattern the spec already uses for warn-dim/bad-dim.
-        'acc-dim': 'rgba(11, 30, 61, 0.07)',
-        'acc-line': 'rgba(11, 30, 61, 0.28)',
-        // Brand mark & "filed/complete" status only — never a general accent/button color
-        gold: '#C9A227',
-        'gold-dark': '#9C7C1A',
-        'gold-light': '#FBF3D9',
-        navy: '#0B1E3D',
-        'navy-2': '#122A54',
-        canvas: '#FFFFFF',
-        surface: '#FFFFFF',
-        // Attainment
-        ok: '#1B7A43',
-        'ok-dim': '#E4F5EA',
-        warn: '#9C6A0A',
-        'warn-dim': '#FBF0DA',
-        bad: '#B0392A',
-        'bad-dim': '#FBE6E2',
+        // Ground -- page, cards, and the slightly-off surfaces used for row
+        // hover and input fields.
+        bg: token('bg'),
+        'bg-2': token('bg'),
+        panel: token('panel'),
+        'panel-2': token('panel-2'),
+        hover: token('hover'),
+        sunken: token('sunken'),
+        canvas: token('bg'),
+        surface: token('panel'),
+        // Text, strongest to most muted. Anything a user reads -- including
+        // placeholders and small hints -- uses fg..fg-3 (>=4.5:1). fg-4 is
+        // only for icons, decorative glyphs and disabled controls (>=3:1).
+        fg: token('fg'),
+        'fg-2': token('fg-2'),
+        'fg-3': token('fg-3'),
+        'fg-4': token('fg-4'),
+        // Accent -- primary actions use it, never gold. `on-acc` is the text
+        // or icon colour on an acc-filled surface: white on navy in light,
+        // navy on light blue in dark. Use it instead of text-white.
+        acc: token('acc'),
+        'acc-2': token('acc-2'),
+        'on-acc': token('on-acc'),
+        // Tints of the accent with a fixed, per-theme alpha.
+        'acc-dim': 'rgb(var(--c-acc) / var(--acc-dim-alpha))',
+        'acc-line': 'rgb(var(--c-acc) / var(--acc-line-alpha))',
+        // Brand mark & "filed/complete" status only -- never a general accent.
+        gold: token('gold'),
+        'gold-dark': token('gold-dark'),
+        'gold-light': token('gold-light'),
+        // Fixed brand navy: the same in both themes. For brand surfaces that
+        // stay navy with white text (greeting hero, quote card, banner).
+        navy: 'rgb(11 30 61 / <alpha-value>)',
+        'navy-2': 'rgb(18 42 84 / <alpha-value>)',
+        // Attainment -- green/amber/red mean target attainment only.
+        ok: token('ok'),
+        'ok-dim': token('ok-dim'),
+        warn: token('warn'),
+        'warn-dim': token('warn-dim'),
+        bad: token('bad'),
+        'bad-dim': token('bad-dim'),
+        // Categorical accents for calendar/task kinds and the WhatsApp button.
+        'kind-violet': token('violet'),
+        'kind-blue': token('blue'),
+        'kind-blue-text': token('blue-text'),
+        whatsapp: token('whatsapp'),
+        'whatsapp-text': token('whatsapp-text'),
       },
       borderColor: {
-        line: '#E7E2D3',
-        // line-2/line-3: no escalated-emphasis border tokens given; derived from --text-1
-        // (navy-ish) at increasing opacity, mirroring the acc-dim/acc-line derivation above.
-        'line-2': 'rgba(20, 33, 61, 0.14)',
-        'line-3': 'rgba(20, 33, 61, 0.22)',
+        line: token('line'),
+        // Escalated-emphasis borders: the text colour at low opacity, so they
+        // read on both a white and a navy-black ground.
+        'line-2': 'rgb(var(--c-fg) / 0.14)',
+        'line-3': 'rgb(var(--c-fg) / 0.22)',
       },
       // Bumped up for a softer, more rounded feel across buttons, inputs,
       // menus, and cards — every rounded-sm/DEFAULT/lg usage in the app
@@ -76,18 +88,13 @@ const config = {
         xl: '28px',
       },
       boxShadow: {
-        // Everyday card/button elevation — a touch stronger than a hairline so
-        // surfaces read as raised off the canvas instead of flat cutouts.
-        lift: '0 1px 3px 0 rgba(11, 30, 61, 0.10), 0 1px 2px -1px rgba(11, 30, 61, 0.08)',
-        // Heavier elevation for things that should visually float above the
-        // page — popovers, dropdowns, toasts, the mobile tab bar.
-        float: '0 8px 24px -4px rgba(11, 30, 61, 0.16), 0 2px 8px -2px rgba(11, 30, 61, 0.10)',
-        // Pronounced "floating card" elevation — every Card and card-style
-        // surface (KPI tiles, the Next Up card, list/table containers).
-        // Deliberately heavier than `float` per an explicit request for more
-        // shadow on cards specifically, without changing buttons, menus, or
-        // toasts, which stay on `lift`/`float`.
-        card: '0 14px 32px -8px rgba(11, 30, 61, 0.20), 0 4px 12px -2px rgba(11, 30, 61, 0.12)',
+        // Values live in globals.css (navy-tinted in light, black in dark).
+        // Everyday card/button elevation.
+        lift: 'var(--shadow-lift)',
+        // Popovers, dropdowns, toasts, the mobile tab bar.
+        float: 'var(--shadow-float)',
+        // Every Card and card-style surface (KPI tiles, Next Up, tables).
+        card: 'var(--shadow-card)',
       },
       fontFamily: {
         ui: [

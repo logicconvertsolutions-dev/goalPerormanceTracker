@@ -81,7 +81,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             >
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoUrl} alt="" className="h-14 w-14 shrink-0 rounded-sm object-contain" />
+                <img src={logoUrl} alt="" className="h-14 w-14 shrink-0 rounded-sm object-contain dark:bg-white dark:p-1" />
               ) : (
                 // No org logo uploaded yet (or an admin, who has no org at
                 // all) -- show the Kautis mark in the same slot/size the

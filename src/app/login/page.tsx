@@ -109,7 +109,7 @@ export default function LoginPage() {
           <Suspense>
             <LoginForm />
           </Suspense>
-          <p className="mt-8 text-center text-[11px] text-fg-4">{formatVersion()}</p>
+          <p className="mt-8 text-center text-[11px] text-fg-3">{formatVersion()}</p>
         </div>
       </div>
     </div>

@@ -141,14 +141,14 @@ export default async function LogsPage({
                   ? 'inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-medium shadow-lift'
                   : 'inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-medium text-fg-2 hover:text-fg transition-smooth'
               }
-              style={active ? { backgroundColor: `${meta.color}1A`, color: meta.color } : undefined}
+              style={active ? { backgroundColor: meta.tint, color: meta.color } : undefined}
             >
               <Icon className="h-4 w-4" aria-hidden="true" />
               {meta.label}s
               <Badge
                 variant={active ? 'default' : 'neutral'}
                 className="ml-0.5 px-1.5 py-0 text-[10px]"
-                style={active ? { backgroundColor: meta.color, color: '#fff' } : undefined}
+                style={active ? { backgroundColor: meta.color, color: 'rgb(var(--c-bg))' } : undefined}
               >
                 {counts[kind]}
               </Badge>

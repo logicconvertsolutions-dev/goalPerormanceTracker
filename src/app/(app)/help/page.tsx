@@ -116,7 +116,7 @@ function TopicSection({ topic }: { topic: Topic }) {
       <ol className="mt-2 space-y-1.5 text-sm text-fg-2">
         {topic.steps.map((step, i) => (
           <li key={i} className="flex gap-2">
-            <span className="shrink-0 text-fg-4">{i + 1}.</span>
+            <span className="shrink-0 text-fg-3">{i + 1}.</span>
             <span>{step}</span>
           </li>
         ))}

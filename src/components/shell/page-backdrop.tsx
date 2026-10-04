@@ -12,7 +12,8 @@ const DEFAULT_IMAGE = mountain;
 
 /**
  * App-wide page background (P30, every page since P31): a photo behind the
- * content, washed toward white further down so the white cards float on it
+ * content, washed toward the page colour further down (white in light, navy-
+ * black in dark -- --backdrop-wash in globals.css) so the white cards float on it
  * and long lists stay readable. Fixed, so it holds still while the page
  * scrolls. Starts after the 212px desktop/tablet rail (rail-nav.tsx) so the
  * navigation stays plain; the sticky header (z-20) and mobile tab bar (z-40)
@@ -27,7 +28,7 @@ export function PageBackdrop() {
       aria-hidden="true"
     >
       <Image src={image} alt="" fill sizes="100vw" className="object-cover object-[70%_top]" />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.55)_0%,rgba(255,255,255,0.82)_38%,rgba(255,255,255,0.93)_100%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,var(--backdrop-wash))]" />
     </div>
   );
 }

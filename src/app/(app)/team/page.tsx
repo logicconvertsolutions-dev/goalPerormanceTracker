@@ -149,7 +149,7 @@ export default async function TeamPage({
             href={withParam({ view: 'summary' })}
             className={
               view === 'summary'
-                ? 'rounded-sm bg-acc px-3 py-1.5 text-xs font-medium text-bg min-h-[32px] flex items-center'
+                ? 'rounded-sm bg-acc px-3 py-1.5 text-xs font-medium text-on-acc min-h-[32px] flex items-center'
                 : 'rounded-sm px-3 py-1.5 text-xs font-medium text-fg-2 hover:bg-hover hover:text-fg min-h-[32px] flex items-center'
             }
           >
@@ -159,7 +159,7 @@ export default async function TeamPage({
             href={withParam({ view: 'daily' })}
             className={
               view === 'daily'
-                ? 'rounded-sm bg-acc px-3 py-1.5 text-xs font-medium text-bg min-h-[32px] flex items-center'
+                ? 'rounded-sm bg-acc px-3 py-1.5 text-xs font-medium text-on-acc min-h-[32px] flex items-center'
                 : 'rounded-sm px-3 py-1.5 text-xs font-medium text-fg-2 hover:bg-hover hover:text-fg min-h-[32px] flex items-center'
             }
           >
@@ -169,7 +169,7 @@ export default async function TeamPage({
             href={withParam({ view: 'activity' })}
             className={
               view === 'activity'
-                ? 'rounded-sm bg-acc px-3 py-1.5 text-xs font-medium text-bg min-h-[32px] flex items-center'
+                ? 'rounded-sm bg-acc px-3 py-1.5 text-xs font-medium text-on-acc min-h-[32px] flex items-center'
                 : 'rounded-sm px-3 py-1.5 text-xs font-medium text-fg-2 hover:bg-hover hover:text-fg min-h-[32px] flex items-center'
             }
           >

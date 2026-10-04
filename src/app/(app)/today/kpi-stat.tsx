@@ -30,7 +30,7 @@ export function KpiStat({ icon: Icon, value, label, warn, href, hint }: KpiStatP
       {href && <ChevronRight className="absolute right-2 top-3 h-4 w-4 text-fg-3" aria-hidden="true" />}
       <p className={cn('text-2xl font-bold leading-none', warn ? 'text-bad' : 'text-fg')}>{value}</p>
       <p className="text-xs font-medium leading-tight text-fg-3">{label}</p>
-      {hint && <p className="text-[11px] leading-tight text-fg-4">{hint}</p>}
+      {hint && <p className="text-[11px] leading-tight text-fg-3">{hint}</p>}
     </>
   );
 

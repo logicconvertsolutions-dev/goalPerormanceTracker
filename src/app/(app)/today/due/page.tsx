@@ -63,7 +63,7 @@ export default async function DueQueuePage({ searchParams }: { searchParams: Pro
             aria-current={f.key === filter ? 'page' : undefined}
             className={cn(
               'rounded-full border px-3 py-1.5 text-xs font-bold',
-              f.key === filter ? 'border-acc bg-acc text-white' : 'border-line text-fg-2 hover:bg-hover'
+              f.key === filter ? 'border-acc bg-acc text-on-acc' : 'border-line text-fg-2 hover:bg-hover'
             )}
           >
             {f.label} ({counts[f.key]})

@@ -35,7 +35,7 @@ const KIND_ICON: Record<string, { icon: typeof Bell; tone: string }> = {
   reminder: { icon: Bell, tone: 'bg-warn-dim text-warn' },
   appointment: { icon: CalendarClock, tone: 'bg-acc-dim text-acc' },
   morning_brief: { icon: Sun, tone: 'bg-ok-dim text-ok' },
-  evening_nudge: { icon: Moon, tone: 'bg-[#4a3aa7]/10 text-[#4a3aa7]' },
+  evening_nudge: { icon: Moon, tone: 'bg-kind-violet/10 text-kind-violet' },
 };
 
 type PushState = 'loading' | 'unsupported' | 'ios-install' | 'blocked' | 'off' | 'on' | 'not-configured';
@@ -183,7 +183,7 @@ export function NotificationBell({
       >
         <Bell className="h-5 w-5" aria-hidden="true" />
         {unreadCount > 0 && (
-          <span className="absolute right-1 top-1 flex h-[17px] min-w-[17px] items-center justify-center rounded-full border-2 border-bg bg-bad px-1 text-[10px] font-bold leading-none text-white">
+          <span className="absolute right-1 top-1 flex h-[17px] min-w-[17px] items-center justify-center rounded-full border-2 border-bg bg-bad px-1 text-[10px] font-bold leading-none text-bg">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -221,7 +221,7 @@ export function NotificationBell({
                 aria-pressed={filter === f.key}
                 className={cn(
                   'rounded-full border px-3 py-1.5 text-xs font-bold',
-                  filter === f.key ? 'border-acc bg-acc text-white' : 'border-line text-fg-2'
+                  filter === f.key ? 'border-acc bg-acc text-on-acc' : 'border-line text-fg-2'
                 )}
               >
                 {f.label}
@@ -373,7 +373,7 @@ function SwipeToClear({ onClear, children }: { onClear: () => void; children: Re
     <div className="relative overflow-hidden">
       <div
         className={cn(
-          'absolute inset-y-0 right-0 flex items-center justify-end bg-bad pr-4 text-xs font-bold text-white',
+          'absolute inset-y-0 right-0 flex items-center justify-end bg-bad pr-4 text-xs font-bold text-bg',
           dx === 0 && 'invisible'
         )}
         style={{ width: Math.max(0, -dx) }}

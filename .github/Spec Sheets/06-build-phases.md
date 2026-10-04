@@ -839,6 +839,36 @@ From staging testing, 2026-10-04 (product owner). It replaces P34's
 - [x] Tests: `components/shell/calls-to-finish.test.tsx`,
       `log/pending-call-actions.test.ts`; `call-log-prompt.test.tsx` updated.
 
+## P36 — Dark mode + "match my device"
+
+Design and decisions: `15-dark-mode-plan.md`. Product owner, 2026-10-04:
+lift the light-only rule; default Light; per-device cookie; industry-standard
+approach; fix the light-mode contrast gaps found along the way.
+
+- [x] **Tokens** (`globals.css`, `tailwind.config.ts`): every colour is an
+      RGB-channel CSS variable, `rgb(var(--c-x) / <alpha-value>)`, so opacity
+      modifiers still work; `.dark` re-points them (screen only, so print stays
+      light). New `on-acc`, `navy`, `kind-*`, `whatsapp*` tokens; shadows and
+      the page-photo wash are variables too.
+- [x] **Light-mode contrast fixes** (WCAG AA): `fg-3` `#94A0B8`→`#626D86`,
+      `gold-dark`→`#846813`, `warn`→`#8F6109`; placeholders and small hints
+      moved from `fg-4` to `fg-3`.
+- [x] **Plumbing**: `lib/theme.ts` (allow-listed cookie, Zod), inline
+      pre-paint bootstrap in `app/layout.tsx` (no flash; static string under
+      the existing CSP), `ThemeProvider` / `useTheme()` (live OS switching,
+      cross-tab sync on focus, `theme-color` meta). No new runtime dependency.
+- [x] **Sweep**: `text-white` on accent fills → `text-on-acc`; brand cards
+      stay `bg-navy`; Sonner follows the theme; chart palette + chrome are
+      theme-aware (dark steps validated for CVD and >=3:1); logo swaps to the
+      white mark in dark; org logos sit on a light chip in dark.
+- [x] **Settings → Appearance**: Light / Dark / System radio group, every role.
+- [x] **Tests**: vitest (`theme`, `theme-contrast`, `theme-guard`,
+      `appearance-setting`; 50 new); Playwright `e2e/theme-*.spec.ts` with
+      `@axe-core/playwright` (new dev dependency).
+- [ ] Signed-in e2e sweep on staging with test accounts (needs the `E2E_*`
+      secrets) and the manual device pass: iPhone Safari + installed PWA,
+      Android Chrome, macOS/Windows auto-dark.
+
 ---
 
 ## Working with Claude Code on this repo (token discipline)
