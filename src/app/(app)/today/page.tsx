@@ -6,7 +6,6 @@ import { Phone, CalendarDays, AlertTriangle, Clock } from 'lucide-react';
 import {
   addDays,
   calendarRange,
-  formatFullDisplayDate,
   isCalendarView,
   isIsoDate,
   todayIso,
@@ -14,12 +13,10 @@ import {
 } from '@/lib/dates';
 import { fetchRecentActivity } from '@/lib/recent-activity';
 import { fetchCalendarItems } from '@/lib/calendar';
-import { firstName, greetingFor } from '@/lib/greeting';
 import { quoteForDate } from '@/lib/quotes';
 import { SectionHeader } from './section-header';
 import { KpiStat } from './kpi-stat';
 import { ActivityRow } from './activity-row';
-import { GreetingHero } from './greeting-hero';
 import { CalendarCard } from './calendar-card';
 import { TodoCard, TODO_CARD_DESKTOP } from './todo-card';
 import { RemindersCard, REMINDERS_CARD_DESKTOP } from './reminders-card';
@@ -119,12 +116,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <div className="mx-auto max-w-lg space-y-4 lg:max-w-6xl">
-        <GreetingHero
-          greeting={greetingFor(now, timeZone)}
-          name={firstName(session.agent!.full_name)}
-          dateLabel={formatFullDisplayDate(today)}
-        />
+      <div className="mx-auto -mt-3 max-w-lg space-y-4 lg:max-w-6xl">
 
         <div className="flex gap-2.5">
           <KpiStat

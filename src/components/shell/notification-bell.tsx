@@ -68,11 +68,13 @@ export function NotificationBell({
   unreadCount,
   vapidPublicKey,
   timeZone,
+  className,
 }: {
   notifications: BellNotification[];
   unreadCount: number;
   vapidPublicKey: string | null;
   timeZone: string | null;
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<FilterKey>('all');
@@ -178,7 +180,8 @@ export function NotificationBell({
         aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
         className={cn(
           'relative flex h-10 w-10 items-center justify-center rounded-sm text-fg transition-smooth hover:bg-hover',
-          open && 'bg-acc-dim'
+          open && 'bg-acc-dim',
+          className
         )}
       >
         <Bell className="h-5 w-5" aria-hidden="true" />

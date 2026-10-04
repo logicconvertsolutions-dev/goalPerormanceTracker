@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { requireAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { RailNav } from '@/components/shell/rail-nav';
@@ -12,6 +11,11 @@ import { KautisMark } from '@/components/shell/kautis-logo';
 import { NotificationBell, type BellNotification } from '@/components/shell/notification-bell';
 import { RefreshButton } from '@/components/shell/refresh-button';
 import { PageBackdrop } from '@/components/shell/page-backdrop';
+import { AppHeader } from '@/components/shell/app-header';
+import { firstName } from '@/lib/greeting';
+
+// Header icon buttons over the My Day photo (AppHeader sets data-tone).
+const ON_PHOTO = 'group-data-[tone=dark]/header:text-white group-data-[tone=dark]/header:hover:bg-white/15';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireAgent();
@@ -70,47 +74,55 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <LogActivityDialogProvider>
-      <div className="flex min-h-screen bg-bg print:block">
+      <div className="-mt-[env(safe-area-inset-top)] flex min-h-screen bg-bg print:block">
         <PageBackdrop />
         <RailNav role={role} />
         <div className="relative z-[1] flex-1 flex flex-col min-w-0 print:block">
-          <header className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-bg px-4 py-3 md:px-6 print:hidden">
-            <Link
-              href={role === 'admin' ? '/admin/agents' : '/today'}
-              className="flex min-w-0 items-center gap-2.5 text-fg-2 transition-smooth hover:text-fg"
-            >
-              {logoUrl ? (
+          <AppHeader
+            homeHref={role === 'admin' ? '/admin/agents' : '/today'}
+            name={firstName(session.agent!.full_name)}
+            timeZone={session.agent!.time_zone}
+            // Logo only -- no org name (P36).
+            logo={
+              logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoUrl} alt="" className="h-14 w-14 shrink-0 rounded-sm object-contain" />
+                <img src={logoUrl} alt={org?.name ?? ''} className="h-[52px] w-[52px] rounded-sm object-contain" />
               ) : (
                 // No org logo uploaded yet (or an admin, who has no org at
-                // all) -- show the Kautis mark in the same slot/size the
-                // org's own logo would occupy.
-                <KautisMark size={56} className="h-14 w-14 shrink-0" />
-              )}
-              <span className="truncate text-lg font-semibold tracking-tight text-gold-dark">
-                {org?.name ?? 'Kautis'}
-              </span>
-            </Link>
-            <div className="flex shrink-0 items-center gap-1.5">
-              <RefreshButton className="md:hidden" />
-              {bell && (
-                <NotificationBell
-                  notifications={bell.items}
-                  unreadCount={bell.unread}
-                  // The VAPID *public* key is meant to be shared with browsers;
-                  // passed down from the server so no NEXT_PUBLIC_ var is needed.
-                  vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? null}
-                  timeZone={session.agent!.time_zone}
+                // all) -- the Kautis mark in the same slot/size, white on the
+                // My Day photo.
+                <>
+                  <KautisMark size={52} className="h-[52px] w-[52px] group-data-[tone=dark]/header:hidden" />
+                  <KautisMark
+                    size={52}
+                    variant="white"
+                    className="hidden h-[52px] w-[52px] group-data-[tone=dark]/header:block"
+                  />
+                </>
+              )
+            }
+            actions={
+              <>
+                <RefreshButton className={`md:hidden ${ON_PHOTO}`} />
+                {bell && (
+                  <NotificationBell
+                    notifications={bell.items}
+                    unreadCount={bell.unread}
+                    // The VAPID *public* key is meant to be shared with browsers;
+                    // passed down from the server so no NEXT_PUBLIC_ var is needed.
+                    vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? null}
+                    timeZone={session.agent!.time_zone}
+                    className={ON_PHOTO}
+                  />
+                )}
+                <AccountMenu
+                  fullName={session.agent!.full_name}
+                  isAdmin={role === 'admin'}
+                  isLeader={role === 'leader'}
                 />
-              )}
-              <AccountMenu
-                fullName={session.agent!.full_name}
-                isAdmin={role === 'admin'}
-                isLeader={role === 'leader'}
-              />
-            </div>
-          </header>
+              </>
+            }
+          />
           <AnnouncementBanner announcements={visibleAnnouncements} />
           <main className="flex-1 px-4 py-6 pb-24 md:px-6 md:pb-6 print:p-0">{children}</main>
         </div>

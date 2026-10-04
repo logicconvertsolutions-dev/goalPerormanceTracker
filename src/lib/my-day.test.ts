@@ -13,7 +13,7 @@ import {
   weekDates,
   zonedDateTimeToIso,
 } from './dates';
-import { firstName, greetingFor } from './greeting';
+import { dateTimeLine, firstName, greetingFor } from './greeting';
 import { QUOTES, quoteForDate } from './quotes';
 import { toPushPayload } from './push/payload';
 import { createReminderSchema, createTaskSchema } from '@/app/(app)/today/planner-schemas';
@@ -97,6 +97,12 @@ describe('greeting', () => {
     expect(firstName('  Ganga  ')).toBe('Ganga');
     expect(firstName('')).toBe('there');
     expect(firstName(null)).toBe('there');
+  });
+
+  it('shows the agent’s local date and time on one line', () => {
+    // 23:42 UTC on Oct 3 is 7:42 PM in Toronto, but already Oct 4 in UTC.
+    expect(dateTimeLine(new Date('2026-10-03T23:42:00Z'), 'America/Toronto')).toBe('Saturday, Oct 3 · 7:42 PM');
+    expect(dateTimeLine(new Date('2026-10-04T03:05:00Z'), 'America/Vancouver')).toBe('Saturday, Oct 3 · 8:05 PM');
   });
 });
 
