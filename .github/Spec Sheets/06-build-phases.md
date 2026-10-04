@@ -841,6 +841,29 @@ From staging testing, 2026-10-04 (product owner). It replaces P34's
 
 ---
 
+## P36 — My Day greeting merged into the header
+
+From staging testing, 2026-10-04 (product owner): the separate greeting
+card cost ~205px before the KPI strip on a phone. Now ~120px. No database
+change.
+
+- [x] `components/shell/app-header.tsx`: the app header. On `/today` it is
+      transparent over the photo, with greeting and date/time beside the logo
+      and + Log under the icons (beside them from `md`). Scrolling fades
+      the greeting and fills in a slim navy pinned bar.
+      `today/greeting-hero.tsx` and "Small steps. Big progress." are removed.
+- [x] Date and time line (`dateTimeLine` in `lib/greeting.ts`, tested),
+      agent-local, ticking on the minute.
+- [x] Org name removed from the header on every page; logo only.
+- [x] `PageBackdrop` adds the navy top shade on `/today`.
+- [x] Home Screen app draws under the status bar (`black-translucent`,
+      `viewport-fit=cover`). `StatusBarBand` keeps a navy strip behind
+      the clock on every other page. Body, header and rail pad by the
+      safe-area insets.
+- [x] My Day loading skeleton no longer draws the old title row.
+
+---
+
 ## Working with Claude Code on this repo (token discipline)
 > Session-by-session prompts live in `docs/07-getting-started.md`. If the two
 > ever disagree, that file wins for *how to run a session*; this one wins for

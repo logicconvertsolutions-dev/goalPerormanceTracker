@@ -42,7 +42,8 @@ export function AccountMenu({
         className="-m-1.5 flex h-12 w-12 items-center justify-center rounded-full focus-visible:outline-none"
         aria-label="Account menu"
       >
-        <Avatar>
+        {/* White ring keeps the navy avatar visible on the My Day photo/bar. */}
+        <Avatar className="group-data-[tone=dark]/header:ring-2 group-data-[tone=dark]/header:ring-white/80">
           <AvatarFallback>{initials(fullName || '?')}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
