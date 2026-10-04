@@ -15,6 +15,7 @@ import { EditContactDialog } from './edit-contact-dialog';
 import { withReturnTo } from '@/lib/return-to';
 import { ContactCallButtons } from '@/components/shell/contact-call-buttons';
 import { formatPhone } from '@/lib/phone';
+import { CallsToFinish, type WaitingCall } from '@/components/shell/calls-to-finish';
 
 export default async function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -30,7 +31,8 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
 
   if (!contact) notFound();
 
-  const [{ data: calls }, { data: appointments }, { data: sales }] = await Promise.all([
+  const [{ data: calls }, { data: appointments }, { data: sales }, { data: waiting, count: waitingCount }] =
+    await Promise.all([
     supabase
       .from('call_logs')
       .select('id, call_date, source, outcome, channel, notes, follow_up_on, follow_up_done_at')
@@ -48,6 +50,14 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
       .select('id, sale_date, product_type, premium_cents')
       .eq('contact_id', contact.id)
       .order('sale_date', { ascending: false }),
+    // P35: this contact's tap-to-calls still waiting for an outcome.
+    supabase
+      .from('pending_calls')
+      .select('id, contact_id, channel, call_date, contacts(full_name)', { count: 'exact' })
+      .eq('contact_id', contact.id)
+      .order('created_at', { ascending: false })
+      .limit(10)
+      .returns<WaitingCall[]>(),
   ]);
 
   return (
@@ -99,6 +109,8 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           />
         </CardContent>
       </Card>
+
+      <CallsToFinish calls={waiting ?? []} total={waitingCount ?? 0} showContact={false} />
 
       {contact.notes && (
         <Card>
@@ -154,17 +166,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
                       <span className="font-normal text-fg-3"> · {c.channel === 'whatsapp' ? 'WhatsApp' : 'Phone'}</span>
                     )}
                   </p>
-                  <div className="flex items-center gap-2">
-                    {!c.outcome && (
-                      <Link
-                        href={withReturnTo(`/log/${c.id}/edit`, `/contacts/${contact.id}`)}
-                        className="text-xs font-bold text-acc hover:underline"
-                      >
-                        Add outcome
-                      </Link>
-                    )}
-                    <Badge variant={outcomeBadgeVariant(c.outcome)}>{outcomeLabel(c.outcome)}</Badge>
-                  </div>
+                  <Badge variant={outcomeBadgeVariant(c.outcome)}>{outcomeLabel(c.outcome)}</Badge>
                 </div>
                 {c.notes && <p className="text-sm text-fg-2 mt-1">{c.notes}</p>}
                 {c.follow_up_on && (

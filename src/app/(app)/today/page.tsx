@@ -24,7 +24,7 @@ import { CalendarCard } from './calendar-card';
 import { TodoCard, TODO_CARD_DESKTOP } from './todo-card';
 import { RemindersCard, REMINDERS_CARD_DESKTOP } from './reminders-card';
 import { QuoteCard } from './quote-card';
-import { OutcomeNeededCard, type OutcomeNeededCall } from './outcome-needed-card';
+import { CallsToFinish, type WaitingCall } from '@/components/shell/calls-to-finish';
 import type { ActivityKind } from '@/components/shell/activity-icons';
 
 const ACTIVITY_EDIT_PATH: Record<ActivityKind, string> = {
@@ -61,7 +61,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     calendarItems,
     { data: tasks, count: openTaskCount },
     { data: reminders, count: upcomingReminderCount },
-    { data: outcomeNeeded, count: outcomeNeededCount },
+    { data: callsToFinish, count: callsToFinishCount },
   ] = await Promise.all([
     // p_as_of: the agent's local calendar day, not the DB server's (UTC).
     supabase.rpc('my_followups', { p_as_of: today }),
@@ -100,15 +100,15 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       .gte('remind_at', zonedDateTimeToIso(today, '00:00', timeZone))
       .order('remind_at', { ascending: true })
       .limit(REMINDERS_CARD_DESKTOP),
-    // P34: tap-to-call attempts still waiting for an outcome, newest first.
+    // P35: tap-to-calls waiting for an outcome ("Calls to finish"), newest
+    // first. Not calls yet, so nothing here touches the counts above.
     supabase
-      .from('call_logs')
-      .select('id, call_date, channel, contacts(full_name)', { count: 'exact' })
+      .from('pending_calls')
+      .select('id, contact_id, channel, call_date, contacts(full_name)', { count: 'exact' })
       .eq('agent_id', agentId)
-      .is('outcome', null)
       .order('created_at', { ascending: false })
       .limit(5)
-      .returns<OutcomeNeededCall[]>(),
+      .returns<WaitingCall[]>(),
   ]);
 
   const rows = followUps ?? [];
@@ -152,7 +152,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           />
         </div>
 
-        <OutcomeNeededCard calls={outcomeNeeded ?? []} total={outcomeNeededCount ?? 0} />
+        <CallsToFinish calls={callsToFinish ?? []} total={callsToFinishCount ?? 0} />
 
         {/* Phone/tablet: one column in the order below. Desktop (lg+): two
           columns -- calendar + recent activity left, to-dos, reminders and
