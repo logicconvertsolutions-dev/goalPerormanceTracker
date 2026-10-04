@@ -805,6 +805,42 @@ Part of the next combined release (with P30/P31, P32 and P33).
 
 ---
 
+## P35 — "Fill in later" doesn't log a call; Calls to finish
+
+From staging testing, 2026-10-04 (product owner). It replaces P34's
+"Outcome needed" calls, which logged the call straight away with no outcome.
+
+- [x] **Database** (`20261004100000_p35_pending_calls.sql`, pgTAP
+      `016_p35_pending_calls.sql`; `015` updated).
+      - New `pending_calls` table: contact, channel, and the agent-local day
+        the call was made.
+      - Owner-only: RLS plus an org check, own-contact trigger, and
+        select/insert/delete grants only (rule 4: revoked from anon and
+        authenticated by name).
+      - Not read by any SECURITY DEFINER function, and never counted.
+      - P34's outcome-less `call_logs` rows (staging only) move into it,
+        keeping their day.
+      - `call_logs.outcome` is NOT NULL again: every `call_logs` row is a
+        completed call.
+- [x] **Prompt**: "Fill in later", ✕ or tapping outside save to
+      `pending_calls` (`savePendingCallAction`, idempotent). Nothing is
+      logged. "I didn't make this call" saves nothing.
+- [x] **Calls to finish** (`components/shell/calls-to-finish.tsx`) on My Day
+      and on the contact page. Each row has:
+      - **Add outcome**: logs the call on the day it was made, then removes
+        it from the list (`logCallAction` with `pendingCallId`).
+      - **Didn't call**: removes it, with no trace (`deletePendingCallAction`).
+      - Closing the form leaves it waiting.
+- [x] It isn't in Calls logged, Activity Logs, `daily_metrics` or the SMD's
+      totals until it's finished. "Download everything" includes it, and
+      the privacy notice mentions it.
+- [x] P34's "Outcome needed" UI is removed (My Day card, contact-page link,
+      edit-page title).
+- [x] Tests: `components/shell/calls-to-finish.test.tsx`,
+      `log/pending-call-actions.test.ts`; `call-log-prompt.test.tsx` updated.
+
+---
+
 ## Working with Claude Code on this repo (token discipline)
 > Session-by-session prompts live in `docs/07-getting-started.md`. If the two
 > ever disagree, that file wins for *how to run a session*; this one wins for

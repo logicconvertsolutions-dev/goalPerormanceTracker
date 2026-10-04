@@ -29,7 +29,7 @@ export function CallRow({
   callDate: string;
   contactName: string;
   source: string;
-  outcome: string | null;
+  outcome: string;
   notes: string | null;
 }) {
   const router = useRouter();

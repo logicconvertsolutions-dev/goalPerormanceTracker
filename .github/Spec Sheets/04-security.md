@@ -159,6 +159,11 @@ re-check whenever a new admin or cross-agent RPC is added.
     notifications, notification settings, push devices (not their keys) and
     feedback, and "Download everything" is shown to every user (it had been
     admin-only, contradicting the notice).
+  - **P35:** tap-to-calls the agent chooses to "fill in later" sit in
+    `pending_calls` (owner-only RLS plus org check, no UPDATE grant, own-contact
+    trigger; pgTAP 016 also fails if a SECURITY DEFINER function reads it).
+    They are never counted or shown upline; `call_logs.outcome` is required
+    again.
   - The old notice still promised self-service account deletion, which P13c
     removed; deletion is now described as a request to the Privacy Officer
     or SMD (handled with `admin_hard_delete_agent()`).
