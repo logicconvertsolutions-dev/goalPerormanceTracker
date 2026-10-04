@@ -855,6 +855,9 @@ change.
 - [x] Date and time line (`dateTimeLine` in `lib/greeting.ts`, tested),
       agent-local, ticking on the minute.
 - [x] Org name removed from the header on every page; logo only.
+- [x] Every other page's header is the same navy bar My Day pins to (white
+      logo and icons). A white bar made iOS paint the status bar white at
+      rest when switching pages.
 - [x] `PageBackdrop` adds the navy top shade on `/today`.
 - [x] Home Screen app draws under the status bar (`black-translucent`,
       `viewport-fit=cover`). `StatusBarBand` keeps a navy strip behind

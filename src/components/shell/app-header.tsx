@@ -13,8 +13,8 @@ import { HERO_PATH } from './hero-path';
 const PIN_DISTANCE = 72;
 
 /**
- * App header. Every page: a 64px bar (logo, then refresh/bell/account on the
- * right) that sticks to the top. It owns the iPhone status-bar strip too
+ * App header. Every page: a 64px navy bar (white logo, then refresh/bell/
+ * account on the right) that sticks to the top. It owns the iPhone status-bar strip too
  * (padding = safe-area-inset-top) -- the Home Screen app draws under the
  * status bar (`black-translucent`, root layout).
  *
@@ -89,12 +89,16 @@ export function AppHeader({
   }, [hero]);
 
   return (
-    <div data-tone={hero ? 'dark' : 'light'} className="group/header contents">
+    // Always 'dark': every page's bar is navy (white logo and icons).
+    <div data-tone="dark" className="group/header contents">
       <header
         ref={barRef}
         className={cn(
           'sticky top-0 z-20 px-4 pt-[env(safe-area-inset-top)] md:px-6 print:hidden',
-          hero ? 'pointer-events-none text-white' : 'border-b border-line bg-bg text-fg'
+          // Other pages: the navy bar My Day pins to once scrolled. A white bar
+          // made iOS paint the status bar white at rest (it takes its colour
+          // from the top of the page), so every page now reads navy there.
+          hero ? 'pointer-events-none text-white' : 'bg-acc text-white shadow-[0_2px_12px_rgba(11,30,61,0.25)]'
         )}
       >
         <div className="flex h-16 items-center justify-between gap-3">
