@@ -212,7 +212,11 @@ select is((select sent_at from public.reminders where id = '00000000-0000-0000-0
   null, 'rescheduling a delivered reminder re-arms it');
 
 select tests.authenticate_as('00000000-0000-0000-0000-0000000030a1');
-select is((select count(*)::int from public.notifications), 0, 'upline SMD sees none of a downline''s notifications');
+-- Only the downline's rows: between 8 and 11 AM local the job above also
+-- gives the SMD their OWN morning brief, which they may of course see.
+select is((select count(*)::int from public.notifications
+           where agent_id = '00000000-0000-0000-0000-0000000030a2'),
+  0, 'upline SMD sees none of a downline''s notifications');
 
 select tests.authenticate_as_anon();
 select throws_ok($$ select count(*) from public.tasks $$); -- anon has no access at all
