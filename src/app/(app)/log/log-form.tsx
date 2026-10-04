@@ -76,6 +76,7 @@ export function LogForm({
   defaultSource,
   suggestFollowUp = false,
   cancelLabel = 'Cancel',
+  pendingCallId,
 }: {
   mode?: 'create' | 'edit';
   defaultContactName?: string;
@@ -92,6 +93,8 @@ export function LogForm({
   /** P34 post-call prompt: No answer suggests calling back tomorrow. */
   suggestFollowUp?: boolean;
   cancelLabel?: string;
+  /** P35: finishing a waiting call; it is removed once the call is logged. */
+  pendingCallId?: string;
   defaultValues?: {
     id: string;
     callDate: string;
@@ -142,6 +145,7 @@ export function LogForm({
     formData.set('callDate', callDate);
     formData.set('source', source);
     if (mode === 'create' && channel) formData.set('channel', channel);
+    if (mode === 'create' && pendingCallId) formData.set('pendingCallId', pendingCallId);
     if (isAppointmentSet) {
       formData.set('appointmentAt', new Date(`${appointmentDate}T${appointmentTime}`).toISOString());
       formData.set('apptType', apptType);

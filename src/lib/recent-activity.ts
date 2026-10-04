@@ -2,7 +2,7 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../types/database';
 import type { ActivityKind } from '@/components/shell/activity-icons';
-import { OUTCOME_NEEDED, outcomeLabel } from './call-outcomes';
+import { outcomeLabel } from './call-outcomes';
 
 export type StatusTone = 'ok' | 'warn' | 'bad' | 'default' | 'neutral';
 
@@ -86,9 +86,7 @@ export async function fetchRecentActivity(
       createdAt: c.created_at,
       contactName: contactName(c.contacts as { full_name: string } | null),
       summary: `Called · ${outcomeLabel(c.outcome)}`,
-      status: c.outcome
-        ? (CALL_STATUS[c.outcome] ?? { label: titleCase(c.outcome), tone: 'neutral' as StatusTone })
-        : { label: OUTCOME_NEEDED, tone: 'warn' as StatusTone },
+      status: CALL_STATUS[c.outcome] ?? { label: titleCase(c.outcome), tone: 'neutral' as StatusTone },
     })),
     ...(appts ?? []).map((a) => ({
       id: a.id,

@@ -45,6 +45,8 @@ const logCallSchema = z
     outcome: z.enum(CALL_OUTCOMES),
     // P34: which tap-to-call button, when the call came from one.
     channel: z.enum(CALL_CHANNELS).optional(),
+    // P35: finishing a waiting call -- removed once the call is logged.
+    pendingCallId: z.string().uuid().optional(),
     notes: z.string().max(2000).optional(),
     followUpOn: z.string().optional(),
     // ISO instant (client combines the date+time pickers in the browser's own
@@ -84,6 +86,7 @@ export async function logCallAction(formData: FormData) {
     source: formData.get('source'),
     outcome: formData.get('outcome'),
     channel: formData.get('channel') || undefined,
+    pendingCallId: formData.get('pendingCallId') || undefined,
     notes: formData.get('notes') || undefined,
     followUpOn: formData.get('followUpOn') || undefined,
     appointmentAt: formData.get('appointmentAt') || undefined,
@@ -197,6 +200,19 @@ export async function logCallAction(formData: FormData) {
       // off My Day with nothing to tell the agent.
       return { ok: false, error: 'Call saved, but the appointment could not be created — try again.' };
     }
+  }
+
+  // P35: the waiting call is now a logged call. Only after the call (and
+  // any appointment) saved, so a failure leaves it waiting to retry. A
+  // failed delete is not worth failing the log over: the row would just
+  // linger in "Calls to finish" until removed.
+  if (parsed.data.pendingCallId) {
+    const { error: pendingError } = await supabase
+      .from('pending_calls')
+      .delete()
+      .eq('id', parsed.data.pendingCallId)
+      .eq('agent_id', agentId);
+    if (pendingError) console.error('logCallAction: pending call delete failed', pendingError);
   }
 
   revalidatePath('/today');
@@ -475,29 +491,25 @@ export async function fetchLogPrefillAction(contactId: string) {
   return { contact, history, lastSource: pastCalls?.[0]?.source ?? null };
 }
 
-const callAttemptSchema = z.object({
+const pendingCallSchema = z.object({
   contactId: z.string().uuid(),
   channel: z.enum(CALL_CHANNELS),
   clientRequestId: z.string().min(1).max(100),
 });
 
 /**
- * P34: the agent tapped call/WhatsApp, came back, and closed the "how did it
- * go?" prompt without answering. The attempt is still saved -- a dismissed
- * prompt must not mean no record the call happened -- with no outcome, which
- * the app shows as "Outcome needed" until they fill it in (My Day list, the
- * contact's call history, /log/[id]/edit).
- *
- * It counts as a call made on today's date straight away; see the P34
- * migration for why that is the right event to count. Source is the
- * contact's last known one ('other' for a first call), since there was no
- * form to ask. Idempotent on client_request_id like every other log path, so
- * a double close or a retry saves one row.
+ * P35: the agent tapped call/WhatsApp, came back, and chose "Fill in later"
+ * (or closed the prompt). Nothing is logged: the call waits in "Calls to
+ * finish" (pending_calls) until they add the outcome -- which logs it on the
+ * day it was made -- or say they didn't make it. A waiting call is not a
+ * call: it is not in Calls logged, Activity Logs, daily_metrics or anything
+ * a leader sees. Idempotent on client_request_id, so closing the same
+ * prompt twice saves one row.
  */
-export async function logCallAttemptAction(
-  input: z.input<typeof callAttemptSchema>
+export async function savePendingCallAction(
+  input: z.input<typeof pendingCallSchema>
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const parsed = callAttemptSchema.safeParse(input);
+  const parsed = pendingCallSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'Invalid call.' };
 
   const session = await requireAgent();
@@ -509,8 +521,10 @@ export async function logCallAttemptAction(
     p_limit: 60,
     p_window_seconds: 60,
   });
-  if (withinLimit === false) return { ok: false, error: 'Too many calls logged too quickly.' };
+  if (withinLimit === false) return { ok: false, error: 'Too many calls saved too quickly.' };
 
+  // RLS and the pending_calls_own_links trigger enforce ownership too; this
+  // turns a stale id into a clear message instead of a database error.
   const { data: contact } = await supabase
     .from('contacts')
     .select('id')
@@ -519,34 +533,45 @@ export async function logCallAttemptAction(
     .maybeSingle();
   if (!contact) return { ok: false, error: 'Contact not found.' };
 
-  const { data: last } = await supabase
-    .from('call_logs')
-    .select('source')
-    .eq('contact_id', contact.id)
-    .order('call_date', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const { error } = await supabase.from('call_logs').insert({
+  const { error } = await supabase.from('pending_calls').insert({
     agent_id: agentId,
     org_id: session.agent!.org_id!,
     contact_id: contact.id,
-    call_date: todayIso(session.agent!.time_zone),
-    source: last?.source ?? 'other',
-    outcome: null,
     channel: parsed.data.channel,
+    // The day the call was made, in the agent's own zone -- what the call
+    // is logged under when they finish it (rule 12).
+    call_date: todayIso(session.agent!.time_zone),
     client_request_id: parsed.data.clientRequestId,
   });
   if (error && error.code !== UNIQUE_VIOLATION) {
-    console.error('logCallAttemptAction: insert failed', error);
+    console.error('savePendingCallAction: insert failed', error);
     return { ok: false, error: 'Could not save the call.' };
   }
 
   revalidatePath('/today');
-  revalidatePath('/contacts');
   revalidatePath(`/contacts/${contact.id}`);
-  revalidatePath('/logs');
+  return { ok: true };
+}
+
+/** P35: "I didn't make this call" on a waiting call -- removed, no trace. */
+export async function deletePendingCallAction(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const parsed = z.string().uuid().safeParse(id);
+  if (!parsed.success) return { ok: false, error: 'Invalid call.' };
+
+  const session = await requireAgent();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('pending_calls')
+    .delete()
+    .eq('id', parsed.data)
+    .eq('agent_id', session.agent!.id);
+  if (error) {
+    console.error('deletePendingCallAction: delete failed', error);
+    return { ok: false, error: 'Could not remove the call.' };
+  }
+
+  revalidatePath('/today');
+  revalidatePath('/contacts', 'layout');
   return { ok: true };
 }
 

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 //
-// P34 post-call prompt. Opens only after the agent tapped call AND left the
-// app; saving logs the call with its channel; closing any other way still
-// saves the attempt with no outcome ("Outcome needed"); "I didn't make this
-// call" saves nothing.
+// P34/P35 post-call prompt. Opens only after the agent tapped call AND left
+// the app; saving logs the call with its channel; "Fill in later", ✕ or
+// tapping outside log NOTHING and put it in "Calls to finish" (P35, staging
+// 2026-10-04); "I didn't make this call" saves nothing at all.
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
@@ -15,14 +15,14 @@ vi.mock('sonner', () => {
   return { toast };
 });
 
-const mockAttempt = vi.fn(async (_input: unknown) => ({ ok: true as const }));
+const mockSaveForLater = vi.fn(async (_input: unknown) => ({ ok: true as const }));
 const mockPrefill = vi.fn(async (_id: string) => ({
   contact: { id: 'c1', full_name: 'Jane Doe' },
   history: [],
   lastSource: 'referral',
 }));
 vi.mock('@/app/(app)/log/actions', () => ({
-  logCallAttemptAction: (input: unknown) => mockAttempt(input),
+  savePendingCallAction: (input: unknown) => mockSaveForLater(input),
   fetchLogPrefillAction: (id: string) => mockPrefill(id),
   logCallAction: vi.fn(),
   updateCallAction: vi.fn(),
@@ -51,7 +51,7 @@ function setVisibility(state: 'hidden' | 'visible') {
 
 beforeEach(() => {
   sessionStorage.clear();
-  mockAttempt.mockClear();
+  mockSaveForLater.mockClear();
   mockSubmit.mockClear();
   setVisibility('visible');
 });
@@ -86,22 +86,34 @@ describe('CallLogPrompt', () => {
     expect(await screen.findByText('How did the call go?')).toBeInTheDocument();
   });
 
-  it('closing without an outcome still saves the attempt, once', async () => {
+  it('"Fill in later" saves it to finish later -- not as a logged call -- once', async () => {
     await openAfterCall('phone');
-    const { requestId } = { requestId: expect.any(String) };
     fireEvent.click(screen.getByRole('button', { name: 'Fill in later' }));
     await waitFor(() =>
-      expect(mockAttempt).toHaveBeenCalledWith({ contactId: 'c1', channel: 'phone', clientRequestId: requestId })
+      expect(mockSaveForLater).toHaveBeenCalledWith({
+        contactId: 'c1',
+        channel: 'phone',
+        clientRequestId: expect.any(String),
+      })
     );
-    expect(mockAttempt).toHaveBeenCalledTimes(1);
+    expect(mockSaveForLater).toHaveBeenCalledTimes(1);
+    expect(mockSubmit).not.toHaveBeenCalled();
     expect(screen.queryByText('How did the call go?')).toBeNull();
+  });
+
+  it('✕ does the same as "Fill in later" and logs no call', async () => {
+    await openAfterCall('whatsapp');
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(mockSaveForLater).toHaveBeenCalledTimes(1));
+    expect(mockSaveForLater.mock.calls[0][0]).toMatchObject({ contactId: 'c1', channel: 'whatsapp' });
+    expect(mockSubmit).not.toHaveBeenCalled();
   });
 
   it('"I didn\'t make this call" saves nothing', async () => {
     await openAfterCall('phone');
     fireEvent.click(screen.getByRole('button', { name: 'I didn’t make this call' }));
     await waitFor(() => expect(screen.queryByText('How did the call go?')).toBeNull());
-    expect(mockAttempt).not.toHaveBeenCalled();
+    expect(mockSaveForLater).not.toHaveBeenCalled();
   });
 
   it('saving logs the call with its channel and the contact\'s last source', async () => {
@@ -119,6 +131,6 @@ describe('CallLogPrompt', () => {
     expect(fd.get('outcome')).toBe('no_answer');
     // No answer suggests calling back tomorrow.
     expect(fd.get('followUpOn')).toBeTruthy();
-    expect(mockAttempt).not.toHaveBeenCalled();
+    expect(mockSaveForLater).not.toHaveBeenCalled();
   });
 });

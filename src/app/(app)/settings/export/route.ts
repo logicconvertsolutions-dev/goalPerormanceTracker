@@ -31,6 +31,7 @@ export async function GET() {
     notificationPrefs,
     pushDevices,
     feedback,
+    pendingCalls,
   ] = await Promise.all([
       supabase
         .from('agents')
@@ -52,6 +53,7 @@ export async function GET() {
         .select('id, user_agent, created_at, last_seen_at')
         .eq('agent_id', agentId),
       supabase.from('feedback').select('*').eq('agent_id', agentId),
+      supabase.from('pending_calls').select('*').eq('agent_id', agentId),
     ]);
 
   const bundle = {
@@ -69,6 +71,7 @@ export async function GET() {
     notification_settings: notificationPrefs.data,
     push_devices: pushDevices.data ?? [],
     feedback: feedback.data ?? [],
+    calls_to_finish: pendingCalls.data ?? [],
   };
 
   return new Response(JSON.stringify(bundle, null, 2), {

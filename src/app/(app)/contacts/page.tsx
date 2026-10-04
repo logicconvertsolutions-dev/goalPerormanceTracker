@@ -16,7 +16,7 @@ interface ContactRow {
   phone_number: string | null;
   full_name: string;
   notes: string | null;
-  call_logs: { call_date: string; outcome: string | null; follow_up_on: string | null; follow_up_done_at: string | null }[];
+  call_logs: { call_date: string; outcome: string; follow_up_on: string | null; follow_up_done_at: string | null }[];
 }
 
 export default async function ContactsPage({

@@ -472,7 +472,7 @@ export type Database = {
           import_row_hash: string | null
           notes: string | null
           org_id: string
-          outcome: Database["public"]["Enums"]["call_outcome"] | null
+          outcome: Database["public"]["Enums"]["call_outcome"]
           source: Database["public"]["Enums"]["call_source"]
         }
         Insert: {
@@ -490,7 +490,7 @@ export type Database = {
           import_row_hash?: string | null
           notes?: string | null
           org_id: string
-          outcome?: Database["public"]["Enums"]["call_outcome"] | null
+          outcome: Database["public"]["Enums"]["call_outcome"]
           source: Database["public"]["Enums"]["call_source"]
         }
         Update: {
@@ -508,7 +508,7 @@ export type Database = {
           import_row_hash?: string | null
           notes?: string | null
           org_id?: string
-          outcome?: Database["public"]["Enums"]["call_outcome"] | null
+          outcome?: Database["public"]["Enums"]["call_outcome"]
           source?: Database["public"]["Enums"]["call_source"]
         }
         Relationships: [
@@ -1017,6 +1017,61 @@ export type Database = {
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pending_calls: {
+        Row: {
+          agent_id: string
+          call_date: string
+          channel: string
+          client_request_id: string | null
+          contact_id: string
+          created_at: string
+          id: string
+          org_id: string
+        }
+        Insert: {
+          agent_id?: string
+          call_date: string
+          channel: string
+          client_request_id?: string | null
+          contact_id: string
+          created_at?: string
+          id?: string
+          org_id: string
+        }
+        Update: {
+          agent_id?: string
+          call_date?: string
+          channel?: string
+          client_request_id?: string | null
+          contact_id?: string
+          created_at?: string
+          id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_calls_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_calls_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_calls_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
