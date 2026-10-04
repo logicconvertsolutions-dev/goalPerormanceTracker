@@ -3,27 +3,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { LogForm } from '@/app/(app)/log/log-form';
-import { fetchLogPrefillAction, logCallAttemptAction } from '@/app/(app)/log/actions';
-import {
-  clearPendingCall,
-  markLeftApp,
-  readPendingCall,
-  type PendingCall,
-} from '@/lib/pending-call';
+import { savePendingCallAction } from '@/app/(app)/log/actions';
+import { clearPendingCall, markLeftApp, readPendingCall, type PendingCall } from '@/lib/pending-call';
+import { CallOutcomeDialog } from './call-outcome-dialog';
 
 /**
- * "How did the call go?" (P34). Mounted once in the app shell. When the
+ * "How did the call go?" (P34, P35). Mounted once in the app shell. When the
  * agent taps call or WhatsApp (ContactCallButtons records it), leaves the
- * app, and comes back, this opens the log form for that contact with the
- * channel already filled in.
+ * app, and comes back, this asks how it went.
  *
  * - Save: the call is logged like any other (same action, same offline
  *   fallback, same "appointment set" handling).
- * - Close it any other way ("Fill in later", ✕, tap outside): the attempt is
- *   still saved, with no outcome -- "Outcome needed" on My Day and on the
- *   contact until they finish it.
+ * - "Fill in later", ✕ or tapping outside: nothing is logged. The call
+ *   waits in "Calls to finish" on My Day (pending_calls) until the agent
+ *   adds the outcome -- which logs it on the day it was made -- or removes
+ *   it (P35; P34 logged it straight away with no outcome).
  * - "I didn't make this call": nothing is saved (a mis-tap, a cancelled
  *   dialer).
  *
@@ -35,9 +29,8 @@ import {
 export function CallLogPrompt() {
   const router = useRouter();
   const [call, setCall] = useState<PendingCall | null>(null);
-  const [lastSource, setLastSource] = useState<string | null | undefined>(undefined);
   // Set once the prompt has been answered one way or another, so closing
-  // the dialog afterwards doesn't also save an attempt.
+  // the dialog afterwards doesn't also save it for later.
   const settled = useRef(false);
 
   const open = useCallback((pending: PendingCall) => {
@@ -45,11 +38,7 @@ export function CallLogPrompt() {
     // prompted for once.
     clearPendingCall();
     settled.current = false;
-    setLastSource(undefined);
     setCall(pending);
-    fetchLogPrefillAction(pending.contactId)
-      .then((prefill) => setLastSource(prefill?.lastSource ?? null))
-      .catch(() => setLastSource(null));
   }, []);
 
   useEffect(() => {
@@ -86,19 +75,17 @@ export function CallLogPrompt() {
     router.refresh();
   }
 
-  function dismiss() {
+  function later() {
     if (!call || settled.current) return;
-    const attempt = call;
+    const waiting = call;
     finish();
-    logCallAttemptAction({
-      contactId: attempt.contactId,
-      channel: attempt.channel,
-      clientRequestId: attempt.requestId,
+    savePendingCallAction({
+      contactId: waiting.contactId,
+      channel: waiting.channel,
+      clientRequestId: waiting.requestId,
     }).then((result) => {
       if (result.ok) {
-        toast('Call saved — add the outcome when you’re ready', {
-          description: 'It’s under “Calls needing an outcome” on My Day.',
-        });
+        toast('Saved for later', { description: 'Add the outcome from “Calls to finish” on My Day.' });
         router.refresh();
       } else {
         toast.error('Couldn’t save the call. Log it from the contact’s page.');
@@ -106,44 +93,19 @@ export function CallLogPrompt() {
     });
   }
 
-  function didNotCall() {
-    finish();
-  }
-
   return (
-    <Dialog open={call !== null} onOpenChange={(isOpen) => !isOpen && dismiss()}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>How did the call go?</DialogTitle>
-          <DialogDescription>
-            {call ? `${call.channel === 'whatsapp' ? 'WhatsApp' : 'Phone'} call with ${call.contactName}` : ''}
-          </DialogDescription>
-        </DialogHeader>
-        {call && lastSource !== undefined && (
-          <LogForm
-            key={call.requestId}
-            defaultContactName={call.contactName}
-            defaultContactId={call.contactId}
-            channel={call.channel}
-            lockContact
-            defaultSource={lastSource}
-            suggestFollowUp
-            cancelLabel="Fill in later"
-            onSuccess={saved}
-            onCancel={dismiss}
-          />
-        )}
-        {call && lastSource === undefined && <p className="py-6 text-center text-sm text-fg-3">Loading…</p>}
-        {call && (
-          <button
-            type="button"
-            onClick={didNotCall}
-            className="mx-auto block pt-1 text-xs font-semibold text-fg-3 hover:text-fg hover:underline"
-          >
-            I didn’t make this call
-          </button>
-        )}
-      </DialogContent>
-    </Dialog>
+    <CallOutcomeDialog
+      call={
+        call && {
+          contactId: call.contactId,
+          contactName: call.contactName,
+          channel: call.channel,
+          key: call.requestId,
+        }
+      }
+      onSaved={saved}
+      onLater={later}
+      onDidNotCall={finish}
+    />
   );
 }

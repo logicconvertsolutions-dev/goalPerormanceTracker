@@ -30,7 +30,7 @@ export function LogActivityDialogProvider({ children }: { children: ReactNode })
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [prefill, setPrefill] = useState<OpenOptions>({});
-  const [history, setHistory] = useState<{ call_date: string; outcome: string | null; notes: string | null }[]>([]);
+  const [history, setHistory] = useState<{ call_date: string; outcome: string; notes: string | null }[]>([]);
 
   const open = useCallback((opts: OpenOptions = {}) => {
     setPrefill(opts);

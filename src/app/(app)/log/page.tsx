@@ -15,7 +15,7 @@ export default async function LogPage({
   const { contact: contactId, date } = await searchParams;
 
   let prefill: { id: string; full_name: string } | null = null;
-  let history: { call_date: string; outcome: string | null; notes: string | null }[] = [];
+  let history: { call_date: string; outcome: string; notes: string | null }[] = [];
 
   if (contactId) {
     const { data: contact } = await supabase

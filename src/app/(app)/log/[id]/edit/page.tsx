@@ -36,8 +36,7 @@ export default async function EditCallPage({
 
   return (
     <div className="max-w-md space-y-4">
-      {/* P34: a call saved from a dismissed post-call prompt has no outcome yet. */}
-      <PageHeader title={call.outcome ? 'Edit call' : 'How did the call go?'} />
+      <PageHeader title="Edit call" />
       <LogForm
         mode="edit"
         returnTo={safeReturnTo(returnTo, '/logs')}
@@ -45,7 +44,7 @@ export default async function EditCallPage({
           id: call.id,
           callDate: call.call_date,
           source: call.source,
-          outcome: call.outcome ?? '',
+          outcome: call.outcome,
           notes: call.notes,
           followUpOn: call.follow_up_on,
           appointmentAt: callFormAppointmentAt(call.appointment_at, linked),

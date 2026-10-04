@@ -141,7 +141,8 @@ export default function PrivacyPage() {
             </li>
             <li>
               What happened with them: calls you logged (channel, outcome, notes, follow-up date),
-              appointments and sales.
+              calls you saved to finish later (who, when, phone or WhatsApp), appointments and
+              sales.
             </li>
             <li>
               These come from what you type, an Excel file you import, or your phone&apos;s contact
