@@ -106,8 +106,8 @@ strip). Same layout on phone, tablet and desktop:
   phones and beside them from `md` up.
 - scrolling: the greeting fades out and the bar fills in navy with a smaller
   logo, a slim pinned bar. Its height never changes, so nothing jumps.
-- Home Screen app: the photo runs up behind the iPhone status bar
-  (`black-translucent`). Every other page gets a navy strip there instead.
+- Every other page: the same navy bar (white logo and icons) as My Day
+  once scrolled, so the status bar reads navy on every page.
 
 **KPI strip (3 tiles):**
 - **Calls logged (today):** compared with yesterday; yesterday's count

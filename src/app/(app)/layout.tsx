@@ -14,7 +14,7 @@ import { PageBackdrop } from '@/components/shell/page-backdrop';
 import { AppHeader } from '@/components/shell/app-header';
 import { firstName } from '@/lib/greeting';
 
-// Header icon buttons over the My Day photo (AppHeader sets data-tone).
+// Header icon buttons, white on the navy bar / My Day photo (AppHeader sets data-tone).
 const ON_PHOTO = 'group-data-[tone=dark]/header:text-white group-data-[tone=dark]/header:hover:bg-white/15';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -89,16 +89,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 <img src={logoUrl} alt={org?.name ?? ''} className="h-[52px] w-[52px] rounded-sm object-contain" />
               ) : (
                 // No org logo uploaded yet (or an admin, who has no org at
-                // all) -- the Kautis mark in the same slot/size, white on the
-                // My Day photo.
-                <>
-                  <KautisMark size={52} className="h-[52px] w-[52px] group-data-[tone=dark]/header:hidden" />
-                  <KautisMark
-                    size={52}
-                    variant="white"
-                    className="hidden h-[52px] w-[52px] group-data-[tone=dark]/header:block"
-                  />
-                </>
+                // all) -- the white Kautis mark, in the same slot/size, on the
+                // navy bar / My Day photo.
+                <KautisMark size={52} variant="white" className="h-[52px] w-[52px]" />
               )
             }
             actions={
