@@ -14,6 +14,9 @@ import { addDays, browserTimeZone, isoToLocalParts, nextMonday, todayIso } from 
 import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
 import { APPT_TYPES } from '@/lib/appointment-types';
 import { logCallAction, updateCallAction } from './actions';
+import type { CallChannel } from '@/components/shell/contact-call-buttons';
+
+const CHANNEL_LABEL: Record<CallChannel, string> = { phone: 'Phone', whatsapp: 'WhatsApp' };
 
 const SOURCES = [
   { value: 'cold', label: 'Cold' },
@@ -67,11 +70,31 @@ export function LogForm({
   defaultValues,
   onSuccess,
   onCancel,
+  returnTo = '/logs',
+  channel: fixedChannel,
+  lockContact = false,
+  defaultSource,
+  suggestFollowUp = false,
+  cancelLabel = 'Cancel',
+  pendingCallId,
 }: {
   mode?: 'create' | 'edit';
   defaultContactName?: string;
   defaultContactId?: string;
   defaultDate?: string;
+  /** Edit mode, outside a modal: where a save lands (P34). */
+  returnTo?: string;
+  /** P34 post-call prompt: the button the agent tapped. Shown, not asked. */
+  channel?: CallChannel;
+  /** P34 post-call prompt: the contact is the one they called, not a choice. */
+  lockContact?: boolean;
+  /** The contact's last known source, when the caller already has it. */
+  defaultSource?: string | null;
+  /** P34 post-call prompt: No answer suggests calling back tomorrow. */
+  suggestFollowUp?: boolean;
+  cancelLabel?: string;
+  /** P35: finishing a waiting call; it is removed once the call is logged. */
+  pendingCallId?: string;
   defaultValues?: {
     id: string;
     callDate: string;
@@ -95,10 +118,13 @@ export function LogForm({
   const tz = browserTimeZone();
   const [callDate, setCallDate] = useState(defaultValues?.callDate ?? defaultDate ?? todayIso(tz));
   const [showDatePicker, setShowDatePicker] = useState(Boolean(defaultValues ?? defaultDate));
-  const [source, setSource] = useState(defaultValues?.source ?? 'warm_market');
+  const [source, setSource] = useState(defaultValues?.source ?? defaultSource ?? 'warm_market');
   // True once an existing contact with a known prior source is picked --
   // Source auto-fills and stops asking again unless the user opts to change it.
-  const [sourceLocked, setSourceLocked] = useState(false);
+  const [sourceLocked, setSourceLocked] = useState(Boolean(defaultSource));
+  // How the call was made (P34). Fixed by the post-call prompt; optional
+  // chips when logging by hand; not shown when editing.
+  const [channel, setChannel] = useState<CallChannel | null>(fixedChannel ?? null);
   const [outcome, setOutcome] = useState(defaultValues?.outcome ?? '');
   const [followUpOn, setFollowUpOn] = useState(defaultValues?.followUpOn ?? '');
   const [showFollowUpPicker, setShowFollowUpPicker] = useState(false);
@@ -118,6 +144,8 @@ export function LogForm({
     const formData = new FormData(e.currentTarget);
     formData.set('callDate', callDate);
     formData.set('source', source);
+    if (mode === 'create' && channel) formData.set('channel', channel);
+    if (mode === 'create' && pendingCallId) formData.set('pendingCallId', pendingCallId);
     if (isAppointmentSet) {
       formData.set('appointmentAt', new Date(`${appointmentDate}T${appointmentTime}`).toISOString());
       formData.set('apptType', apptType);
@@ -131,7 +159,7 @@ export function LogForm({
         const result = await updateCallAction(formData);
         if (result.ok) {
           toast.success('Call updated');
-          router.push('/logs');
+          onSuccess ? onSuccess() : router.push(returnTo);
         } else {
           toast.error(result.error ?? 'Could not save the call.');
         }
@@ -180,7 +208,34 @@ export function LogForm({
         </div>
       </div>
 
-      {mode === 'create' && (
+      {mode === 'create' && lockContact && (
+        <div className="space-y-1.5">
+          <Label>Who</Label>
+          <p className="text-sm font-semibold text-fg">{defaultContactName}</p>
+          <input type="hidden" name="contactName" value={defaultContactName} />
+          <input type="hidden" name="contactId" value={defaultContactId} />
+        </div>
+      )}
+
+      {mode === 'create' && (fixedChannel ? (
+        <div className="space-y-1.5">
+          <Label>How</Label>
+          <p className="text-sm text-fg">{CHANNEL_LABEL[fixedChannel]}</p>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <Label>How did you call? (optional)</Label>
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(CHANNEL_LABEL) as CallChannel[]).map((c) => (
+              <Chip key={c} active={channel === c} onClick={() => setChannel(channel === c ? null : c)}>
+                {CHANNEL_LABEL[c]}
+              </Chip>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {mode === 'create' && !lockContact && (
         <ContactPicker
           label="Who did you call?"
           defaultName={defaultContactName}
@@ -227,7 +282,15 @@ export function LogForm({
 
       <div className="space-y-1.5">
         <Label htmlFor="outcome">Outcome</Label>
-        <Select name="outcome" value={outcome} onValueChange={setOutcome} required>
+        <Select
+          name="outcome"
+          value={outcome}
+          onValueChange={(next) => {
+            setOutcome(next);
+            if (suggestFollowUp && next === 'no_answer' && !followUpOn) setFollowUpOn(addDays(callDate, 1));
+          }}
+          required
+        >
           <SelectTrigger id="outcome">
             <SelectValue placeholder="Select an outcome" />
           </SelectTrigger>
@@ -338,7 +401,7 @@ export function LogForm({
           disabled={pending}
           onClick={() => (onCancel ? onCancel() : router.back())}
         >
-          Cancel
+          {cancelLabel}
         </Button>
         <Button type="submit" variant="primary" className="flex-1" disabled={pending}>
           {pending ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Log call'}

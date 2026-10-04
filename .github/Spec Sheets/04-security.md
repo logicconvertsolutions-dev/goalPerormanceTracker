@@ -130,6 +130,43 @@ re-check whenever a new admin or cross-agent RPC is added.
   than waiting on the gate. Pin the Supabase client version — unchanged.
 
 ### Privacy (PIPEDA — Ontario)
+- **P33 (2026-09-28) — phone numbers are back, deliberately, and the notice
+  was rewritten for the whole app.** Supersedes the P13a bullet below.
+  - `contacts.phone_number` (optional, E.164, check constraint
+    `contacts_phone_number_e164`) for tap-to-call/WhatsApp (P33) and call
+    tracking (P34). Owner-only under the existing `contacts_own` RLS policy.
+    pgTAP `014` proves the upline SMD, another org and `anon` read nothing,
+    and **fails if any SECURITY DEFINER function in public/private ever
+    mentions `phone_number`** — the structural fence that keeps numbers out
+    of every leader/admin RPC. `my_followups` (definer) therefore does not
+    return it; `/today/due` reads numbers through RLS instead
+    (`fetchContactPhones`).
+  - Collected only from what the agent types or the contacts they tick in
+    the device picker (a notice explains what's saved before the picker
+    opens). Excel import stays name-only.
+  - `/privacy` and `/terms` rewritten against PIPEDA's ten principles, with
+    Quebec Law 25 and AB/BC PIPA in mind: operator + Privacy Officer contact,
+    full data inventory, who-sees-what, service providers and cross-border
+    processing (Supabase ca-central-1; Vercel, Resend in the US; browser
+    push services; dialer/WhatsApp handoff), retention, safeguards, rights
+    and complaint bodies (OPC, CAI, AB/BC OIPC), breach notification (RROSH),
+    and the agent's obligations for third-party contact data, the National
+    DNCL / CRTC calling hours and CASL.
+  - Material changes now re-collect consent: `lib/legal.ts`
+    `LEGAL_VERSION_DATE` — anyone who accepted before it is sent back through
+    `/terms/accept`, which lists what changed.
+  - Right of access: `/settings/export` now includes tasks, reminders,
+    notifications, notification settings, push devices (not their keys) and
+    feedback, and "Download everything" is shown to every user (it had been
+    admin-only, contradicting the notice).
+  - **P35:** tap-to-calls the agent chooses to "fill in later" sit in
+    `pending_calls` (owner-only RLS plus org check, no UPDATE grant, own-contact
+    trigger; pgTAP 016 also fails if a SECURITY DEFINER function reads it).
+    They are never counted or shown upline; `call_logs.outcome` is required
+    again.
+  - The old notice still promised self-service account deletion, which P13c
+    removed; deletion is now described as a request to the Privacy Officer
+    or SMD (handled with `admin_hard_delete_agent()`).
 - Purpose limitation, data minimisation as principles — unchanged, but the
   concrete claim has moved twice: **`contacts.phone` was added in P9**,
   reversing the original "no phone or email column" decision, then made

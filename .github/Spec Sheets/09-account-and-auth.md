@@ -376,6 +376,11 @@ screens:
 
 ## Notifications — matches spec closely
 
+**P31:** the evening nudge also lands in the bell and goes out as a web
+push, under the same Evening nudge setting and the same `notification_log`
+claim as the email (`enqueue_due_notifications()` writes the
+`notifications` row when it claims the nudge).
+
 The three notifications, cadence, and content originally matched the
 design exactly: evening nudge (weekdays 7 PM local, only if nothing logged
 that day — **widened to all 7 days in P14c**, product decision), cycle

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDisplayDate } from '@/lib/dates';
 import { LogTypeSwitcher } from './log-type-switcher';
+import { outcomeLabel } from '@/lib/call-outcomes';
 
 export default async function LogPage({
   searchParams,
@@ -60,7 +61,7 @@ export default async function LogPage({
             {history.map((h, i) => (
               <div key={i} className="text-sm border-b border-line pb-2 last:border-0 last:pb-0">
                 <p className="text-fg-2">
-                  {formatDisplayDate(h.call_date)} · {h.outcome.replace('_', ' ')}
+                  {formatDisplayDate(h.call_date)} · {outcomeLabel(h.outcome)}
                 </p>
                 {h.notes && <p className="text-fg-3 text-xs mt-0.5">{h.notes}</p>}
               </div>

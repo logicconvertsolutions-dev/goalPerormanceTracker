@@ -74,21 +74,89 @@ the original spec's empty-state intent.
 
 Renamed **"My Day"** in the live nav (`docs/09-account-and-auth.md`'s app
 shell section — `nav-items.ts` labels it "My Day"), route unchanged at
-`/today`. Structure matches the original spec closely, with one addition
-(a Recent Activity feed) not in the original design.
+`/today`. **P30 redesign** (2026-09-23): a greeting header, a calendar,
+To Do, Reminders, a daily quote, and the mountain photo as the page backdrop.
+The follow-up queue moved to `/today/due`, and the Next Up card is gone.
 
-**No period filters** — always "today," as originally specified.
+**Layout.** One column below `lg`, in this order:
+1. greeting header
+2. KPI strip
+3. Calendar
+4. To Do
+5. Reminders
+6. Recent activity
+7. Quote
 
-**KPI strip (3 tiles):** Calls logged (today) · Due today · Overdue
-(warn-styled when > 0).
+From `lg` up, the header and KPI strip span the full width. Below them are
+two columns: Calendar and Recent activity on the left, To Do, Reminders
+and the Quote on the right.
 
-**Next Up card:** the single most-overdue/soonest-due follow-up, featured —
-contact name, last note (or "Called Nx" if no note), overdue/due-today
-badge. Tap opens the quick-log dialog pre-filled with that contact — for a
-call follow-up or an appointment follow-up. A **pending appointment** opens
-the appointment itself (`/appointments/[id]/edit`); its outcomes (Held /
-No-show / Cancelled / Reschedule) stay in the row menu. Same rule for every
-queue row (`today/due-item-target.ts`, decided 2026-09-22).
+**Greeting header (P36: merged into the app header).** The page has no
+separate greeting card. On `/today` the app header itself sits on the page
+photo (navy shade at the top, clearing into the white wash under the KPI
+strip). Same layout on phone, tablet and desktop:
+- left: the org logo (Kautis mark, white, if none). No org name, here or
+  on any other page.
+- "Good morning / afternoon / evening, {first name}", from the agent's
+  own `time_zone` (before 12, before 17, after that)
+- under it, the agent-local date and time on one line, e.g.
+  "Saturday, Oct 3 · 7:42 PM", ticking on the minute
+- right: refresh (phone only), bell and account (white), and a **+ Log**
+  button opening the shared quick-log dialog. Log sits under the icons on
+  phones and beside them from `md` up.
+- scrolling: the greeting fades out and the bar fills in navy with a smaller
+  logo, a slim pinned bar. Its height never changes, so nothing jumps.
+- Every other page: the same navy bar (white logo and icons) as My Day
+  once scrolled, so the status bar reads navy on every page.
+
+**KPI strip (3 tiles):**
+- **Calls logged (today):** compared with yesterday; yesterday's count
+  comes from `daily_metrics`, per rule 10.
+- **Due today** and **Overdue:** both tappable, opening `/today/due` with
+  that filter. Overdue is warn-styled when > 0.
+
+**Calendar (Day / Week / Month).** State lives in the URL
+(`?view=&date=`). The card changes it in place (P31: fetch plus
+`history.replaceState`), so the page keeps its scroll position. Day and
+Week cover 12 AM–12 AM. Each day shows at most 3 to-dos (open first,
+oldest-created first), then "+N more to-dos", which opens
+`/today/tasks?date=`. It shows the agent's own appointments, open call
+follow-ups, to-dos and reminders, each with its own colour.
+- **Day:** a swipeable 3-week strip with dots, an "All day" band for
+  date-only follow-ups and to-dos, and a scrollable timeline that opens at
+  now and carries a red now-line.
+- **Week:** an hour grid; overlapping items sit side by side.
+- **Month:** a dot grid; tapping a day lists its items.
+
+**To Do.** Quick add (type chips, a day from today on, and an optional
+time), tick off (with a chime), tap to edit, and delete. It shows **open
+tasks only**, overdue first, then today, then upcoming: 5 on a phone and
+10 from `lg` up, then "+N more open". **View all** opens `/today/tasks`
+(P31), with Open / Completed / All filters, grouped by day, and an
+optional `?date=`.
+
+**Reminders.** New (title, date, time, alert lead, push on/off), tap to
+edit, and complete (with a chime). Upcoming ones are listed, soonest
+first: 5 on a phone, 10 from `lg` up. **View all** opens
+`/today/reminders` (P31): Upcoming / Done, with delete.
+
+**Daily quote.** One curated quote per agent-local day (`lib/quotes.ts`).
+
+**Notifications bell (app header, not admins).** Unread badge; tapping it
+opens a sheet with:
+- All / Reminders / Appointments filters
+- **Clear all**; opening a notification clears it from the list (P31).
+  Touch screens swipe a row left to clear it; mouse/trackpad devices get a
+  × on each row instead.
+- the "Get alerts on this device" control. On iOS outside an installed
+  PWA, it says to Add to Home Screen first.
+
+**`/today/due` — the follow-up queue (P30).** Filters: Due today /
+Overdue / All, with counts. The rows and menus are the same as the old
+queue (below). A **pending appointment** opens the appointment itself
+(`/appointments/[id]/edit`); its outcomes (Held / No-show / Cancelled /
+Reschedule) stay in the row menu. Same rule for every queue row
+(`today/due-item-target.ts`, decided 2026-09-22).
 
 **Rescheduled in a status picker** (the `/appointments` list and the edit
 form behave the same): offered only for a pending appointment, where
@@ -96,9 +164,8 @@ choosing it opens the new-time picker and books the successor (D1). Not
 offered on a new appointment or one that already has an outcome. An
 appointment already moved to a successor shows Rescheduled, locked.
 
-**Rest of queue:** plain list below Next Up, same actions, revealed via
-"View all (n)". **Empty state:** "Nothing due today. Set a follow-up when you
-log a call and it'll show up here." — matches spec verbatim.
+**Queue empty states (`/today/due`):** "Nothing due today." / "Nothing
+overdue. Nice work."
 
 **Per-row menu (P25 C1).** The queue interleaves four kinds of item from
 two tables (`my_followups`' contract is in `02-data-model.md`), and the
@@ -141,12 +208,10 @@ the outcome day too.
 Log a call for everything else; saving the appointment comes back to My
 Day (`returnTo`).
 
-**Recent activity (new, not in original spec):** last 7 days across all
-activity types, icon + contact + summary + date, "View all" → `/logs`.
-Empty state: "Nothing logged yet."
-
-**Header:** primary "Log Activity" button opening the shared quick-log
-dialog.
+**Recent activity (new, not in original spec):** the latest 5 across all
+activity types. Each row shows an icon, the contact, a summary, an outcome
+pill (Missed / Connected / Scheduled / Held / Sale …) and the date and time.
+"View all" → `/logs`. Empty state: "Nothing logged yet."
 
 ---
 

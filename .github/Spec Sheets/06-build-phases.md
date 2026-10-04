@@ -582,6 +582,289 @@ Five phases, each independently shippable and revertible.
         `xlsx-latest`, whose next release would have broken every `npm ci`
         against the lockfile's integrity hash.
 
+## P30 — My Day redesign: calendar, To Do, reminders, notifications, web push
+
+This is the separate notifications project that P25 Phase D was moved out to.
+It is built fresh on current `dev`; the unmerged D-1 branch was not used.
+
+- [x] **Database** (`20260923100000_p30_my_day_tasks_reminders_notifications.sql`,
+      pgTAP `012_my_day_tasks_reminders_notifications.sql`).
+      - `tasks`, `reminders`, `notifications`, `push_subscriptions`: all
+        strictly owner-only (`agent_id = auth.uid()` and `org_id =
+        private.my_org()`), with **no upline policy** (rule 2).
+      - `reminders.sent_at` is job-only (column grants). Users can update
+        only `notifications.read_at`. `push_subscriptions` is service-role
+        read only; users go through `save_push_subscription` /
+        `delete_push_subscription`.
+      - `private.enqueue_due_pushes()` runs every minute. It turns due
+        reminders, appointments starting within 15 min and an 8–11 AM local
+        morning brief into `notifications` rows. It is idempotent on
+        `(agent_id, source_key)`.
+      - Push-flagged rows go on pgmq `push_sends`, drained by
+        `/api/cron/push/drain`. `ping_push_drain` pings only when the queue
+        is non-empty. Retention: 60 days.
+      - `notification_prefs` gains `push_reminders`, `push_appointments`
+        and `push_morning_brief` (default on).
+      - Nothing touches `daily_metrics`.
+- [x] **My Day** (`src/app/(app)/today/`).
+      - Greeting header: time-of-day greeting in the agent's zone,
+        `lib/greeting.ts`.
+      - Clickable Due today / Overdue tiles open `/today/due`, which
+        replaces the Next up card; `next-up-card.tsx` is kept, unused.
+      - Day/Week/Month calendar: state in URL params, range helpers in
+        `lib/dates.ts`, own rows only via `lib/calendar.ts`.
+      - To Do and Reminders cards (Server Actions + Zod).
+      - Recent activity status pills.
+      - Daily quote (`lib/quotes.ts`, deterministic per local day).
+      - Summit photo as the page backdrop and in the header/quote cards
+        (static import, not `public/`).
+      - Two columns from `lg`, one column below.
+      - Yesterday's call count reads `daily_metrics` (rule 10).
+- [x] **Notifications**
+      - Header bell with an unread badge, a filterable sheet, mark-read, and
+        the per-device *Enable* control.
+      - iOS asks users to Add to Home Screen first.
+      - `sw.js` handles `push` / `notificationclick`.
+      - Settings has three push toggles.
+- [x] **Dependency:** `web-push` (approved, rule 11), server-side only.
+- [ ] **Before push works in an environment**
+      - Set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` in
+        Vercel; the public key reaches browsers from the server, so there
+        is no `NEXT_PUBLIC_` var.
+      - Vault `app_base_url` / `cron_secret` must exist (already required by
+        the email pipeline).
+      - Without VAPID keys the bell still works and pushes are skipped.
+
+
+## P31 — My Day follow-ups from staging testing
+
+Sixteen observations from testing P30 on staging (2026-09-24).
+
+- [x] **Database** (`20260924100000_p31_notifications_clear_and_appt_push_title.sql`,
+      pgTAP `013_p31_notifications_clear_and_appt_title.sql`).
+      - `notifications.cleared_at`: the bell's soft clear. Users can update
+        `read_at` and `cleared_at` only. It is not a DELETE, because
+        `enqueue_due_pushes` dedupes on `(agent_id, source_key)`: a deleted
+        row would come back and push again while its source is still due.
+      - `enqueue_due_pushes()`: the appointment alert title names the type,
+        e.g. "Marketing Presentation in 15 min". The body is "<contact> ·
+        <time>". Labels mirror `lib/appointment-types.ts`.
+      - The evening nudge also goes to the bell and out as a web push.
+        `notifications.kind` gains `evening_nudge`, and
+        `enqueue_due_notifications()` (rebuilt from P28's definition, loop
+        body only) writes the row when it claims a nudge. It uses the same
+        Evening nudge setting and the same `notification_log` claim as the
+        email, so it is one eligibility rule, not two.
+- [x] **Calendar**
+      - Covers 12 AM–12 AM.
+      - View/date changes fetch through `loadCalendarAction` and rewrite
+        the URL with `history.replaceState`. A `<Link>` navigation used to
+        swap in `today/loading.tsx` and jump the window to the top.
+      - At most 3 to-dos per day, open ones first, oldest-created first
+        (`lib/calendar-cap.ts`), plus "+N more to-dos" to
+        `/today/tasks?date=`.
+- [x] **To Do / Reminders**
+      - Cards list pending items only: 5 below `lg`, 10 from `lg` up
+        (CSS, no JS). "View all" opens the full lists.
+      - To-dos can be added for a future day, with or without a time.
+      - Tap a row to edit it (`updateTaskAction` / `updateReminderAction`).
+      - A Web Audio chime plays on completing a task or reminder
+        (`lib/chime.ts`, no file, no dependency).
+      - New pages: `/today/tasks` (Open / Completed / All) and
+        `/today/reminders` (Upcoming / Done).
+- [x] **Bell**
+      - "Clear all", and opening a notification clears it.
+      - Swipe left to clear on touch screens; a × on each row for
+        mouse/trackpad devices only.
+- [x] **Shell**
+      - Mobile header refresh button, plus an automatic refresh when the
+        app returns to the foreground (`refresh-button.tsx`).
+      - The backdrop is on every `(app)` page (`components/shell/page-backdrop.tsx`,
+        with a per-section image map ready for more photos).
+      - The rail is sticky on desktop.
+      - Tab icon: `<link rel="icon">` was never emitted, because setting
+        `metadata.icons` suppresses the `icon.tsx` convention; now listed
+        explicitly.
+- Not doable from web code: the "from …" line on a push notification is
+  added by the OS or browser.
+
+---
+
+## P32 — Add to the My Day calendar
+
+Part of the next combined release (with P30/P31, P33 and P34). No schema change.
+
+- [x] **Tap to add**, as on a real calendar (`today/calendar-card.tsx`).
+      - Day and Week views: tap an empty time slot. The time rounds down to
+        its half hour (`minutesToSlotTime` in `lib/dates.ts`).
+      - Month view: the first tap selects a day, and tapping the selected
+        day again adds to it. The day panel also has "Add to this day".
+      - The calendar header has an Add button: the next half hour today, or
+        9 AM on any other day (`defaultSlotTime`).
+      - Tapping an existing item keeps its own behaviour.
+- [x] **Add sheet** (`today/calendar-add-dialog.tsx`): Appointment | Task | Reminder.
+      - Appointment is the existing `AppointmentForm` with the slot filled in
+        (new `prefillSlot` prop), so it counts as Appts Set exactly like
+        `/appointments/new`. It is not a to-do labelled "meeting".
+      - Task goes through `createTaskAction`. Reminder uses `ReminderForm`,
+        split out of `ReminderDialog` so both share one form.
+      - A to-do or reminder can't be in the past, so a past slot moves up to
+        today for those two. An appointment keeps the tapped date.
+- [x] Tests: `today/calendar-add-dialog.test.tsx`.
+
+---
+
+## P33 — Contact phone numbers, tap-to-call / WhatsApp, privacy + terms rewrite
+
+Part of the next combined release (with P30/P31, P32 and P34).
+
+- [x] **Database** (`20260928100000_p33_contact_phone_number.sql`, pgTAP
+      `014_p33_contact_phone_number.sql`). Types: the three
+      `contacts.phone_number` lines, generated from the local database.
+      - `contacts.phone_number`, optional, E.164 only (check constraint).
+      - pgTAP proves owner-only reads/writes, and that no SECURITY DEFINER
+        function reads the column.
+- [x] **Entry** (`lib/phone.ts`, `components/shell/phone-number-field.tsx`).
+      - Phone field on Add/Edit contact. A number without a country code is
+        refused, with a one-tap "+1" fix for North American numbers.
+      - Server Actions re-validate with `optionalPhoneSchema`. Adding a
+        contact whose name already exists fills in a missing number but
+        never replaces a different one.
+      - Contact picker asks for `tel` (where supported) after a notice
+        saying what is saved. A local North American number becomes +1;
+        anything it can't place imports the name only. Never overwrites an
+        existing number.
+- [x] **Call buttons** (`components/shell/contact-call-buttons.tsx`):
+      Phone (`tel:`) and WhatsApp (`wa.me`, opens a chat — no deep link can
+      start a WhatsApp call to a personal number).
+      - On the contact page, the contacts list, the follow-up queue
+        (`/today/due`), and open appointments/follow-ups in the My Day
+        calendar's Day and Month lists.
+      - Greyed out with "Add phone number to enable calling" when there is
+        no number. `onDial` is the hook P34's call tracking uses.
+      - Tasks and reminders are never linked to a contact in the UI, so
+        they have no buttons.
+- [x] **Compliance**
+      - `/privacy` and `/terms` rewritten for the whole app (see
+        04-security.md "Privacy", P33).
+      - Re-acceptance gate on `LEGAL_VERSION_DATE` (`lib/legal.ts`).
+      - Export completed; "Download everything" is shown to every user.
+- [ ] **Before release**
+      - [x] `LEGAL_OPERATOR` ("Kautis") and `PRIVACY_CONTACT_EMAIL`
+        (privacy@kautis.ca) confirmed by the product owner, 2026-09-27.
+        Make sure the mailbox is monitored.
+      - [x] Migration reviewed and approved, 2026-09-27.
+      - Set `LEGAL_VERSION_DATE` to the release day.
+      - Have the privacy notice and terms reviewed by a lawyer.
+      - Regenerate types with `npm run types` after the migration is live.
+
+---
+
+## P34 — Call tracking after tap-to-call / WhatsApp
+
+Part of the next combined release (with P30/P31, P32 and P33).
+
+- [x] **Database** (`20260928110000_p34_call_channel_and_pending_outcome.sql`,
+      pgTAP `015_p34_call_channel_and_pending_outcome.sql`). Types: the
+      `call_logs` channel/outcome lines, generated from the local database.
+      - `call_logs.channel` is `phone` | `whatsapp` | null. Null means an
+        ordinary log with no channel given.
+      - `call_logs.outcome` is now nullable: null means "Outcome needed".
+      - `recompute_day` is unchanged. The attempt counts in `calls_made` on
+        its day and in no `out_*` bucket until it has an outcome. Filling
+        the outcome in re-marks the day, fills the bucket, and doesn't
+        change `calls_made` or the day (rule 12, proven in pgTAP 015).
+- [x] **Detection** (`lib/pending-call.ts`,
+      `components/shell/call-log-prompt.tsx`, mounted in the app shell).
+      - `ContactCallButtons` records the contact, channel and a request id
+        in sessionStorage before handing off.
+      - `visibilitychange`/`pagehide` record that the agent left the app.
+        Coming back (or a reload after leaving) opens "How did the call
+        go?" once.
+      - The pop-up is `LogForm` with the contact locked, the channel shown,
+        the source taken from the contact's last call, and No answer
+        suggesting a follow-up tomorrow.
+- [x] **Outcome needed**
+      - Save logs the call normally.
+      - "Fill in later", ✕ or tapping outside saves the attempt with no
+        outcome (`logCallAttemptAction`: today, the tapped channel, last
+        source or `other`, idempotent on `client_request_id`).
+      - "I didn't make this call" saves nothing.
+      - Unanswered attempts appear in "Calls needing an outcome" on My Day,
+        as "Add outcome" in the contact's call history, and as an "Outcome
+        needed" badge everywhere an outcome is shown (`outcomeLabel`).
+      - They are completed on `/log/[id]/edit` (new `returnTo`).
+- [x] **Manual fallback**: "Log a call" (contact page and everywhere else)
+      now has optional Phone / WhatsApp chips.
+- [x] Tests: `lib/pending-call.test.ts`,
+      `components/shell/call-log-prompt.test.tsx`, `log/call-attempt.test.ts`.
+- [x] Migration reviewed and approved, 2026-09-27.
+- [ ] **Staging**: try the round trip on a real iPhone (installed app and
+      Safari) and an Android phone, for both Phone and WhatsApp. Detection
+      varies by browser, and the manual button is the fallback.
+
+---
+
+## P35 — "Fill in later" doesn't log a call; Calls to finish
+
+From staging testing, 2026-10-04 (product owner). It replaces P34's
+"Outcome needed" calls, which logged the call straight away with no outcome.
+
+- [x] **Database** (`20261004100000_p35_pending_calls.sql`, pgTAP
+      `016_p35_pending_calls.sql`; `015` updated).
+      - New `pending_calls` table: contact, channel, and the agent-local day
+        the call was made.
+      - Owner-only: RLS plus an org check, own-contact trigger, and
+        select/insert/delete grants only (rule 4: revoked from anon and
+        authenticated by name).
+      - Not read by any SECURITY DEFINER function, and never counted.
+      - P34's outcome-less `call_logs` rows (staging only) move into it,
+        keeping their day.
+      - `call_logs.outcome` is NOT NULL again: every `call_logs` row is a
+        completed call.
+- [x] **Prompt**: "Fill in later", ✕ or tapping outside save to
+      `pending_calls` (`savePendingCallAction`, idempotent). Nothing is
+      logged. "I didn't make this call" saves nothing.
+- [x] **Calls to finish** (`components/shell/calls-to-finish.tsx`) on My Day
+      and on the contact page. Each row has:
+      - **Add outcome**: logs the call on the day it was made, then removes
+        it from the list (`logCallAction` with `pendingCallId`).
+      - **Didn't call**: removes it, with no trace (`deletePendingCallAction`).
+      - Closing the form leaves it waiting.
+- [x] It isn't in Calls logged, Activity Logs, `daily_metrics` or the SMD's
+      totals until it's finished. "Download everything" includes it, and
+      the privacy notice mentions it.
+- [x] P34's "Outcome needed" UI is removed (My Day card, contact-page link,
+      edit-page title).
+- [x] Tests: `components/shell/calls-to-finish.test.tsx`,
+      `log/pending-call-actions.test.ts`; `call-log-prompt.test.tsx` updated.
+
+---
+
+## P36 — My Day greeting merged into the header
+
+From staging testing, 2026-10-04 (product owner): the separate greeting
+card cost ~205px before the KPI strip on a phone. Now ~120px. No database
+change.
+
+- [x] `components/shell/app-header.tsx`: the app header. On `/today` it is
+      transparent over the photo, with greeting and date/time beside the logo
+      and + Log under the icons (beside them from `md`). Scrolling fades
+      the greeting and fills in a slim navy pinned bar.
+      `today/greeting-hero.tsx` and "Small steps. Big progress." are removed.
+- [x] Date and time line (`dateTimeLine` in `lib/greeting.ts`, tested),
+      agent-local, ticking on the minute.
+- [x] Org name removed from the header on every page; logo only.
+- [x] Every other page's header is the same navy bar My Day pins to (white
+      logo and icons). A white bar made iOS paint the status bar white at
+      rest when switching pages.
+- [x] `PageBackdrop` adds the navy top shade on `/today`.
+- [x] Home Screen app draws under the status bar (`black-translucent`,
+      `viewport-fit=cover`). `StatusBarBand` keeps a navy strip behind
+      the clock on every other page. Body, header and rail pad by the
+      safe-area insets.
+- [x] My Day loading skeleton no longer draws the old title row.
+
 ---
 
 ## Working with Claude Code on this repo (token discipline)

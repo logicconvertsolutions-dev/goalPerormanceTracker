@@ -15,3 +15,8 @@ export function outcomeBadgeVariant(outcome: string): NonNullable<BadgeProps['va
       return 'neutral';
   }
 }
+
+/** Read-only label for a call outcome, e.g. "no answer". */
+export function outcomeLabel(outcome: string): string {
+  return outcome.replace('_', ' ');
+}

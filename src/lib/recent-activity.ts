@@ -2,6 +2,9 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../types/database';
 import type { ActivityKind } from '@/components/shell/activity-icons';
+import { outcomeLabel } from './call-outcomes';
+
+export type StatusTone = 'ok' | 'warn' | 'bad' | 'default' | 'neutral';
 
 export interface RecentActivityItem {
   id: string;
@@ -9,6 +12,29 @@ export interface RecentActivityItem {
   createdAt: string;
   contactName: string;
   summary: string;
+  /** Outcome pill shown on the right of the row (P30). */
+  status: { label: string; tone: StatusTone };
+}
+
+const CALL_STATUS: Record<string, RecentActivityItem['status']> = {
+  connected: { label: 'Connected', tone: 'ok' },
+  voicemail: { label: 'Voicemail', tone: 'warn' },
+  no_answer: { label: 'Missed', tone: 'bad' },
+  appointment_set: { label: 'Appointment', tone: 'default' },
+  not_interested: { label: 'Not interested', tone: 'neutral' },
+};
+
+const APPOINTMENT_STATUS: Record<string, RecentActivityItem['status']> = {
+  scheduled: { label: 'Scheduled', tone: 'default' },
+  held: { label: 'Held', tone: 'ok' },
+  no_show: { label: 'No-show', tone: 'bad' },
+  rescheduled: { label: 'Rescheduled', tone: 'warn' },
+  cancelled: { label: 'Cancelled', tone: 'neutral' },
+};
+
+function titleCase(v: string): string {
+  const s = v.replace(/_/g, ' ');
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function contactName(row: { full_name: string } | null): string {
@@ -59,7 +85,8 @@ export async function fetchRecentActivity(
       kind: 'call' as ActivityKind,
       createdAt: c.created_at,
       contactName: contactName(c.contacts as { full_name: string } | null),
-      summary: `Called · ${c.outcome.replace('_', ' ')}`,
+      summary: `Called · ${outcomeLabel(c.outcome)}`,
+      status: CALL_STATUS[c.outcome] ?? { label: titleCase(c.outcome), tone: 'neutral' as StatusTone },
     })),
     ...(appts ?? []).map((a) => ({
       id: a.id,
@@ -67,6 +94,7 @@ export async function fetchRecentActivity(
       createdAt: a.created_at,
       contactName: contactName(a.contacts as { full_name: string } | null),
       summary: `Appointment · ${a.status.replace('_', ' ')}`,
+      status: APPOINTMENT_STATUS[a.status] ?? { label: titleCase(a.status), tone: 'neutral' as StatusTone },
     })),
     ...(sales ?? []).map((s) => ({
       id: s.id,
@@ -74,6 +102,7 @@ export async function fetchRecentActivity(
       createdAt: s.created_at,
       contactName: contactName(s.contacts as { full_name: string } | null),
       summary: `Sale · $${(s.premium_cents / 100).toLocaleString('en-CA')}`,
+      status: { label: 'Sale', tone: 'ok' as StatusTone },
     })),
     ...(recruits ?? []).map((r) => ({
       id: r.id,
@@ -81,6 +110,7 @@ export async function fetchRecentActivity(
       createdAt: r.created_at,
       contactName: contactName(r.contacts as { full_name: string } | null),
       summary: `Recruiting · ${r.status.replace('_', ' ')}`,
+      status: { label: titleCase(r.status), tone: 'neutral' as StatusTone },
     })),
   ];
 

@@ -1,0 +1,773 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { Bell, CalendarDays, ChevronLeft, ChevronRight, ListChecks, Phone, Plus, Users, type LucideIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import type { CalendarItem, CalendarItemKind } from '@/lib/calendar';
+import { capTodosPerDay } from '@/lib/calendar-cap';
+import {
+  CALENDAR_VIEWS,
+  dayStripDates,
+  defaultSlotTime,
+  formatDisplayTime,
+  formatMonthYear,
+  formatShortDate,
+  minutesIntoDayInZone,
+  minutesToSlotTime,
+  monthGridDates,
+  stepCalendarDate,
+  weekDates,
+  type CalendarView,
+} from '@/lib/dates';
+import { loadCalendarAction } from './planner-actions';
+import { CalendarAddDialog, type CalendarSlot } from './calendar-add-dialog';
+import { ContactCallButtons } from '@/components/shell/contact-call-buttons';
+
+// My Day calendar (P30). View + date live in the URL (?view=&date=), same as
+// every other filter in the app, so a reload or shared link keeps your place.
+// Since P31 the card changes view/date itself: it fetches the new range
+// through loadCalendarAction and rewrites the URL with history.replaceState.
+// A <Link> navigation re-rendered the whole page (and its loading.tsx
+// skeleton), which threw the window back to the top.
+// Since P32 it is also where you add things, like a real calendar: tap an
+// empty time slot (Day/Week), tap the selected day again (Month), or use the
+// Add button, and pick Appointment, Task or Reminder.
+
+const KIND_META: Record<CalendarItemKind, { label: string; icon: LucideIcon; chip: string; dot: string }> = {
+  appointment: { label: 'Appointment', icon: Users, chip: 'bg-acc-dim border-acc text-acc', dot: 'bg-acc' },
+  follow_up: {
+    label: 'Follow-up',
+    icon: Phone,
+    chip: 'bg-[#2a78d6]/10 border-[#2a78d6] text-[#1f5fae]',
+    dot: 'bg-[#2a78d6]',
+  },
+  todo: { label: 'To do', icon: ListChecks, chip: 'bg-ok-dim border-ok text-ok', dot: 'bg-ok' },
+  reminder: { label: 'Reminder', icon: Bell, chip: 'bg-warn-dim border-warn text-warn', dot: 'bg-warn' },
+};
+
+const VIEW_LABEL: Record<CalendarView, string> = { day: 'Day', week: 'Week', month: 'Month' };
+const WEEKDAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// The full day, 12 AM to 12 AM (P31). The timeline opens scrolled to now or
+// the first item, so the early hours don't push the day out of view.
+const DAY_START_HOUR = 0;
+const DAY_END_HOUR = 24;
+
+type Go = (view: CalendarView, date: string) => void;
+/** Open the add sheet; no `time` = the default for that day. */
+type Add = (date: string, time?: string) => void;
+
+/** True when a tap landed on an existing item (or any control) rather than
+ * on empty calendar space -- that tap keeps its own behaviour. */
+function onItem(e: React.MouseEvent) {
+  return Boolean((e.target as HTMLElement).closest('a, button, [data-cal-item]'));
+}
+
+/** Minutes into the day for a tap inside an element spanning `fromMinutes`
+ * to `fromMinutes + spanMinutes` from top to bottom. */
+function tappedMinutes(e: React.MouseEvent<HTMLElement>, fromMinutes: number, spanMinutes: number) {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const fraction = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0;
+  return fromMinutes + fraction * spanMinutes;
+}
+
+function href(view: CalendarView, date: string) {
+  return `/today?view=${view}&date=${date}`;
+}
+
+function dayNumber(iso: string) {
+  return Number(iso.slice(8, 10));
+}
+
+function weekdayShort(iso: string) {
+  const dow = new Date(iso + 'T00:00:00Z').getUTCDay(); // 0 = Sun
+  return WEEKDAY_SHORT[(dow + 6) % 7];
+}
+
+function byDate(items: CalendarItem[]) {
+  const map = new Map<string, CalendarItem[]>();
+  for (const item of items) {
+    const list = map.get(item.date) ?? [];
+    list.push(item);
+    map.set(item.date, list);
+  }
+  return map;
+}
+
+/** Hour span to draw. Always the whole day now; kept as a function so a
+ * narrower default can widen to fit items again. */
+function hourSpan(items: CalendarItem[], timeZone: string | null) {
+  let start = DAY_START_HOUR;
+  let end = DAY_END_HOUR;
+  for (const item of items) {
+    if (!item.startsAt) continue;
+    const h = Math.floor(minutesIntoDayInZone(item.startsAt, timeZone) / 60);
+    start = Math.min(start, h);
+    end = Math.max(end, h + 1);
+  }
+  return { start, end };
+}
+
+export function CalendarCard({
+  items: initialItems,
+  view: initialView,
+  date: initialDate,
+  today,
+  nowIso,
+  timeZone,
+}: {
+  items: CalendarItem[];
+  view: CalendarView;
+  date: string;
+  today: string;
+  nowIso: string;
+  timeZone: string | null;
+}) {
+  const [view, setView] = useState(initialView);
+  const [date, setDate] = useState(initialDate);
+  const [items, setItems] = useState(initialItems);
+  const [loading, startLoading] = useTransition();
+  const request = useRef(0);
+  const router = useRouter();
+  const [addSlot, setAddSlot] = useState<CalendarSlot | null>(null);
+
+  const add: Add = (slotDate, time) =>
+    setAddSlot({ date: slotDate, time: time ?? defaultSlotTime(slotDate, today, nowIso, timeZone) });
+
+  function load(nextView: CalendarView, nextDate: string) {
+    const id = ++request.current;
+    startLoading(async () => {
+      const result = await loadCalendarAction({ view: nextView, date: nextDate });
+      // Ignore a slow answer to an earlier click.
+      if (result.ok && id === request.current) setItems(result.items);
+    });
+  }
+
+  const go: Go = (nextView, nextDate) => {
+    setView(nextView);
+    setDate(nextDate);
+    window.history.replaceState(window.history.state, '', href(nextView, nextDate));
+    load(nextView, nextDate);
+  };
+
+  // The page re-renders after a to-do or reminder changes (revalidatePath).
+  // Take its fresh items when they are for the range on screen; otherwise
+  // re-fetch the range on screen so the change shows up here too.
+  useEffect(() => {
+    if (initialView === view && initialDate === date) setItems(initialItems);
+    else load(view, date);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialItems]);
+
+  const { items: shown, hiddenTodos } = capTodosPerDay(items);
+  const grouped = byDate(shown);
+  const title =
+    view === 'week'
+      ? `${formatShortDate(weekDates(date)[0])} – ${formatShortDate(weekDates(date)[6])}`
+      : formatMonthYear(date);
+
+  return (
+    <section className="rounded-lg border border-line bg-panel p-4 shadow-card" aria-label="Calendar">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-[17px] font-bold text-fg">
+          <CalendarDays className="h-[18px] w-[18px]" aria-hidden="true" />
+          Calendar
+        </h2>
+        <nav className="flex rounded-sm bg-sunken p-[3px]" aria-label="Calendar view">
+          {CALENDAR_VIEWS.map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => go(v, date)}
+              aria-current={v === view ? 'page' : undefined}
+              className={cn(
+                'rounded-[8px] px-3 py-1.5 text-xs font-bold text-fg-2 transition-smooth',
+                v === view ? 'bg-acc text-white' : 'hover:text-fg'
+              )}
+            >
+              {VIEW_LABEL[v]}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <p className="text-sm font-bold text-fg">{title}</p>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => add(date)}
+            className="flex h-8 items-center gap-1 rounded-sm bg-acc px-2.5 text-xs font-bold text-white hover:brightness-110"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            Add
+          </button>
+          {date !== today && (
+            <button
+              type="button"
+              onClick={() => go(view, today)}
+              className="flex h-8 items-center rounded-sm border border-line px-2.5 text-xs font-bold text-acc hover:bg-hover"
+            >
+              Today
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => go(view, stepCalendarDate(view, date, -1))}
+            aria-label={`Previous ${view}`}
+            className="flex h-8 w-8 items-center justify-center rounded-sm border border-line text-fg-2 hover:bg-hover"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => go(view, stepCalendarDate(view, date, 1))}
+            aria-label={`Next ${view}`}
+            className="flex h-8 w-8 items-center justify-center rounded-sm border border-line text-fg-2 hover:bg-hover"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className={cn('mt-3 transition-opacity', loading && 'opacity-60')} aria-busy={loading}>
+        {view === 'day' && (
+          <DayView
+            grouped={grouped}
+            hiddenTodos={hiddenTodos}
+            date={date}
+            today={today}
+            nowIso={nowIso}
+            timeZone={timeZone}
+            go={go}
+            add={add}
+          />
+        )}
+        {view === 'week' && (
+          <WeekView
+            grouped={grouped}
+            date={date}
+            today={today}
+            nowIso={nowIso}
+            timeZone={timeZone}
+            go={go}
+            add={add}
+          />
+        )}
+        {view === 'month' && (
+          <MonthView
+            grouped={grouped}
+            hiddenTodos={hiddenTodos}
+            date={date}
+            today={today}
+            timeZone={timeZone}
+            go={go}
+            add={add}
+          />
+        )}
+      </div>
+
+      <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] font-semibold text-fg-2">
+        {(Object.keys(KIND_META) as CalendarItemKind[]).map((k) => (
+          <li key={k} className="flex items-center gap-1.5">
+            <span className={cn('h-2 w-2 rounded-full', KIND_META[k].dot)} aria-hidden="true" />
+            {KIND_META[k].label}
+          </li>
+        ))}
+      </ul>
+
+      <CalendarAddDialog
+        slot={addSlot}
+        onClose={() => setAddSlot(null)}
+        // Appointments don't revalidate /today themselves; the refresh
+        // brings the new item (and the To Do / Reminders cards) in, and the
+        // initialItems effect above re-fetches if another range is on screen.
+        onSaved={() => router.refresh()}
+        today={today}
+        timeZone={timeZone}
+      />
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Shared bits
+// ---------------------------------------------------------------------------
+
+function Dots({ items, light }: { items: CalendarItem[] | undefined; light?: boolean }) {
+  const kinds = Array.from(new Set((items ?? []).map((i) => i.kind))).slice(0, 3);
+  return (
+    <span className="mt-1 flex h-[5px] justify-center gap-0.5" aria-hidden="true">
+      {kinds.map((k) => (
+        <span
+          key={k}
+          className={cn('h-[5px] w-[5px] rounded-full', light && k === 'appointment' ? 'bg-white' : KIND_META[k].dot)}
+        />
+      ))}
+    </span>
+  );
+}
+
+function EventChip({ item, timeZone }: { item: CalendarItem; timeZone: string | null }) {
+  const meta = KIND_META[item.kind];
+  const Icon = meta.icon;
+  const time = item.startsAt ? formatDisplayTime(item.startsAt, timeZone) : 'All day';
+  const body = (
+    <>
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] bg-white/80">
+        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className={cn('block truncate text-[13px] font-bold text-fg', item.done && 'text-fg-3 line-through')}>
+          {meta.label} · {item.title}
+        </span>
+        <span className="block truncate text-[11.5px] text-fg-2">{time}</span>
+      </span>
+      {item.href && <ChevronRight className="h-4 w-4 shrink-0 text-fg-3" aria-hidden="true" />}
+    </>
+  );
+  const className = cn('flex items-center gap-2.5 rounded-sm border-l-[3px] px-2.5 py-2', meta.chip);
+  const chip = item.href ? (
+    <Link href={item.href} data-cal-item className={cn(className, 'hover:brightness-95')}>
+      {body}
+    </Link>
+  ) : (
+    <div data-cal-item className={className}>
+      {body}
+    </div>
+  );
+  // Open appointments and follow-ups: call or WhatsApp them from here (P33).
+  // Beside the chip, not inside it -- a link can't hold another link.
+  if (!item.contact || item.done) return chip;
+  return (
+    <div data-cal-item className="flex items-center gap-1.5">
+      <div className="min-w-0 flex-1">{chip}</div>
+      <ContactCallButtons
+        contactId={item.contact.id}
+        phoneNumber={item.contact.phoneNumber}
+        contactName={item.contact.name}
+        size="sm"
+      />
+    </div>
+  );
+}
+
+/** "+N more to-dos" under a capped day (P31); opens that day's task list. */
+function MoreTodos({ date, count }: { date: string; count: number | undefined }) {
+  if (!count) return null;
+  return (
+    <Link
+      href={`/today/tasks?status=all&date=${date}`}
+      className="flex items-center justify-center gap-1 rounded-sm border border-dashed border-ok px-2.5 py-1.5 text-xs font-bold text-ok hover:bg-ok-dim"
+    >
+      +{count} more {count === 1 ? 'to-do' : 'to-dos'}
+      <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+    </Link>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Day
+// ---------------------------------------------------------------------------
+
+function DayView({
+  grouped,
+  hiddenTodos,
+  date,
+  today,
+  nowIso,
+  timeZone,
+  go,
+  add,
+}: {
+  grouped: Map<string, CalendarItem[]>;
+  hiddenTodos: Map<string, number>;
+  date: string;
+  today: string;
+  nowIso: string;
+  timeZone: string | null;
+  go: Go;
+  add: Add;
+}) {
+  const stripRef = useRef<HTMLDivElement>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const dayItems = grouped.get(date) ?? [];
+  const allDay = dayItems.filter((i) => !i.startsAt);
+  const timed = dayItems.filter((i) => i.startsAt);
+  const { start, end } = hourSpan(timed, timeZone);
+  const isToday = date === today;
+  const nowMinutes = minutesIntoDayInZone(nowIso, timeZone);
+  const nowHour = Math.floor(nowMinutes / 60);
+  const firstStart = timed[0]?.startsAt ?? null;
+
+  // Keep the selected day in view in the strip, and open the timeline at
+  // "now" (today) or the first event (any other day).
+  useEffect(() => {
+    // Centre the selected day by scrolling the strip itself -- scrollIntoView()
+    // would also scroll the window.
+    const strip = stripRef.current;
+    const chip = strip?.querySelector<HTMLElement>('[aria-current="date"]');
+    if (strip && chip) strip.scrollLeft = chip.offsetLeft - (strip.clientWidth - chip.offsetWidth) / 2;
+    const timeline = timelineRef.current;
+    if (!timeline) return;
+    const firstHour = isToday
+      ? Math.max(start, nowHour - 1)
+      : firstStart
+        ? Math.floor(minutesIntoDayInZone(firstStart, timeZone) / 60)
+        : start;
+    const row = timeline.querySelector<HTMLElement>(`[data-hour="${firstHour}"]`);
+    timeline.scrollTop = row ? row.offsetTop - 4 : 0;
+    // Only when the day changes -- not on every refresh after ticking a to-do.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date]);
+
+  const hours = Array.from({ length: end - start }, (_, i) => start + i);
+
+  return (
+    <div>
+      <div className="relative -mx-4">
+        <div ref={stripRef} className="relative flex snap-x gap-1 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+          {dayStripDates(date).map((d) => {
+            const selected = d === date;
+            return (
+              <button
+                key={d}
+                type="button"
+                onClick={() => go('day', d)}
+                aria-current={selected ? 'date' : undefined}
+                aria-label={`${weekdayShort(d)} ${formatShortDate(d)}`}
+                className={cn(
+                  'flex w-[42px] shrink-0 snap-center flex-col items-center rounded-sm py-1.5',
+                  selected ? 'bg-acc text-white' : 'hover:bg-hover',
+                  d === today && !selected && 'ring-1 ring-inset ring-acc-line'
+                )}
+              >
+                <span className={cn('text-[10.5px] font-bold uppercase', selected ? 'text-white/70' : 'text-fg-3')}>
+                  {weekdayShort(d)}
+                </span>
+                <span className="text-[15px] font-bold leading-5">{dayNumber(d)}</span>
+                <Dots items={grouped.get(d)} light={selected} />
+              </button>
+            );
+          })}
+        </div>
+        <div
+          className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-panel to-transparent"
+          aria-hidden="true"
+        />
+      </div>
+
+      {(allDay.length > 0 || hiddenTodos.has(date)) && (
+        <div className="mt-2 space-y-1.5">
+          {allDay.length > 0 && <p className="text-[11px] font-bold uppercase tracking-wide text-fg-3">All day</p>}
+          {allDay.map((item) => (
+            <EventChip key={`${item.kind}-${item.id}`} item={item} timeZone={timeZone} />
+          ))}
+          <MoreTodos date={date} count={hiddenTodos.get(date)} />
+        </div>
+      )}
+
+      <div className="relative mt-2 border-y border-line">
+        <div ref={timelineRef} className="h-[300px] overflow-y-auto pr-1" tabIndex={0} aria-label="Day timeline">
+          {hours.map((h) => {
+            const inHour = timed.filter((i) => Math.floor(minutesIntoDayInZone(i.startsAt!, timeZone) / 60) === h);
+            const showNow = isToday && h === nowHour;
+            const before = showNow
+              ? inHour.filter((i) => minutesIntoDayInZone(i.startsAt!, timeZone) <= nowMinutes)
+              : inHour;
+            const after = showNow ? inHour.filter((i) => !before.includes(i)) : [];
+            return (
+              <div key={h} data-hour={h} className="grid min-h-[48px] grid-cols-[44px_1fr] items-start">
+                <span className="pt-1.5 text-[11px] font-semibold text-fg-3">{hourLabel(h)}</span>
+                <div
+                  className="min-w-0 cursor-pointer space-y-1 border-t border-dashed border-line py-1 hover:bg-hover/60"
+                  onClick={(e) => {
+                    if (!onItem(e)) add(date, minutesToSlotTime(tappedMinutes(e, h * 60, 60)));
+                  }}
+                >
+                  {before.map((item) => (
+                    <EventChip key={`${item.kind}-${item.id}`} item={item} timeZone={timeZone} />
+                  ))}
+                  {showNow && (
+                    <div className="relative my-1 h-0.5 bg-bad" aria-label="Now">
+                      <span className="absolute -left-1 -top-[3px] h-2 w-2 rounded-full bg-bad" />
+                    </div>
+                  )}
+                  {after.map((item) => (
+                    <EventChip key={`${item.kind}-${item.id}`} item={item} timeZone={timeZone} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-panel to-transparent"
+          aria-hidden="true"
+        />
+      </div>
+
+      {dayItems.length === 0 && (
+        <p className="mt-2 text-sm text-fg-3">Nothing scheduled. Tap a time to add an appointment, task or reminder.</p>
+      )}
+    </div>
+  );
+}
+
+function hourLabel(h: number) {
+  if (h === 0) return '12 AM';
+  if (h === 12) return '12 PM';
+  return h < 12 ? `${h} AM` : `${h - 12} PM`;
+}
+
+// ---------------------------------------------------------------------------
+// Week
+// ---------------------------------------------------------------------------
+
+const WEEK_ROW_PX = 44;
+const WEEK_BLOCK_PX = 22;
+
+/** Places a day's timed items in the week grid. Items whose blocks would
+ * overlap share the column side by side (up to 3 lanes) instead of stacking
+ * on top of each other. */
+function layoutWeekColumn(items: CalendarItem[], startHour: number, timeZone: string | null) {
+  const placed = items
+    .filter((i) => i.startsAt)
+    .map((item) => ({
+      item,
+      top: ((minutesIntoDayInZone(item.startsAt!, timeZone) - startHour * 60) / 60) * WEEK_ROW_PX,
+      lane: 0,
+      lanes: 1,
+    }))
+    .sort((a, b) => a.top - b.top);
+
+  let group: typeof placed = [];
+  const flush = () => {
+    const lanes = Math.min(3, group.length);
+    group.forEach((p, i) => {
+      p.lane = i % lanes;
+      p.lanes = lanes;
+    });
+    group = [];
+  };
+  for (const p of placed) {
+    if (group.length && p.top >= group[group.length - 1].top + WEEK_BLOCK_PX) flush();
+    group.push(p);
+  }
+  flush();
+  return placed;
+}
+
+function WeekView({
+  grouped,
+  date,
+  today,
+  nowIso,
+  timeZone,
+  go,
+  add,
+}: {
+  grouped: Map<string, CalendarItem[]>;
+  date: string;
+  today: string;
+  nowIso: string;
+  timeZone: string | null;
+  go: Go;
+  add: Add;
+}) {
+  const hourNow = Math.floor(minutesIntoDayInZone(nowIso, timeZone) / 60);
+  const days = weekDates(date);
+  const all = days.flatMap((d) => grouped.get(d) ?? []);
+  const { start, end } = hourSpan(all, timeZone);
+  const hours = Array.from({ length: end - start }, (_, i) => start + i);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // This week: open at the current hour. Other weeks: the earliest timed item.
+    const timedHours = all
+      .filter((i) => i.startsAt)
+      .map((i) => Math.floor(minutesIntoDayInZone(i.startsAt!, timeZone) / 60));
+    const h = days.includes(today) ? Math.max(start, hourNow - 1) : timedHours.length ? Math.min(...timedHours) : start;
+    if (scrollRef.current) scrollRef.current.scrollTop = Math.max(0, (h - start) * WEEK_ROW_PX - 4);
+    // Only when the week changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days[0]]);
+
+  return (
+    <div>
+      <div className="grid grid-cols-[32px_repeat(7,1fr)] text-center">
+        <span />
+        {days.map((d) => (
+          <button key={d} type="button" onClick={() => go('day', d)} className="rounded-sm py-1 hover:bg-hover">
+            <span className="block text-[10px] font-bold uppercase text-fg-3">{weekdayShort(d)}</span>
+            <span
+              className={cn(
+                'mx-auto mt-0.5 block w-6 rounded-[7px] text-[13px] font-bold',
+                d === today ? 'bg-acc text-white' : 'text-fg'
+              )}
+            >
+              {dayNumber(d)}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-[32px_repeat(7,1fr)] border-t border-line py-1 text-center">
+        <span className="text-[9.5px] font-semibold leading-5 text-fg-3">All</span>
+        {days.map((d) => {
+          const n = (grouped.get(d) ?? []).filter((i) => !i.startsAt).length;
+          return (
+            <span key={d} className="text-[10px] font-bold leading-5 text-[#1f5fae]">
+              {n > 0 ? n : ''}
+            </span>
+          );
+        })}
+      </div>
+
+      <div className="relative border-y border-line">
+        <div ref={scrollRef} className="h-[260px] overflow-y-auto" tabIndex={0} aria-label="Week timeline">
+          <div className="relative grid grid-cols-[32px_repeat(7,1fr)]">
+            <div>
+              {hours.map((h) => (
+                <div key={h} style={{ height: WEEK_ROW_PX }} className="text-[9.5px] font-semibold text-fg-3">
+                  {hourLabel(h).replace(' ', '')}
+                </div>
+              ))}
+            </div>
+            {days.map((d) => (
+              <div
+                key={d}
+                className="relative cursor-pointer border-l border-line/60 hover:bg-hover/40"
+                onClick={(e) => {
+                  if (!onItem(e)) add(d, minutesToSlotTime(tappedMinutes(e, start * 60, (end - start) * 60)));
+                }}
+              >
+                {hours.map((h) => (
+                  <div key={h} style={{ height: WEEK_ROW_PX }} className="border-t border-dashed border-line" />
+                ))}
+                {layoutWeekColumn(grouped.get(d) ?? [], start, timeZone).map(({ item, top, lane, lanes }) => {
+                  const meta = KIND_META[item.kind];
+                  const common = {
+                    style: {
+                      top,
+                      height: WEEK_BLOCK_PX,
+                      left: `calc(${(lane / lanes) * 100}% + 1px)`,
+                      width: `calc(${100 / lanes}% - 2px)`,
+                    },
+                    title: `${meta.label} · ${item.title} · ${formatDisplayTime(item.startsAt!, timeZone)}`,
+                    className: cn(
+                      'absolute z-[1] truncate rounded-[5px] border-l-2 px-0.5 text-left text-[9px] font-bold leading-[22px]',
+                      meta.chip
+                    ),
+                  };
+                  return item.href ? (
+                    <Link key={`${item.kind}-${item.id}`} href={item.href} {...common}>
+                      {item.title}
+                    </Link>
+                  ) : (
+                    <button key={`${item.kind}-${item.id}`} type="button" onClick={() => go('day', d)} {...common}>
+                      {item.title}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-panel to-transparent"
+          aria-hidden="true"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Month
+// ---------------------------------------------------------------------------
+
+function MonthView({
+  grouped,
+  hiddenTodos,
+  date,
+  today,
+  timeZone,
+  go,
+  add,
+}: {
+  grouped: Map<string, CalendarItem[]>;
+  hiddenTodos: Map<string, number>;
+  date: string;
+  today: string;
+  timeZone: string | null;
+  go: Go;
+  add: Add;
+}) {
+  const month = date.slice(0, 7);
+  const selected = grouped.get(date) ?? [];
+  const hidden = hiddenTodos.get(date) ?? 0;
+
+  return (
+    <div>
+      <div className="grid grid-cols-7 gap-0.5 text-center">
+        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+          <span key={i} className="pb-1 text-[10px] font-bold text-fg-3">
+            {d}
+          </span>
+        ))}
+        {monthGridDates(date).map((d) => {
+          const inMonth = d.slice(0, 7) === month;
+          const isSelected = d === date;
+          return (
+            <button
+              key={d}
+              type="button"
+              // First tap selects the day; tapping the selected day adds to it.
+              onClick={() => (isSelected ? add(d) : go('month', d))}
+              aria-current={isSelected ? 'date' : undefined}
+              aria-label={formatShortDate(d)}
+              className={cn(
+                'h-10 rounded-sm pt-1 text-[13px] font-semibold',
+                !inMonth && 'text-fg-4',
+                isSelected ? 'bg-acc text-white' : 'hover:bg-hover',
+                d === today && !isSelected && 'ring-1 ring-inset ring-acc'
+              )}
+            >
+              {dayNumber(d)}
+              {inMonth && <Dots items={grouped.get(d)} light={isSelected} />}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 border-t border-line pt-2.5">
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <p className="text-xs font-bold text-fg-2">
+            {weekdayShort(date)}, {formatShortDate(date)} · {selected.length + hidden}{' '}
+            {selected.length + hidden === 1 ? 'item' : 'items'}
+          </p>
+          <button
+            type="button"
+            onClick={() => add(date)}
+            className="flex items-center gap-1 text-xs font-bold text-acc hover:underline"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            Add to this day
+          </button>
+        </div>
+        {selected.length === 0 ? (
+          <p className="text-sm text-fg-3">Nothing on this day.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {selected.map((item) => (
+              <EventChip key={`${item.kind}-${item.id}`} item={item} timeZone={timeZone} />
+            ))}
+            <MoreTodos date={date} count={hidden} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

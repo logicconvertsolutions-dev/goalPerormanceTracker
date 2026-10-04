@@ -89,6 +89,9 @@ export default async function SettingsPage() {
                 eveningNudge: prefs?.evening_nudge ?? true,
                 sundaySummary: prefs?.sunday_summary ?? true,
                 mondayDigest: prefs?.monday_digest ?? true,
+                pushReminders: prefs?.push_reminders ?? true,
+                pushAppointments: prefs?.push_appointments ?? true,
+                pushMorningBrief: prefs?.push_morning_brief ?? true,
               }}
             />
           </CardContent>
@@ -113,7 +116,8 @@ export default async function SettingsPage() {
           <CardTitle>Your data</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <DataActions showDownloadEverything={isAdmin} />
+          {/* Every user (P33): this is how the privacy notice says you get a copy of your data. */}
+          <DataActions showDownloadEverything />
           <div className="flex gap-3">
             <Link href="/privacy" className="text-xs text-acc hover:underline">
               Read the privacy notice

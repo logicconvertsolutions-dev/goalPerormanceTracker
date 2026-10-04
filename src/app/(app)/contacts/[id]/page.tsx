@@ -8,11 +8,14 @@ import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/shell/page-header';
 import { LogActivityButton } from '@/components/shell/log-activity-button';
 import { formatDisplayDate } from '@/lib/dates';
-import { outcomeBadgeVariant } from '@/lib/call-outcomes';
+import { outcomeBadgeVariant, outcomeLabel } from '@/lib/call-outcomes';
 import { apptTypeLabel } from '@/lib/appointment-types';
 import { DeleteContactButton } from './delete-contact-button';
 import { EditContactDialog } from './edit-contact-dialog';
 import { withReturnTo } from '@/lib/return-to';
+import { ContactCallButtons } from '@/components/shell/contact-call-buttons';
+import { formatPhone } from '@/lib/phone';
+import { CallsToFinish, type WaitingCall } from '@/components/shell/calls-to-finish';
 
 export default async function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -21,17 +24,18 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
 
   const { data: contact } = await supabase
     .from('contacts')
-    .select('id, full_name, notes, created_at')
+    .select('id, full_name, phone_number, notes, created_at')
     .eq('id', id)
     .eq('agent_id', session.agent!.id)
     .maybeSingle();
 
   if (!contact) notFound();
 
-  const [{ data: calls }, { data: appointments }, { data: sales }] = await Promise.all([
+  const [{ data: calls }, { data: appointments }, { data: sales }, { data: waiting, count: waitingCount }] =
+    await Promise.all([
     supabase
       .from('call_logs')
-      .select('id, call_date, source, outcome, notes, follow_up_on, follow_up_done_at')
+      .select('id, call_date, source, outcome, channel, notes, follow_up_on, follow_up_done_at')
       .eq('contact_id', contact.id)
       .order('call_date', { ascending: false }),
     supabase
@@ -46,6 +50,14 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
       .select('id, sale_date, product_type, premium_cents')
       .eq('contact_id', contact.id)
       .order('sale_date', { ascending: false }),
+    // P35: this contact's tap-to-calls still waiting for an outcome.
+    supabase
+      .from('pending_calls')
+      .select('id, contact_id, channel, call_date, contacts(full_name)', { count: 'exact' })
+      .eq('contact_id', contact.id)
+      .order('created_at', { ascending: false })
+      .limit(10)
+      .returns<WaitingCall[]>(),
   ]);
 
   return (
@@ -54,7 +66,12 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
         title={contact.full_name}
         action={
           <div className="flex flex-wrap gap-2">
-            <EditContactDialog contactId={contact.id} fullName={contact.full_name} notes={contact.notes} />
+            <EditContactDialog
+              contactId={contact.id}
+              fullName={contact.full_name}
+              phoneNumber={contact.phone_number}
+              notes={contact.notes}
+            />
             <Button asChild variant="secondary" size="sm">
               <Link href={withReturnTo(`/appointments/new?contact=${contact.id}`, `/contacts/${contact.id}`)}>
                 Log appointment
@@ -72,6 +89,28 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           </div>
         }
       />
+
+      <Card>
+        <CardContent className="flex items-center justify-between gap-3 pt-4">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wide text-fg-3">Phone</p>
+            <p className="truncate text-sm text-fg">
+              {contact.phone_number ? (
+                formatPhone(contact.phone_number)
+              ) : (
+                <span className="text-fg-3">No number yet. Tap Edit to add one.</span>
+              )}
+            </p>
+          </div>
+          <ContactCallButtons
+            contactId={contact.id}
+            phoneNumber={contact.phone_number}
+            contactName={contact.full_name}
+          />
+        </CardContent>
+      </Card>
+
+      <CallsToFinish calls={waiting ?? []} total={waitingCount ?? 0} showContact={false} />
 
       {contact.notes && (
         <Card>
@@ -120,9 +159,14 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           {calls && calls.length > 0 ? (
             calls.map((c) => (
               <div key={c.id} className="border-b border-line pb-3 last:border-0 last:pb-0">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-fg font-medium">{formatDisplayDate(c.call_date)}</p>
-                  <Badge variant={outcomeBadgeVariant(c.outcome)}>{c.outcome.replace('_', ' ')}</Badge>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm text-fg font-medium">
+                    {formatDisplayDate(c.call_date)}
+                    {c.channel && (
+                      <span className="font-normal text-fg-3"> · {c.channel === 'whatsapp' ? 'WhatsApp' : 'Phone'}</span>
+                    )}
+                  </p>
+                  <Badge variant={outcomeBadgeVariant(c.outcome)}>{outcomeLabel(c.outcome)}</Badge>
                 </div>
                 {c.notes && <p className="text-sm text-fg-2 mt-1">{c.notes}</p>}
                 {c.follow_up_on && (

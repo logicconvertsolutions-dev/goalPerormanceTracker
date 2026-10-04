@@ -11,8 +11,9 @@ const UNIQUE_VIOLATION = '23505';
  * the matching below is only a safety net for free-typed names/imports.
  *
  * Matching: a case-insensitive exact match on `(agent_id, lower(full_name))`
- * (matches `contacts_agent_name_uq`) — name is the only identifier a contact
- * has (phone is deliberately not collected).
+ * (matches `contacts_agent_name_uq`) — name is the identifier. A phone
+ * number (P33, optional) is only ever stored on a newly created contact here,
+ * never matched on and never used to overwrite an existing one.
  */
 export async function findOrCreateContact(
   supabase: SupabaseClient<Database>,
@@ -20,7 +21,8 @@ export async function findOrCreateContact(
   orgId: string,
   fullName: string,
   contactId?: string | null,
-  notes?: string | null
+  notes?: string | null,
+  phoneNumber?: string | null
 ): Promise<{ id: string; created: boolean } | { error: string }> {
   if (contactId) {
     const { data: existing } = await supabase
@@ -50,7 +52,13 @@ export async function findOrCreateContact(
 
   const { data: created, error } = await supabase
     .from('contacts')
-    .insert({ agent_id: agentId, org_id: orgId, full_name: trimmed, notes: notes || null })
+    .insert({
+      agent_id: agentId,
+      org_id: orgId,
+      full_name: trimmed,
+      notes: notes || null,
+      phone_number: phoneNumber || null,
+    })
     .select('id')
     .single();
 
@@ -77,4 +85,24 @@ export async function findOrCreateContact(
     return { error: 'Could not save contact.' };
   }
   return { id: created.id, created: true };
+}
+
+/**
+ * Phone numbers for a set of the agent's own contacts, by contact id (P33).
+ * A plain RLS-scoped read rather than a column on my_followups: that RPC is
+ * SECURITY DEFINER, and no definer function reads phone_number (pgTAP 014).
+ */
+export async function fetchContactPhones(
+  supabase: SupabaseClient<Database>,
+  agentId: string,
+  contactIds: string[]
+): Promise<Map<string, string | null>> {
+  const ids = Array.from(new Set(contactIds));
+  if (ids.length === 0) return new Map();
+  const { data } = await supabase
+    .from('contacts')
+    .select('id, phone_number')
+    .eq('agent_id', agentId)
+    .in('id', ids);
+  return new Map((data ?? []).map((c) => [c.id, c.phone_number]));
 }

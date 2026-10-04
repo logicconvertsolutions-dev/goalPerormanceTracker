@@ -4,9 +4,17 @@ import { createClient } from '@/lib/supabase/server';
 import { PageHeader } from '@/components/shell/page-header';
 import { LogForm } from '../../log-form';
 import { callFormAppointmentAt } from './linked-appointment';
+import { safeReturnTo } from '@/lib/return-to';
 
-export default async function EditCallPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditCallPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ returnTo?: string }>;
+}) {
   const { id } = await params;
+  const { returnTo } = await searchParams;
   const session = await requireVerifiedAgent();
   const supabase = await createClient();
 
@@ -31,6 +39,7 @@ export default async function EditCallPage({ params }: { params: Promise<{ id: s
       <PageHeader title="Edit call" />
       <LogForm
         mode="edit"
+        returnTo={safeReturnTo(returnTo, '/logs')}
         defaultValues={{
           id: call.id,
           callDate: call.call_date,
