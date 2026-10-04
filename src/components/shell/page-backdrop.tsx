@@ -19,9 +19,12 @@ const DEFAULT_IMAGE = mountain;
  * navigation stays plain; the sticky header (z-20) and mobile tab bar (z-40)
  * sit above it.
  *
- * My Day (P36) puts its header on the photo: navy at the very top (behind
- * the status bar, greeting and icons), clearing to the bare photo just under
- * the header, then the usual white wash for the cards. The stops are in px
+ * My Day (P36) puts its header on the photo: solid brand navy at the very
+ * top, fading through the greeting and icons to the bare photo just under
+ * the header, then the usual white wash for the cards. The solid start
+ * matters: iOS may paint the status bar itself in the theme colour (#0B1E3D)
+ * rather than letting the page draw under it, and starting the shade on
+ * that exact navy means there is no visible edge either way. The stops are in px
  * plus the status-bar inset so they track the header, not the viewport.
  *
  * AVIF on purpose: Next generates a blur preview (via sharp) at build time
@@ -44,7 +47,7 @@ export function PageBackdrop() {
             className="absolute inset-0"
             style={{
               background:
-                'linear-gradient(180deg, rgba(11,30,61,0.78) 0, rgba(11,30,61,0.5) calc(env(safe-area-inset-top) + 96px), rgba(11,30,61,0) calc(env(safe-area-inset-top) + 150px), rgba(255,255,255,0.6) calc(env(safe-area-inset-top) + 230px), rgba(255,255,255,0.86) calc(env(safe-area-inset-top) + 380px), rgba(255,255,255,0.93) 100%)',
+                'linear-gradient(180deg, rgb(11,30,61) 0, rgb(11,30,61) env(safe-area-inset-top), rgba(11,30,61,0.62) calc(env(safe-area-inset-top) + 48px), rgba(11,30,61,0.45) calc(env(safe-area-inset-top) + 96px), rgba(11,30,61,0) calc(env(safe-area-inset-top) + 150px), rgba(255,255,255,0.6) calc(env(safe-area-inset-top) + 230px), rgba(255,255,255,0.86) calc(env(safe-area-inset-top) + 380px), rgba(255,255,255,0.93) 100%)',
             }}
           />
           {/* Extra shade behind the greeting text on the left. */}
