@@ -91,12 +91,23 @@ From `lg` up, the header and KPI strip span the full width. Below them are
 two columns: Calendar and Recent activity on the left, To Do, Reminders
 and the Quote on the right.
 
-**Greeting header.** It shows:
-- the agent-local date
+**Greeting header (P36: merged into the app header).** The page has no
+separate greeting card. On `/today` the app header itself sits on the page
+photo (navy shade at the top, clearing into the white wash under the KPI
+strip). Same layout on phone, tablet and desktop:
+- left: the org logo (Kautis mark, white, if none). No org name, here or
+  on any other page.
 - "Good morning / afternoon / evening, {first name}", from the agent's
   own `time_zone` (before 12, before 17, after that)
-- "Small steps. Big progress."
-- a **+ Log** button opening the shared quick-log dialog
+- under it, the agent-local date and time on one line, e.g.
+  "Saturday, Oct 3 · 7:42 PM", ticking on the minute
+- right: refresh (phone only), bell and account (white), and a **+ Log**
+  button opening the shared quick-log dialog. Log sits under the icons on
+  phones and beside them from `md` up.
+- scrolling: the greeting fades out and the bar fills in navy with a smaller
+  logo, a slim pinned bar. Its height never changes, so nothing jumps.
+- Home Screen app: the photo runs up behind the iPhone status bar
+  (`black-translucent`). Every other page gets a navy strip there instead.
 
 **KPI strip (3 tiles):**
 - **Calls logged (today):** compared with yesterday; yesterday's count

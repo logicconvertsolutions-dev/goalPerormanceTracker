@@ -2,15 +2,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export default function TodayLoading() {
   return (
-    <div className="mx-auto max-w-lg space-y-7">
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1.5">
-          <Skeleton className="h-9 w-40" />
-          <Skeleton className="h-4 w-32" />
-        </div>
-        <Skeleton className="h-11 w-32 shrink-0 rounded-lg" />
-      </div>
-
+    // The greeting lives in the app header (P36), which stays up while this
+    // shows -- so this starts at the KPI strip.
+    <div className="mx-auto -mt-3 max-w-lg space-y-7">
       <div className="flex gap-2.5">
         <Skeleton className="h-[84px] flex-1 rounded" />
         <Skeleton className="h-[84px] flex-1 rounded" />
