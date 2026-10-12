@@ -865,6 +865,43 @@ change.
       safe-area insets.
 - [x] My Day loading skeleton no longer draws the old title row.
 
+## P37 — Org status: active / read_only / suspended
+
+No billing system yet: status is flipped by hand (`scripts/set-org-status.sql`).
+`read_only` = overdue, view + export only. `suspended` = only the SMD can sign
+in, to export; associates are blocked. Two parts, shipped separately.
+
+**P37 database (migrations p37a/b/c)**
+- [x] `organizations.status` (check active/read_only/suspended, default
+      active), `paid_through`, `status_note`. Only postgres/service_role can
+      change them (column grants + trigger); every change is audited
+      (`org.status_changed`).
+- [x] Fixed a migrations-vs-production drift: a database built from
+      migrations gave `authenticated` table-level UPDATE on `organizations`
+      (rule 4). Now UPDATE (name, logo_path) only, matching production.
+- [x] `private.org_status / org_is_writable / org_is_readable /
+      agent_org_readable / assert_org_writable / assert_org_readable /
+      is_platform_admin`.
+- [x] RESTRICTIVE policies on every org-scoped table (writes need an active
+      org; reads need active/read_only, or suspended + the org's SMD). Own
+      `agents` and `organizations` rows stay readable so the app can show
+      the banner/blocked screen. Existing permissive policies untouched.
+- [x] Account-level exemptions (stay writable): own `agents` row,
+      `mfa_recovery_codes`, `notification_prefs`, `announcement_dismissals`,
+      notifications mark-read, `feedback`, push-subscription removal.
+- [x] `org-logos` storage: the three dashboard-only policies captured
+      verbatim, plus bucket-scoped restrictive fences.
+- [x] Guard line in all 19 authenticated-callable SECURITY DEFINER RPCs
+      (generated from live definitions, not hand-copied).
+- [x] Cron: no reminders/appointment pushes/morning briefs/email nudges for
+      non-active orgs. Invites into a non-active org can't be accepted.
+      Metrics drain and retention purges keep running.
+- [x] pgTAP `017_p37_org_status.sql`: 84 checks across the three statuses.
+- [ ] `npm run types` after the migrations are pushed.
+
+**P37 app** — banner, disabled controls, suspended screen, error mapping.
+- [ ] Not started.
+
 ---
 
 ## Working with Claude Code on this repo (token discipline)
