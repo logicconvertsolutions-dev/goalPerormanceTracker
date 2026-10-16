@@ -867,6 +867,36 @@ change.
 
 ---
 
+## P37 — Bulk contact import from a .vcf file; phone numbers in Excel import
+
+From a client report, 2026-10-16: on Android, Chrome's contact picker only
+ticks contacts one at a time (iOS lets you drag-select), so importing a full
+address book meant tapping and scrolling through every contact. The picker
+UI belongs to the browser and can't be changed from the page. No database
+change.
+
+- [x] `lib/import/parse-vcard.ts` (tested): vCard 2.1 (Android export,
+      quoted-printable + charset), 3.0 (iOS, Google) and 4.0. Reads FN/N
+      and the preferred-else-first TEL that can be placed (same +1 rule as
+      the picker). Runs in the browser: a photo-laden export passes the
+      Server Action body limit, the names and numbers don't.
+- [x] `contacts/import-vcard-button.tsx`: "Import .vcf file" on /contacts,
+      with how-to-export steps and a confirm showing counts before saving.
+      Sends through `importDeviceContactsAction` (same Zod check, name
+      match, rate limit, never replaces an existing number). The picker's
+      notice points Android users at it.
+- [x] Excel import reads an optional phone column on **every** sheet,
+      found by header ("Phone", "Phone Number", "Mobile", "Cell", ...), so
+      it can sit anywhere and older workbooks import unchanged; the Contacts
+      sheet also takes an unlabelled column B. Both templates (contacts,
+      clients) carry a **Phone Number** column. Normalised like the picker;
+      one that can't be placed shows a preview warning and the row imports
+      without it. `commitImport` saves it on new contacts and fills in,
+      never replaces, a number on existing ones; re-checks E.164
+      server-side.
+
+---
+
 ## Working with Claude Code on this repo (token discipline)
 > Session-by-session prompts live in `docs/07-getting-started.md`. If the two
 > ever disagree, that file wins for *how to run a session*; this one wins for

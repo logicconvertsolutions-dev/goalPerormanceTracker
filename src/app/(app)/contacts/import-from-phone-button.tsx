@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { phoneFromDevice } from '@/lib/phone';
 import { importDeviceContactsAction } from './actions';
+import { ImportPrivacyNotice } from './import-privacy-notice';
 
 // Not yet in lib.dom.d.ts -- the Contact Picker API. Shipped by default on
 // Android Chrome/Edge; WebKit has an experimental implementation too (behind
@@ -126,16 +127,10 @@ export function ImportFromPhoneButton() {
                   Your phone will ask which contacts to share. Only the ones you tick are imported —
                   Kautis never sees the rest of your address book.
                 </p>
+                <ImportPrivacyNotice />
                 <p>
-                  For each one we save the <strong>name</strong> and <strong>first phone number</strong>.
-                  They are visible only to you, never to your SMD or anyone else in your organization.
-                </p>
-                <p>
-                  Only import people you have a reason to contact for your business. See the{' '}
-                  <a href="/privacy" className="text-acc hover:underline">
-                    privacy notice
-                  </a>
-                  .
+                  Importing a lot of contacts on Android? Export them from your Contacts app to a .vcf
+                  file and use <strong>Import .vcf file</strong> instead — no need to tick each one.
                 </p>
               </div>
             </DialogDescription>

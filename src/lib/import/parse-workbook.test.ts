@@ -107,9 +107,76 @@ describe('parseWorkbook', () => {
     expect(result.rows).toHaveLength(1);
     expect(result.rows[0].errors).toEqual([]);
     expect(result.rows[0].data).toEqual({ fullName: 'Jane Doe' });
+    expect(result.rows[0].phoneNumber).toBeNull(); // column B is read even unlabelled
+    expect(result.rows[0].warnings).toBeUndefined();
   });
 
-  it('ignores a trailing Phone column without disturbing existing columns', () => {
+  it('reads an optional Phone Number column on the Contacts sheet', () => {
+    const buf = buildWorkbook({
+      Contacts: [
+        [...CONTACTS_HEADER, 'Phone Number'],
+        ['With Plus', '+44 20 7946 0958'],
+        ['Local NA', '(416) 555-0123'],
+        ['Numeric Cell', 6475550199],
+        ['Unplaceable', '020 7946 0958'],
+      ],
+    });
+
+    const result = parseWorkbook(buf);
+    expect(result.rows.map((r) => [r.data, r.phoneNumber])).toEqual([
+      [{ fullName: 'With Plus' }, '+442079460958'],
+      [{ fullName: 'Local NA' }, '+14165550123'],
+      [{ fullName: 'Numeric Cell' }, '+16475550199'],
+      [{ fullName: 'Unplaceable' }, null],
+    ]);
+    // An unreadable number warns but never blocks the contact.
+    expect(result.rows.every((r) => r.errors.length === 0)).toBe(true);
+    expect(result.rows[3].warnings).toEqual([
+      'Phone number "020 7946 0958" couldn\'t be read (add the country code, e.g. +44) — importing without it.',
+    ]);
+  });
+
+  it('reads a phone column on every activity sheet, found by header wherever it sits', () => {
+    const buf = buildWorkbook({
+      'Call Log': [
+        [...CALL_LOG_HEADER, 'Phone'],
+        ['2026-07-06', 'Jane Doe', 'Acme Inc.', 'Warm Market', 'Connected', 'note', '416-555-0123'],
+      ],
+      'Appointment Log': [
+        ['Date', 'Contact Name', 'Type', 'Status', 'Expected Premium ($)', 'Referrals Given', 'Notes', 'Mobile'],
+        ['2026-07-08', 'Ann Lee', 'Initial Meeting', 'Held', 85, 1, null, '+44 20 7946 0958'],
+      ],
+      'Sales Log': [
+        ['Date', 'Client Name', 'Phone Number', 'Product Type', 'Premium Amount', 'Notes'],
+        ['2026-07-09', 'Bo Chen', '(647) 555-0199', 'Universal Life', 85, 'call me at 905-555-0100'],
+      ],
+      'Recruiting Log': [
+        ['Date', 'Prospect Name', 'Source', 'Status', 'Notes', 'Cell Phone #'],
+        ['2026-07-07', 'Alex Kumar', 'Referral', 'Contacted', null, null],
+      ],
+    });
+
+    const result = parseWorkbook(buf);
+    expect(result.rows.map((r) => [r.sheet, r.phoneNumber])).toEqual([
+      ['Call Log', '+14165550123'],
+      ['Appointment Log', '+442079460958'],
+      ['Sales Log', '+16475550199'],
+      ['Recruiting Log', null],
+    ]);
+    expect(result.rows.every((r) => r.errors.length === 0)).toBe(true);
+  });
+
+  it('leaves phoneNumber unset on a sheet with no phone column', () => {
+    const buf = buildWorkbook({
+      'Sales Log': [
+        ['Date', 'Client Name', 'Product Type', 'Premium Amount', 'Notes'],
+        ['2026-07-09', 'Bo Chen', 'Universal Life', 85, '905-555-0100'],
+      ],
+    });
+    expect(parseWorkbook(buf).rows[0]).not.toHaveProperty('phoneNumber');
+  });
+
+  it('a trailing Phone column does not disturb the existing columns', () => {
     const buf = buildWorkbook({
       'Call Log': [
         [...CALL_LOG_HEADER, 'Phone'],
@@ -120,7 +187,8 @@ describe('parseWorkbook', () => {
     const result = parseWorkbook(buf);
     expect(result.rows[0].errors).toEqual([]);
     expect(result.rows[0].data).toMatchObject({ contactName: 'Jane Doe' });
-    expect(result.rows[0].data).not.toHaveProperty('contactPhone');
+    expect(result.rows[0].data).not.toHaveProperty('phoneNumber');
+    expect(result.rows[0].phoneNumber).toBe('+15551234567');
   });
 
   it('skips fully-blank rows without emitting them', () => {
