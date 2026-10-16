@@ -145,13 +145,11 @@ function contactNameFor(row: ParsedRow): string {
   }
 }
 
-/** Only the Contacts sheet carries a phone number. The parse result comes
- * back from the browser, so the E.164 check is repeated here -- a bad value
- * would otherwise fail the contacts table's check constraint and take the
- * whole insert chunk with it. */
+/** The parse result comes back from the browser, so the E.164 check is
+ * repeated here -- a bad value would otherwise fail the contacts table's
+ * check constraint and take the whole insert chunk with it. */
 function contactPhoneFor(row: ParsedRow): string | null {
-  if (row.sheet !== 'Contacts') return null;
-  const phone = (row.data as ContactOnlyImportData).phoneNumber;
+  const phone = row.phoneNumber;
   return typeof phone === 'string' && E164.test(phone) ? phone : null;
 }
 

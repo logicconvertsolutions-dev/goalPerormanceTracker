@@ -165,7 +165,8 @@ function contactOnlyRow(rowNumber: number, fullName: string, phoneNumber: string
     rowNumber,
     rowHash: `contact-${rowNumber}`,
     errors: [],
-    data: { fullName, phoneNumber },
+    data: { fullName },
+    phoneNumber,
   };
 }
 
@@ -225,6 +226,18 @@ describe('commitImport', () => {
     expect(contacts).toHaveLength(2);
     expect(contacts.find((c) => c.id === 'no-number')?.phone_number).toBe('+14165550123');
     expect(contacts.find((c) => c.id === 'has-number')?.phone_number).toBe('+447946095800');
+  });
+
+  it('saves a phone number from an activity sheet on the contact it creates', async () => {
+    const supabase = fakeClient();
+    const rows = [{ ...callLogRow(2, 'John Doe'), phoneNumber: '+16475550199' }, saleRow(3, 'John Doe')];
+
+    const result = await commitImport(supabase, AGENT_ID, ORG_ID, rows);
+
+    expect(result.errors).toEqual([]);
+    const contacts = (supabase as unknown as FakeSupabase).tables.contacts;
+    expect(contacts).toHaveLength(1);
+    expect(contacts[0]).toMatchObject({ full_name: 'John Doe', phone_number: '+16475550199' });
   });
 
   it('drops a phone number that is not E.164 instead of failing the insert', async () => {

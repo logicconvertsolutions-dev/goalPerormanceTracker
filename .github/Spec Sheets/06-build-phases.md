@@ -885,11 +885,15 @@ change.
       Sends through `importDeviceContactsAction` (same Zod check, name
       match, rate limit, never replaces an existing number). The picker's
       notice points Android users at it.
-- [x] Excel Contacts sheet takes an optional **Phone Number** column
-      (template updated). Normalised like the picker; one that can't be
-      placed shows a preview warning and imports the name only.
-      `commitImport` saves it on new contacts and fills in, never replaces,
-      a number on existing ones; re-checks E.164 server-side.
+- [x] Excel import reads an optional phone column on **every** sheet,
+      found by header ("Phone", "Phone Number", "Mobile", "Cell", ...), so
+      it can sit anywhere and older workbooks import unchanged; the Contacts
+      sheet also takes an unlabelled column B. Both templates (contacts,
+      clients) carry a **Phone Number** column. Normalised like the picker;
+      one that can't be placed shows a preview warning and the row imports
+      without it. `commitImport` saves it on new contacts and fills in,
+      never replaces, a number on existing ones; re-checks E.164
+      server-side.
 
 ---
 

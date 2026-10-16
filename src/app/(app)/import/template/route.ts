@@ -3,10 +3,13 @@ import * as XLSX from 'xlsx';
 import { requireAgent } from '@/lib/auth/guards';
 
 // Sample workbooks for the two "just my list" import paths — a plain
-// Contacts sheet (name, plus an optional phone number with country code), and a Sales Log sheet (which doubles as the Clients
+// Contacts sheet, and a Sales Log sheet (which doubles as the Clients
 // import: any Sales Log row creates the contact and the sale that makes
 // them show up on /clients). One example row shows the expected format;
 // its text makes clear it's a placeholder to replace, not data to keep.
+// Both carry an optional Phone Number column (country code included; a
+// local North American number is read as +1) -- parse-workbook finds it by
+// header, on any sheet.
 const TEMPLATES = {
   contacts: {
     filename: 'contacts-import-template.xlsx',
@@ -20,8 +23,8 @@ const TEMPLATES = {
     filename: 'clients-import-template.xlsx',
     sheetName: 'Sales Log',
     rows: [
-      ['Date', 'Client Name', 'Product Type', 'Premium Amount', 'Notes'],
-      ['2026-01-15', 'Jane Doe (delete this example row)', 'Universal Life', 1500, 'Referred by John'],
+      ['Date', 'Client Name', 'Product Type', 'Premium Amount', 'Notes', 'Phone Number'],
+      ['2026-01-15', 'Jane Doe (delete this example row)', 'Universal Life', 1500, 'Referred by John', '+1 416 555 0123'],
     ],
   },
 } as const;
