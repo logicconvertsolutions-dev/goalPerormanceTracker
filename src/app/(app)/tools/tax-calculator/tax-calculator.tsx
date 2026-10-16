@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { useMemo, useState } from 'react';
+import { RotateCcw } from 'lucide-react';
 import { DonutChart } from '@/components/charts/donut-chart';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,9 +18,10 @@ import {
 import { CATEGORICAL_ORDER } from '@/lib/chart-colors';
 import { calculateTax } from '@/lib/tax/calculate';
 import { formatMoney, formatPercent } from '@/lib/tax/format';
-import { serializeTaxParams } from '@/lib/tax/params';
+import { parseTaxParams, serializeTaxParams } from '@/lib/tax/params';
 import { PROVINCE_NAMES, TAX_YEAR, type ProvinceCode } from '@/lib/tax/rates-2026';
 import { PAY_PERIODS, type PayPeriod, type TaxInput, type TaxResult } from '@/lib/tax/types';
+import { useSessionDraft } from '@/lib/tools/use-session-draft';
 import { cn } from '@/lib/utils';
 
 const PERIOD_LABELS: Record<PayPeriod, string> = {
@@ -69,10 +71,7 @@ function parseAmount(text: string): number {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-const URL_SYNC_DELAY_MS = 400;
-
 export function TaxCalculator({ initial }: { initial: TaxInput }) {
-  const pathname = usePathname();
   const [province, setProvince] = useState<ProvinceCode>(initial.province);
   const [payPeriod, setPayPeriod] = useState<PayPeriod>(initial.payPeriod);
   const [draft, setDraft] = useState<Draft>(() => toDraft(initial));
@@ -96,15 +95,15 @@ export function TaxCalculator({ initial }: { initial: TaxInput }) {
 
   const result = useMemo(() => calculateTax(input), [input]);
 
-  // replaceState rather than router.replace: no server round trip and no
-  // history entry per keystroke — the URL just tracks the current scenario.
-  useEffect(() => {
-    const handle = window.setTimeout(() => {
-      const qs = serializeTaxParams(input).toString();
-      window.history.replaceState(null, '', qs ? `${pathname}?${qs}` : pathname);
-    }, URL_SYNC_DELAY_MS);
-    return () => window.clearTimeout(handle);
-  }, [input, pathname]);
+  const apply = (next: TaxInput) => {
+    setProvince(next.province);
+    setPayPeriod(next.payPeriod);
+    setDraft(toDraft(next));
+  };
+
+  useSessionDraft('tax', serializeTaxParams(input).toString(), (query) =>
+    apply(parseTaxParams(Object.fromEntries(new URLSearchParams(query))))
+  );
 
   const field = (key: keyof Draft) => ({
     value: draft[key],
@@ -118,9 +117,22 @@ export function TaxCalculator({ initial }: { initial: TaxInput }) {
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start">
         <Card>
-          <CardHeader>
-            <CardTitle>Your details</CardTitle>
-            <CardDescription>Enter what applies — leave the rest blank. Results update as you type.</CardDescription>
+          <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
+            <div>
+              <CardTitle>Your details</CardTitle>
+              <CardDescription>
+                Enter what applies — leave the rest blank. Results update as you type.
+              </CardDescription>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              className="shrink-0"
+              onClick={() => apply(parseTaxParams({}))}
+            >
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              Reset
+            </Button>
           </CardHeader>
           <CardContent className="space-y-5">
             <fieldset className="space-y-3">

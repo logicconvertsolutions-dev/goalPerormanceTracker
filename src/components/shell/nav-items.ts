@@ -16,6 +16,7 @@ import {
   Megaphone,
   BarChart3,
   Calculator,
+  TrendingUp,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -73,6 +74,7 @@ export const ADMIN_NAV: NavItem[] = [
 // tools, and a phone reaching the URL directly gets a notice instead.
 export const TOOLS_NAV: NavItem[] = [
   { href: '/tools/tax-calculator', label: 'Tax Calculator', icon: Calculator },
+  { href: '/tools/investment-calculator', label: 'Investment Calculator', icon: TrendingUp },
 ];
 
 // Guided walkthrough of the app's major functionality — reachable by every
