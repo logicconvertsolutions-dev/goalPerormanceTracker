@@ -897,6 +897,37 @@ change.
 
 ---
 
+## P38 — Tax Calculator tool (tablet/laptop)
+
+A 2026 Canadian income tax estimator under a new rail "Tools" group,
+combining https://turbotax.intuit.ca/tax-resources/canada-income-tax-calculator
+(income types, refund/owing) with https://ca.talent.com/tax-calculator (pay
+periods, net pay, employer "taxberg"). No database change, no new
+dependency, nothing stored.
+
+- [x] `lib/tax/rates-2026.ts`: federal + 13 jurisdictions' annual 2026
+      brackets, personal amounts, credit rates, dividend credits; CPP/CPP2,
+      QPP/QPP2, EI, QPIP; ON surtax/health premium/tax reduction; BC tax
+      reduction. Annual T1 values, not T4127-JUL's half-year prorations
+      (BC 5.60%, NL $13,094, PE 20%). Sources in the file header.
+- [x] `lib/tax/calculate.ts` (tested): single-filer annual estimate.
+      Golden tests: RCGT 2026 Quebec tax table, all 13 combined top
+      marginal rates (ordinary, eligible, non-eligible), T4127 CPP/QPP/EI/
+      QPIP maximums, T4127 bracket constants.
+- [x] `lib/tax/params.ts` (tested): Zod URL parsing; garbage falls back to
+      defaults.
+- [x] `/tools/tax-calculator`: guarded page + client calculator; phone
+      notice below `md`; admin redirected.
+- [x] `DonutChart`: optional `formatValue`/`centerValue`/`centerLabel`/
+      `valueHeader` (existing callers unchanged).
+- [ ] Each January: add `rates-<year>.ts` and refresh the golden tests.
+- Not modelled (in the on-page disclaimer): age/pension/spouse/dependant/
+  tuition/medical/donation credits, OAS clawback, AMT, refundable benefits,
+  Ontario LIFT and other provincial low-income credits, Quebec HSF on
+  non-employment income, employer payroll taxes.
+
+---
+
 ## Working with Claude Code on this repo (token discipline)
 > Session-by-session prompts live in `docs/07-getting-started.md`. If the two
 > ever disagree, that file wins for *how to run a session*; this one wins for
