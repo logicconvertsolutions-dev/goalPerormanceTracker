@@ -15,6 +15,7 @@ import {
   HelpCircle,
   Megaphone,
   BarChart3,
+  Calculator,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -65,6 +66,13 @@ export const ADMIN_NAV: NavItem[] = [
   { href: '/admin/pilot', label: 'Pilot', icon: Gauge },
   { href: '/admin/feedback', label: 'Feedback', icon: MessageSquareWarning },
   { href: '/admin/announcements', label: 'Announcements', icon: Megaphone },
+];
+
+// Standalone calculators for associates and leaders (not admin). Rail only —
+// deliberately absent from TabBar and AccountMenu: these are tablet/laptop
+// tools, and a phone reaching the URL directly gets a notice instead.
+export const TOOLS_NAV: NavItem[] = [
+  { href: '/tools/tax-calculator', label: 'Tax Calculator', icon: Calculator },
 ];
 
 // Guided walkthrough of the app's major functionality — reachable by every

@@ -10,6 +10,7 @@ import {
   LEADER_NAV,
   ADMIN_NAV,
   HELP_NAV,
+  TOOLS_NAV,
   type NavItem,
 } from './nav-items';
 import { useLogActivityDialog } from './log-activity-dialog';
@@ -80,6 +81,14 @@ export function RailNav({ role }: { role: AppRole }) {
       <div className="my-2 border-t border-line" />
 
       {secondaryItems.map((item) => (
+        <NavLink key={item.href} item={item} current={pathname.startsWith(item.href)} />
+      ))}
+
+      <div className="my-2 border-t border-line" />
+      <p className="px-3 pb-1 pt-0.5 text-[11px] font-semibold uppercase tracking-wide text-fg-3">
+        Tools
+      </p>
+      {TOOLS_NAV.map((item) => (
         <NavLink key={item.href} item={item} current={pathname.startsWith(item.href)} />
       ))}
 
