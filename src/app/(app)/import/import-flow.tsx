@@ -72,6 +72,7 @@ export function ImportFlow() {
     const { parseResult } = stage;
     const importable = parseResult.rows.filter((r) => r.errors.length === 0);
     const withErrors = parseResult.rows.filter((r) => r.errors.length > 0);
+    const withWarnings = parseResult.rows.filter((r) => r.errors.length === 0 && r.warnings?.length);
     const bySheet = groupBySheet(parseResult.rows);
 
     return (
@@ -94,6 +95,16 @@ export function ImportFlow() {
                 </div>
               ))}
             </div>
+
+            {withWarnings.length > 0 && (
+              <div className="rounded-sm border border-line-2 bg-panel-2 p-3 text-xs text-fg-2 space-y-1 max-h-48 overflow-y-auto">
+                {withWarnings.map((r, i) => (
+                  <p key={i}>
+                    {r.sheet} row {r.rowNumber}: {r.warnings!.join(' ')}
+                  </p>
+                ))}
+              </div>
+            )}
 
             {withErrors.length > 0 && (
               <div className="rounded-sm border border-bad bg-bad-dim p-3 text-xs text-bad space-y-1 max-h-48 overflow-y-auto">

@@ -1,6 +1,7 @@
 import 'server-only';
 import * as XLSX from 'xlsx';
 import { createHash } from 'node:crypto';
+import { phoneFromDevice } from '@/lib/phone';
 
 export type CallSource =
   | 'warm_market'
@@ -102,8 +103,8 @@ export interface RecruitingImportData {
 }
 
 // The simple "just my contacts" sheet — no activity, no dedicated sheet type
-// elsewhere handles this directly. Only the name is imported — a contact's
-// phone number is never collected or stored (compliance).
+// elsewhere handles this directly. Its phone number, like every sheet's, is
+// on ParsedRow.phoneNumber.
 export interface ContactOnlyImportData {
   fullName: string;
 }
@@ -122,6 +123,12 @@ export interface ParsedRow {
     | RecruitingImportData
     | null;
   errors: string[];
+  /** The row's contact's phone number, E.164, from an optional phone column
+   * on any sheet (see findPhoneColumn). Absent when there is none. */
+  phoneNumber?: string | null;
+  /** Non-blocking problems -- the row still imports (e.g. a phone number
+   * that couldn't be read, so the contact comes in by name only). */
+  warnings?: string[];
 }
 
 export interface ParseResult {
@@ -197,6 +204,40 @@ function rowHashFor(fileHash: string, sheet: string, rowNumber: number): string 
   return createHash('sha256').update(`${fileHash}|${sheet}|${rowNumber}`).digest('hex');
 }
 
+// "Phone", "Phone Number", "Mobile", "Cell Phone", "Client Phone #", ...
+const PHONE_HEADER =
+  /^(?:(?:contact|client|prospect)\s+)?(?:phone|mobile|cell|cell\s*phone|telephone|tel)(?:\s*(?:number|no\.?|#))?$/i;
+
+/**
+ * The phone column is found by its header, not its position, so it can sit
+ * anywhere -- the templates put it last, after the columns every existing
+ * workbook already has, and an older workbook without one imports exactly as
+ * before. The Contacts sheet also accepts an unlabelled column B.
+ */
+export function findPhoneColumn(sheet: ImportSheetName, header: unknown[]): number | null {
+  const idx = header.findIndex((cell) => typeof cell === 'string' && PHONE_HEADER.test(cell.trim()));
+  if (idx >= 0) return idx;
+  if (sheet === 'Contacts' && (header[1] === null || header[1] === undefined || header[1] === '')) return 1;
+  return null;
+}
+
+/**
+ * A local North American number (no country code) is taken as +1, the same
+ * rule as the phone picker. One that still can't be placed doesn't block the
+ * row -- the contact imports by name, with a warning in the preview.
+ */
+function parsePhoneCell(cell: unknown): { phoneNumber: string | null; warning: string | null } {
+  const raw = toTextOrNull(cell);
+  if (!raw) return { phoneNumber: null, warning: null };
+  const phoneNumber = phoneFromDevice(raw);
+  return phoneNumber
+    ? { phoneNumber, warning: null }
+    : {
+        phoneNumber: null,
+        warning: `Phone number "${raw}" couldn't be read (add the country code, e.g. +44) — importing without it.`,
+      };
+}
+
 function parseContactRow(cells: unknown[]): { data: ContactOnlyImportData | null; errors: string[] } {
   const [contactName] = cells;
   const errors: string[] = [];
@@ -213,8 +254,7 @@ function parseCallLogRow(cells: unknown[]): { data: CallLogImportData | null; er
   // Company was column index 2 in the source workbook layout — still
   // skipped positionally so existing import templates don't need to change,
   // just no longer read into the app (company isn't collected anymore). A
-  // trailing Phone column some workbooks carry (index 6) is likewise never
-  // read — a contact's phone number is not collected.
+  // Phone column is read by parseWorkbook, wherever it sits.
   const [dateCell, contactName, , sourceLabel, outcomeLabel, notes] = cells;
   const errors: string[] = [];
 
@@ -353,6 +393,7 @@ export function parseWorkbook(buffer: Buffer): ParseResult {
 
     const raw = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null });
     const dataRows = raw.slice(1); // row 0 is the header
+    const phoneCol = findPhoneColumn(sheetName, raw[0] ?? []);
 
     dataRows.forEach((cells, i) => {
       const rowNumber = i + 2; // 1-based, header is row 1
@@ -363,12 +404,15 @@ export function parseWorkbook(buffer: Buffer): ParseResult {
       }
 
       const { data, errors } = PARSERS[sheetName](cells);
+      const phone = phoneCol === null ? null : parsePhoneCell(cells[phoneCol]);
       rows.push({
         sheet: sheetName,
         rowNumber,
         rowHash: rowHashFor(fileHash, sheetName, rowNumber),
         data,
         errors,
+        ...(phone ? { phoneNumber: phone.phoneNumber } : {}),
+        ...(phone?.warning ? { warnings: [phone.warning] } : {}),
       });
     });
   }
