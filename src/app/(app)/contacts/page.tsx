@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/shell/page-header';
 import { formatDisplayDate } from '@/lib/dates';
 import { AddContactDialog } from './add-contact-dialog';
 import { ImportFromPhoneButton } from './import-from-phone-button';
+import { ImportVCardButton } from './import-vcard-button';
 import { ContactsSearch } from './contacts-search';
 import { ContactCallButtons } from '@/components/shell/contact-call-buttons';
 import { outcomeLabel } from '@/lib/call-outcomes';
@@ -51,6 +52,7 @@ export default async function ContactsPage({
         action={
           <div className="flex flex-wrap items-center gap-2">
             <ImportFromPhoneButton />
+            <ImportVCardButton />
             <Button asChild variant="ghost" size="sm">
               <Link href="/import/template?type=contacts">Download template</Link>
             </Button>
