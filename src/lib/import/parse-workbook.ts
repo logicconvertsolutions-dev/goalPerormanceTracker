@@ -1,6 +1,7 @@
 import 'server-only';
 import * as XLSX from 'xlsx';
 import { createHash } from 'node:crypto';
+import { phoneFromDevice } from '@/lib/phone';
 
 export type CallSource =
   | 'warm_market'
@@ -102,10 +103,11 @@ export interface RecruitingImportData {
 }
 
 // The simple "just my contacts" sheet — no activity, no dedicated sheet type
-// elsewhere handles this directly. Only the name is imported — a contact's
-// phone number is never collected or stored (compliance).
+// elsewhere handles this directly. Name, plus (P33) an optional phone number
+// in E.164 -- normalised like a phone-picker number (lib/phone.ts).
 export interface ContactOnlyImportData {
   fullName: string;
+  phoneNumber: string | null;
 }
 
 export type ImportSheetName = 'Contacts' | 'Call Log' | 'Appointment Log' | 'Sales Log' | 'Recruiting Log';
@@ -122,6 +124,9 @@ export interface ParsedRow {
     | RecruitingImportData
     | null;
   errors: string[];
+  /** Non-blocking problems -- the row still imports (e.g. a phone number
+   * that couldn't be read, so the contact comes in by name only). */
+  warnings?: string[];
 }
 
 export interface ParseResult {
@@ -197,8 +202,10 @@ function rowHashFor(fileHash: string, sheet: string, rowNumber: number): string 
   return createHash('sha256').update(`${fileHash}|${sheet}|${rowNumber}`).digest('hex');
 }
 
-function parseContactRow(cells: unknown[]): { data: ContactOnlyImportData | null; errors: string[] } {
-  const [contactName] = cells;
+type RowParse<T> = { data: T | null; errors: string[]; warnings?: string[] };
+
+function parseContactRow(cells: unknown[]): RowParse<ContactOnlyImportData> {
+  const [contactName, phoneCell] = cells;
   const errors: string[] = [];
 
   const name = toTextOrNull(contactName);
@@ -206,15 +213,25 @@ function parseContactRow(cells: unknown[]): { data: ContactOnlyImportData | null
 
   if (errors.length > 0 || !name) return { data: null, errors };
 
-  return { data: { fullName: name }, errors: [] };
+  // A local North American number (no country code) is taken as +1, the
+  // same rule as the phone picker. One that still can't be placed doesn't
+  // block the contact -- it imports by name, with a warning in the preview.
+  const rawPhone = toTextOrNull(phoneCell);
+  const phoneNumber = phoneFromDevice(rawPhone ?? undefined);
+  const warnings =
+    rawPhone && !phoneNumber
+      ? [`Phone number "${rawPhone}" couldn't be read (add the country code, e.g. +44) — importing the name only.`]
+      : [];
+
+  return { data: { fullName: name, phoneNumber }, errors: [], warnings };
 }
 
 function parseCallLogRow(cells: unknown[]): { data: CallLogImportData | null; errors: string[] } {
   // Company was column index 2 in the source workbook layout — still
   // skipped positionally so existing import templates don't need to change,
   // just no longer read into the app (company isn't collected anymore). A
-  // trailing Phone column some workbooks carry (index 6) is likewise never
-  // read — a contact's phone number is not collected.
+  // trailing Phone column some workbooks carry (index 6) is likewise not
+  // read — phone numbers come in through the Contacts sheet.
   const [dateCell, contactName, , sourceLabel, outcomeLabel, notes] = cells;
   const errors: string[] = [];
 
@@ -324,10 +341,7 @@ function parseRecruitingRow(cells: unknown[]): { data: RecruitingImportData | nu
   };
 }
 
-const PARSERS: Record<
-  ImportSheetName,
-  (cells: unknown[]) => { data: ParsedRow['data']; errors: string[] }
-> = {
+const PARSERS: Record<ImportSheetName, (cells: unknown[]) => RowParse<NonNullable<ParsedRow['data']>>> = {
   Contacts: parseContactRow,
   'Call Log': parseCallLogRow,
   'Appointment Log': parseAppointmentRow,
@@ -362,13 +376,14 @@ export function parseWorkbook(buffer: Buffer): ParseResult {
         return;
       }
 
-      const { data, errors } = PARSERS[sheetName](cells);
+      const { data, errors, warnings } = PARSERS[sheetName](cells);
       rows.push({
         sheet: sheetName,
         rowNumber,
         rowHash: rowHashFor(fileHash, sheetName, rowNumber),
         data,
         errors,
+        ...(warnings && warnings.length > 0 ? { warnings } : {}),
       });
     });
   }

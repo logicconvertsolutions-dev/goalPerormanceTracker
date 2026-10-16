@@ -1,6 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../../types/database';
+import { E164 } from '@/lib/phone';
 import type {
   AppointmentImportData,
   CallLogImportData,
@@ -85,7 +86,11 @@ export async function commitImport(
   // One name per valid row, in a single combined pass across every sheet --
   // so e.g. the same person appearing in both Call Log and Sales Log
   // resolves to the same contact instead of two separate lookups/creates.
-  const refs = validRows.map(({ rowIndex, row }) => ({ rowIndex, name: contactNameFor(row) }));
+  const refs = validRows.map(({ rowIndex, row }) => ({
+    rowIndex,
+    name: contactNameFor(row),
+    phoneNumber: contactPhoneFor(row),
+  }));
   const contactIdByRowIndex = await resolveContactsBulk(supabase, agentId, orgId, refs);
 
   // Split into "Contacts" sheet rows (nothing left to do once the contact
@@ -138,6 +143,16 @@ function contactNameFor(row: ParsedRow): string {
     case 'Recruiting Log':
       return (row.data as RecruitingImportData).prospectName;
   }
+}
+
+/** Only the Contacts sheet carries a phone number. The parse result comes
+ * back from the browser, so the E.164 check is repeated here -- a bad value
+ * would otherwise fail the contacts table's check constraint and take the
+ * whole insert chunk with it. */
+function contactPhoneFor(row: ParsedRow): string | null {
+  if (row.sheet !== 'Contacts') return null;
+  const phone = (row.data as ContactOnlyImportData).phoneNumber;
+  return typeof phone === 'string' && E164.test(phone) ? phone : null;
 }
 
 function activityRowFor(
@@ -266,28 +281,32 @@ async function commitActivityRows(
  * contacts once, match each row against them in memory by name, collapse
  * rows that need a brand-new contact down to one insert per unique name (so
  * the same new person appearing on multiple sheets/rows becomes a single
- * contact, not several), and bulk-insert those in chunks.
+ * contact, not several), and bulk-insert those in chunks. A phone number
+ * goes onto a new contact, or onto an existing one that has none -- an
+ * import never replaces a number the agent already has (same rule as the
+ * phone picker's importDeviceContactsAction).
  */
 async function resolveContactsBulk(
   supabase: SupabaseClient<Database>,
   agentId: string,
   orgId: string,
-  refs: { rowIndex: number; name: string }[]
+  refs: { rowIndex: number; name: string; phoneNumber: string | null }[]
 ): Promise<Map<number, string>> {
   const resolved = new Map<number, string>();
   if (refs.length === 0) return resolved;
 
   const { data: existingRows } = await supabase
     .from('contacts')
-    .select('id, full_name')
+    .select('id, full_name, phone_number')
     .eq('agent_id', agentId);
 
-  const byName = new Map<string, { id: string }>();
+  const byName = new Map<string, { id: string; phone_number: string | null }>();
   for (const row of existingRows ?? []) {
     byName.set(row.full_name.toLowerCase(), row);
   }
 
-  const pendingByKey = new Map<string, { fullName: string; rowIndices: number[] }>();
+  const pendingByKey = new Map<string, { fullName: string; phoneNumber: string | null; rowIndices: number[] }>();
+  const phoneBackfill = new Map<string, string>(); // contact id -> number
 
   for (const ref of refs) {
     const trimmed = ref.name.trim();
@@ -297,15 +316,19 @@ async function resolveContactsBulk(
     const existing = byName.get(nameKey);
     if (existing) {
       resolved.set(ref.rowIndex, existing.id);
+      if (ref.phoneNumber && !existing.phone_number && !phoneBackfill.has(existing.id)) {
+        phoneBackfill.set(existing.id, ref.phoneNumber);
+      }
       continue;
     }
 
     const pending = pendingByKey.get(nameKey);
     if (pending) {
       pending.rowIndices.push(ref.rowIndex);
+      pending.phoneNumber ??= ref.phoneNumber;
       continue;
     }
-    pendingByKey.set(nameKey, { fullName: trimmed, rowIndices: [ref.rowIndex] });
+    pendingByKey.set(nameKey, { fullName: trimmed, phoneNumber: ref.phoneNumber, rowIndices: [ref.rowIndex] });
   }
 
   const pendingEntries = Array.from(pendingByKey.entries());
@@ -313,6 +336,7 @@ async function resolveContactsBulk(
     agent_id: agentId,
     org_id: orgId,
     full_name: p.fullName,
+    phone_number: p.phoneNumber,
   }));
 
   for (let i = 0; i < toInsert.length; i += INSERT_CHUNK_SIZE) {
@@ -340,7 +364,7 @@ async function resolveContactsBulk(
       for (const [, p] of chunkEntries) {
         const { data: single, error: rowError } = await supabase
           .from('contacts')
-          .insert({ agent_id: agentId, org_id: orgId, full_name: p.fullName })
+          .insert({ agent_id: agentId, org_id: orgId, full_name: p.fullName, phone_number: p.phoneNumber })
           .select('id')
           .single();
         if (single) {
@@ -364,6 +388,17 @@ async function resolveContactsBulk(
 
     console.error('resolveContactsBulk: bulk contact insert failed', error);
     // rows referencing these pending contacts stay unresolved -> reported as errors by the caller
+  }
+
+  // One update each (a number, not a row, so no bulk upsert). `is null`
+  // keeps a number saved by someone else in the meantime.
+  for (const [id, phoneNumber] of phoneBackfill) {
+    await supabase
+      .from('contacts')
+      .update({ phone_number: phoneNumber })
+      .eq('id', id)
+      .eq('agent_id', agentId)
+      .is('phone_number', null);
   }
 
   return resolved;

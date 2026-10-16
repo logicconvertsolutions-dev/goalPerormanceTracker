@@ -12,7 +12,7 @@ import { commitImport } from './commit-import';
 type Row = Record<string, unknown>;
 
 class FakeQuery implements PromiseLike<{ data: Row[] | null; error: { code: string } | null }> {
-  private filters: { kind: 'eq' | 'in'; col: string; val: unknown }[] = [];
+  private filters: { kind: 'eq' | 'in' | 'is'; col: string; val: unknown }[] = [];
   private selectCols: string[] | null = null;
   private op: 'select' | 'insert' | 'update' = 'select';
   private payload: Row[] = [];
@@ -34,6 +34,10 @@ class FakeQuery implements PromiseLike<{ data: Row[] | null; error: { code: stri
     this.filters.push({ kind: 'in', col, val: vals });
     return this;
   }
+  is(col: string, val: unknown) {
+    this.filters.push({ kind: 'is', col, val });
+    return this;
+  }
   insert(rows: Row | Row[]) {
     this.op = 'insert';
     this.payload = Array.isArray(rows) ? rows : [rows];
@@ -49,7 +53,11 @@ class FakeQuery implements PromiseLike<{ data: Row[] | null; error: { code: stri
   }
 
   private matches(row: Row): boolean {
-    return this.filters.every((f) => (f.kind === 'eq' ? row[f.col] === f.val : (f.val as unknown[]).includes(row[f.col])));
+    return this.filters.every((f) => {
+      if (f.kind === 'eq') return row[f.col] === f.val;
+      if (f.kind === 'is') return (row[f.col] ?? null) === f.val;
+      return (f.val as unknown[]).includes(row[f.col]);
+    });
   }
 
   private project(rows: Row[]): Row[] {
@@ -151,13 +159,13 @@ function saleRow(rowNumber: number, clientName: string): ParsedRow {
   };
 }
 
-function contactOnlyRow(rowNumber: number, fullName: string): ParsedRow {
+function contactOnlyRow(rowNumber: number, fullName: string, phoneNumber: string | null = null): ParsedRow {
   return {
     sheet: 'Contacts',
     rowNumber,
     rowHash: `contact-${rowNumber}`,
     errors: [],
-    data: { fullName },
+    data: { fullName, phoneNumber },
   };
 }
 
@@ -185,8 +193,46 @@ describe('commitImport', () => {
     expect(result.errors).toEqual([]);
     expect(result.imported).toBe(1);
     const contacts = (supabase as unknown as FakeSupabase).tables.contacts;
-    expect(contacts[0]).toMatchObject({ full_name: 'Jane Doe' });
-    expect(contacts[0]).not.toHaveProperty('phone');
+    expect(contacts[0]).toMatchObject({ full_name: 'Jane Doe', phone_number: null });
+  });
+
+  it('saves a Contacts-sheet phone number on a new contact', async () => {
+    const supabase = fakeClient();
+    const result = await commitImport(supabase, AGENT_ID, ORG_ID, [contactOnlyRow(2, 'Jane Doe', '+14165550123')]);
+
+    expect(result.errors).toEqual([]);
+    expect((supabase as unknown as FakeSupabase).tables.contacts[0]).toMatchObject({
+      full_name: 'Jane Doe',
+      phone_number: '+14165550123',
+    });
+  });
+
+  it('fills in a missing number on an existing contact but never replaces one', async () => {
+    const supabase = fakeClient();
+    const contacts = (supabase as unknown as FakeSupabase).tables.contacts;
+    contacts.push(
+      { id: 'no-number', agent_id: AGENT_ID, org_id: ORG_ID, full_name: 'Jane Doe', phone_number: null },
+      { id: 'has-number', agent_id: AGENT_ID, org_id: ORG_ID, full_name: 'John Roe', phone_number: '+447946095800' }
+    );
+
+    const result = await commitImport(supabase, AGENT_ID, ORG_ID, [
+      contactOnlyRow(2, 'jane doe', '+14165550123'),
+      contactOnlyRow(3, 'John Roe', '+16475550199'),
+    ]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.imported).toBe(2);
+    expect(contacts).toHaveLength(2);
+    expect(contacts.find((c) => c.id === 'no-number')?.phone_number).toBe('+14165550123');
+    expect(contacts.find((c) => c.id === 'has-number')?.phone_number).toBe('+447946095800');
+  });
+
+  it('drops a phone number that is not E.164 instead of failing the insert', async () => {
+    const supabase = fakeClient();
+    const result = await commitImport(supabase, AGENT_ID, ORG_ID, [contactOnlyRow(2, 'Jane Doe', '416-555-0123')]);
+
+    expect(result.errors).toEqual([]);
+    expect((supabase as unknown as FakeSupabase).tables.contacts[0]).toMatchObject({ phone_number: null });
   });
 
   it('is idempotent on re-import: skips already-imported rows without duplicating contacts or activity rows', async () => {

@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import { requireAgent } from '@/lib/auth/guards';
 
 // Sample workbooks for the two "just my list" import paths — a plain
-// Contacts sheet, and a Sales Log sheet (which doubles as the Clients
+// Contacts sheet (name, plus an optional phone number with country code), and a Sales Log sheet (which doubles as the Clients
 // import: any Sales Log row creates the contact and the sale that makes
 // them show up on /clients). One example row shows the expected format;
 // its text makes clear it's a placeholder to replace, not data to keep.
@@ -12,8 +12,8 @@ const TEMPLATES = {
     filename: 'contacts-import-template.xlsx',
     sheetName: 'Contacts',
     rows: [
-      ['Contact Name'],
-      ['Jane Doe (delete this example row)'],
+      ['Contact Name', 'Phone Number'],
+      ['Jane Doe (delete this example row)', '+1 416 555 0123'],
     ],
   },
   clients: {

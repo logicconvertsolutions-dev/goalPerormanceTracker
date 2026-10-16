@@ -106,7 +106,33 @@ describe('parseWorkbook', () => {
     const result = parseWorkbook(buf);
     expect(result.rows).toHaveLength(1);
     expect(result.rows[0].errors).toEqual([]);
-    expect(result.rows[0].data).toEqual({ fullName: 'Jane Doe' });
+    expect(result.rows[0].data).toEqual({ fullName: 'Jane Doe', phoneNumber: null });
+    expect(result.rows[0].warnings).toBeUndefined();
+  });
+
+  it('reads an optional Phone Number column on the Contacts sheet', () => {
+    const buf = buildWorkbook({
+      Contacts: [
+        [...CONTACTS_HEADER, 'Phone Number'],
+        ['With Plus', '+44 20 7946 0958'],
+        ['Local NA', '(416) 555-0123'],
+        ['Numeric Cell', 6475550199],
+        ['Unplaceable', '020 7946 0958'],
+      ],
+    });
+
+    const result = parseWorkbook(buf);
+    expect(result.rows.map((r) => r.data)).toEqual([
+      { fullName: 'With Plus', phoneNumber: '+442079460958' },
+      { fullName: 'Local NA', phoneNumber: '+14165550123' },
+      { fullName: 'Numeric Cell', phoneNumber: '+16475550199' },
+      { fullName: 'Unplaceable', phoneNumber: null },
+    ]);
+    // An unreadable number warns but never blocks the contact.
+    expect(result.rows.every((r) => r.errors.length === 0)).toBe(true);
+    expect(result.rows[3].warnings).toEqual([
+      'Phone number "020 7946 0958" couldn\'t be read (add the country code, e.g. +44) — importing the name only.',
+    ]);
   });
 
   it('ignores a trailing Phone column without disturbing existing columns', () => {
