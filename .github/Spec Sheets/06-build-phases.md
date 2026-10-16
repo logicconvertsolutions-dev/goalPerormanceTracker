@@ -928,6 +928,29 @@ dependency, nothing stored.
 
 ---
 
+## P39 — Calculators remember inputs; Investment Calculator
+
+From staging testing of P38: entering numbers in the Tax Calculator, going
+to another page and coming back lost them. Plus a new Tools tab. No
+database change, no new dependency.
+
+- [x] `lib/tools/session-draft.ts` (tested) + `use-session-draft.ts`:
+      calculator query string mirrored to the tab's sessionStorage; restored
+      when the page opens without params (a link with params wins); saved
+      only after the restore check so a blank first render can't overwrite
+      it. `login-form.tsx` wipes every tool draft on mount (all sign-out
+      paths land on `/login`).
+- [x] Tax Calculator: session memory + **Reset**.
+- [x] `lib/invest/` (tested): monthly-compounding projection per rate,
+      start/end-of-month contributions, yearly contribution raise,
+      inflation-adjusted view, goal month; Zod URL params.
+- [x] `/tools/investment-calculator`: 4 editable/toggleable rates (4/6/8/10%
+      default), 1–50 years, line chart + goal line, per-rate cards
+      (put in vs growth), year table, Reset, Print / save as PDF; phone
+      notice; admin redirected. Rail Tools entry.
+
+---
+
 ## Working with Claude Code on this repo (token discipline)
 > Session-by-session prompts live in `docs/07-getting-started.md`. If the two
 > ever disagree, that file wins for *how to run a session*; this one wins for

@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createClient } from '@/lib/supabase/client';
+import { clearAllToolDrafts } from '@/lib/tools/session-draft';
 
 type Mode = 'password' | 'magic-link';
 
@@ -29,6 +30,11 @@ export function LoginForm() {
   );
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  // Every way out of a session (sign-out, sign-out-everywhere, expiry) lands
+  // here, so this is where the Tools calculators' remembered client figures
+  // are wiped from the tab (lib/tools/session-draft.ts).
+  useEffect(() => clearAllToolDrafts(), []);
 
   async function handlePasswordSignIn(e: React.FormEvent) {
     e.preventDefault();
