@@ -579,6 +579,12 @@ doesn't fit the mobile tab bar's five slots (it surfaces on mobile via the
 account menu instead); admin gets only the five `/admin/*`
 items, no secondary group.
 
+**Tools group (P38)** — below the secondary group, associate/leader rails
+get a small "Tools" heading with **Tax Calculator** (`TOOLS_NAV`). Rail
+only: not in the tab bar or the account menu, because tools are
+tablet/laptop-only (`/tools/*` shows phones a notice). Admin's rail has no
+Tools group.
+
 **Header branding** — the shell header shows the signed-in agent's org logo
 (or a generic mark) and org name, linking to `/today`. For admin (P11, no
 org to show), it falls back to the same generic mark and the literal
