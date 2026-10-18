@@ -20,7 +20,7 @@ import {
 import { ContactPicker } from '@/components/shell/contact-picker';
 import { todayIso, browserTimeZone, addDays, isoToLocalParts, nextMonday } from '@/lib/dates';
 import { submitWithOfflineFallback } from '@/lib/offline/submit-with-fallback';
-import { APPT_TYPES, APPT_STATUSES } from '@/lib/appointment-types';
+import { APPT_TYPES, APPT_STATUSES, FNA_APPT_TYPE } from '@/lib/appointment-types';
 import { PRODUCT_TYPES } from '@/lib/product-types';
 import { createAppointmentAction, updateAppointmentAction } from './actions';
 import { ResolveAppointmentDialog } from './resolve-appointment-dialog';
@@ -132,6 +132,9 @@ export function AppointmentForm({
   );
   const [followUpOn, setFollowUpOn] = useState(defaultValues?.followUpOn ?? '');
   const [showFollowUpPicker, setShowFollowUpPicker] = useState(false);
+  // An FNA carries no premium or referrals -- only the next follow-up,
+  // which it asks for at any status (lib/appointment-types.ts).
+  const isFna = apptType === FNA_APPT_TYPE;
   // The slot this appointment is for, when status is "Scheduled".
   //
   // F6: this used to fall back to TODAY whenever the row had no
@@ -191,6 +194,9 @@ export function AppointmentForm({
   // the sale silently kept the old one. The submitted value is read at
   // save time instead, from the form.
   const [apptDate, setApptDate] = useState(initialApptDate);
+  const showFollowUp = NEEDS_FOLLOW_UP_STATUSES.has(status) || isFna;
+  // A scheduled FNA's follow-up counts from the meeting's own slot.
+  const followUpBase = status === 'scheduled' ? appointmentDate : apptDate;
   // Giving a pending appointment its outcome here: the Date field is the
   // confirmed outcome day (2026-09-22), same rule as the resolve dialog --
   // it starts on the appointment's own day (clamped to today) and cannot
@@ -283,13 +289,13 @@ export function AppointmentForm({
     // exactly the scheduled ones, which is why it read $0 on every
     // dashboard in the product except for imported rows. The input is now
     // shown for both, and submitted for both.
-    formData.set('expectedPremiumCents', String(Math.round(Number(premiumDollars || 0) * 100)));
+    formData.set('expectedPremiumCents', isFna ? '0' : String(Math.round(Number(premiumDollars || 0) * 100)));
     // F14: the day the booking was made, from the client's own calendar.
     // An offline submission replayed three days later otherwise takes the
     // sync day as its set_on and lands Appts Set on the wrong day. The
     // server clamps this -- it is a claim from the browser, not a fact.
     formData.set('bookedOn', today);
-    if (NEEDS_FOLLOW_UP_STATUSES.has(status) && followUpOn) {
+    if (showFollowUp && followUpOn) {
       formData.set('followUpOn', followUpOn);
     }
 
@@ -448,17 +454,17 @@ export function AppointmentForm({
         </Select>
       </div>
 
-      {NEEDS_FOLLOW_UP_STATUSES.has(status) && (
+      {showFollowUp && (
         <div className="space-y-1.5">
-          <Label>Needs another follow-up?</Label>
+          <Label>{isFna ? 'Next follow-up' : 'Needs another follow-up?'}</Label>
           <div className="flex flex-wrap gap-2">
-            <Chip active={followUpOn === addDays(apptDate, 1)} onClick={() => { setFollowUpOn(addDays(apptDate, 1)); setShowFollowUpPicker(false); }}>
+            <Chip active={followUpOn === addDays(followUpBase, 1)} onClick={() => { setFollowUpOn(addDays(followUpBase, 1)); setShowFollowUpPicker(false); }}>
               Tomorrow
             </Chip>
-            <Chip active={followUpOn === nextMonday(apptDate)} onClick={() => { setFollowUpOn(nextMonday(apptDate)); setShowFollowUpPicker(false); }}>
+            <Chip active={followUpOn === nextMonday(followUpBase)} onClick={() => { setFollowUpOn(nextMonday(followUpBase)); setShowFollowUpPicker(false); }}>
               Monday
             </Chip>
-            <Chip active={followUpOn === addDays(apptDate, 7)} onClick={() => { setFollowUpOn(addDays(apptDate, 7)); setShowFollowUpPicker(false); }}>
+            <Chip active={followUpOn === addDays(followUpBase, 7)} onClick={() => { setFollowUpOn(addDays(followUpBase, 7)); setShowFollowUpPicker(false); }}>
               Next week
             </Chip>
             <Chip active={showFollowUpPicker} onClick={() => setShowFollowUpPicker(true)}>
@@ -474,7 +480,7 @@ export function AppointmentForm({
             <Input
               type="date"
               value={followUpOn}
-              min={apptDate}
+              min={followUpBase}
               onChange={(e) => setFollowUpOn(e.target.value)}
               className="w-auto"
             />
@@ -488,6 +494,7 @@ export function AppointmentForm({
           dashboard tile structurally $0. Referrals only make sense once
           the meeting has happened, so that half stays behind a resolved
           status. */}
+      {!isFna && (
       <div
         className={
           status === 'scheduled' || apptType === 'application'
@@ -523,6 +530,7 @@ export function AppointmentForm({
           </div>
         )}
       </div>
+      )}
 
       {apptType === 'application' && (
         <div className="space-y-3 rounded-sm border border-line-2 p-3">

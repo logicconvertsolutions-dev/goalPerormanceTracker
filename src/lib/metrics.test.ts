@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   conversionFunnel,
   currentStreak,
+  streakHint,
   dialToConnectRatio,
   noShowRate,
   pipelineValueOpenAppts,
@@ -148,6 +149,32 @@ describe('currentStreak', () => {
       ['2026-07-08', row({ activity_date: '2026-07-08', calls_made: 15 })],
     ]);
     expect(currentStreak(rows, 15, '2026-07-08')).toBe(1);
+  });
+});
+
+describe('streakHint', () => {
+  it('says how many calls are left and that a streak starts', () => {
+    const rows = new Map<string, DailyMetricsRow>([
+      ['2026-07-08', row({ activity_date: '2026-07-08', calls_made: 3 })],
+    ]);
+    expect(streakHint(rows, 7, '2026-07-08')).toBe('4 more calls today to start a streak (min 7/day)');
+  });
+  it('names the run through yesterday that today would keep', () => {
+    const rows = new Map<string, DailyMetricsRow>([
+      ['2026-07-08', row({ activity_date: '2026-07-08', calls_made: 6 })],
+      ['2026-07-07', row({ activity_date: '2026-07-07', calls_made: 7 })],
+      ['2026-07-06', row({ activity_date: '2026-07-06', calls_made: 9 })],
+    ]);
+    expect(streakHint(rows, 7, '2026-07-08')).toBe('1 more call today to keep your 2-day run (min 7/day)');
+  });
+  it('counts a day with no row as zero calls', () => {
+    expect(streakHint(new Map(), 7, '2026-07-08')).toBe('7 more calls today to start a streak (min 7/day)');
+  });
+  it('confirms once today meets the minimum', () => {
+    const rows = new Map<string, DailyMetricsRow>([
+      ['2026-07-08', row({ activity_date: '2026-07-08', calls_made: 7 })],
+    ]);
+    expect(streakHint(rows, 7, '2026-07-08')).toBe("Today's 7-call minimum met");
   });
 });
 
