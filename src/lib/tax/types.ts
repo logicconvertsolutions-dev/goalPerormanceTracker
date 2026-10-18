@@ -58,6 +58,8 @@ export interface TaxResult {
   averageTaxRate: number;
   /** Income tax on the next dollar of ordinary income. */
   marginalTaxRate: number;
+  /** Income tax the RRSP/FHSA deduction saves (0 when none entered). */
+  rrspFhsaTaxSaving: number;
   /** Total tax (incl. CPP/QPP, EI, QPIP) / total income — the donut's split. */
   totalDeductionRate: number;
   /** incomeTaxesPaid - tax due on the return. Positive = refund, negative = owing. */

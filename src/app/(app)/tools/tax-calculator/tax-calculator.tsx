@@ -216,7 +216,12 @@ export function TaxCalculator({ initial }: { initial: TaxInput }) {
               </legend>
               <div className="grid grid-cols-2 gap-3">
                 <AmountInput id="tax-rrsp" label="RRSP and FHSA contributions" {...field('rrspFhsaContributions')} />
-                <AmountInput id="tax-paid" label="Income taxes paid" hint="e.g. withheld on your T4" {...field('incomeTaxesPaid')} />
+                <AmountInput
+                  id="tax-paid"
+                  label="Income taxes paid"
+                  hint="Income tax withheld only (T4 box 22), not CPP or EI"
+                  {...field('incomeTaxesPaid')}
+                />
               </div>
             </fieldset>
           </CardContent>
@@ -361,6 +366,18 @@ function SummaryCard({ result: r, showBalance }: { result: TaxResult; showBalanc
           {r.ontarioHealthPremium > 0 && (
             <Line label="incl. Ontario Health Premium" value={formatMoney(r.ontarioHealthPremium)} muted />
           )}
+          <Line
+            label="Income tax (federal + provincial)"
+            value={formatMoney(r.incomeTax)}
+            strong
+          />
+          {r.rrspFhsaTaxSaving > 0 && (
+            <Line
+              label="incl. tax saved by RRSP/FHSA"
+              value={`−${formatMoney(r.rrspFhsaTaxSaving)}`}
+              muted
+            />
+          )}
           <Line label={`${r.pensionPlanLabel} contributions`} value={formatMoney(r.pensionPlan)} />
           <Line label="EI premiums" value={formatMoney(r.ei)} />
           {r.province === 'QC' && <Line label="QPIP premiums" value={formatMoney(r.qpip)} />}
@@ -382,8 +399,9 @@ function SummaryCard({ result: r, showBalance }: { result: TaxResult; showBalanc
         </div>
         <p className="mt-3 text-xs text-fg-3">
           Average and marginal rates are income tax only. Marginal is the tax on your next
-          dollar of ordinary income. Refund/owing compares income taxes paid with the income
-          tax (and any self-employed {r.pensionPlanLabel}) due on the return.
+          dollar of ordinary income. Refund/owing = income taxes paid − income tax (federal +
+          provincial){r.pensionPlanLabel && ` + any self-employed ${r.pensionPlanLabel}`}. Employee{' '}
+          {r.pensionPlanLabel} and EI are left out: your employer withholds exactly the right amount.
         </p>
       </CardContent>
     </Card>
