@@ -8,11 +8,18 @@
 // order, so A-Z is the least-surprising presentation.
 export const APPT_TYPES = [
   { value: 'application', label: 'Application Submitted' },
+  { value: 'fna', label: 'FNA' },
   { value: 'follow_up', label: 'Follow Up' },
   { value: 'marketing_presentation', label: 'Marketing Presentation' },
   { value: 'other', label: 'Other' },
   { value: 'solutions_presentation', label: 'Solutions Presentation' },
 ] as const;
+
+// An FNA (financial needs analysis) is a fact-finding meeting, not a sale
+// opportunity: it carries no expected premium (so it never inflates Open
+// Pipeline), and the only thing the form asks for after it is the next
+// follow-up.
+export const FNA_APPT_TYPE = 'fna';
 
 const APPT_TYPE_LABELS: Record<string, string> = Object.fromEntries(
   APPT_TYPES.map((t) => [t.value, t.label])
