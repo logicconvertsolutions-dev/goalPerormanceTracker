@@ -897,6 +897,77 @@ change.
 
 ---
 
+## P38 — Tax Calculator tool (tablet/laptop)
+
+A 2026 Canadian income tax estimator under a new rail "Tools" group,
+combining https://turbotax.intuit.ca/tax-resources/canada-income-tax-calculator
+(income types, refund/owing) with https://ca.talent.com/tax-calculator (pay
+periods, net pay, employer "taxberg"). No database change, no new
+dependency, nothing stored.
+
+- [x] `lib/tax/rates-2026.ts`: federal + 13 jurisdictions' annual 2026
+      brackets, personal amounts, credit rates, dividend credits; CPP/CPP2,
+      QPP/QPP2, EI, QPIP; ON surtax/health premium/tax reduction; BC tax
+      reduction. Annual T1 values, not T4127-JUL's half-year prorations
+      (BC 5.60%, NL $13,094, PE 20%). Sources in the file header.
+- [x] `lib/tax/calculate.ts` (tested): single-filer annual estimate.
+      Golden tests: RCGT 2026 Quebec tax table, all 13 combined top
+      marginal rates (ordinary, eligible, non-eligible), T4127 CPP/QPP/EI/
+      QPIP maximums, T4127 bracket constants.
+- [x] `lib/tax/params.ts` (tested): Zod URL parsing; garbage falls back to
+      defaults.
+- [x] `/tools/tax-calculator`: guarded page + client calculator; phone
+      notice below `md`; admin redirected.
+- [x] `DonutChart`: optional `formatValue`/`centerValue`/`centerLabel`/
+      `valueHeader` (existing callers unchanged).
+- [ ] Each January: add `rates-<year>.ts` and refresh the golden tests.
+- Not modelled (in the on-page disclaimer): age/pension/spouse/dependant/
+  tuition/medical/donation credits, OAS clawback, AMT, refundable benefits,
+  Ontario LIFT and other provincial low-income credits, Quebec HSF on
+  non-employment income, employer payroll taxes.
+
+---
+
+## P39 — Calculators remember inputs; Investment Calculator
+
+From staging testing of P38: entering numbers in the Tax Calculator, going
+to another page and coming back lost them. Plus a new Tools tab. No
+database change, no new dependency.
+
+- [x] `lib/tools/session-draft.ts` (tested) + `use-session-draft.ts`:
+      calculator query string mirrored to the tab's sessionStorage; restored
+      when the page opens without params (a link with params wins); saved
+      only after the restore check so a blank first render can't overwrite
+      it. `login-form.tsx` wipes every tool draft on mount (all sign-out
+      paths land on `/login`).
+- [x] Tax Calculator: session memory + **Reset**.
+- [x] `lib/invest/` (tested): monthly-compounding projection per rate,
+      start/end-of-month contributions, yearly contribution raise,
+      inflation-adjusted view, goal month; Zod URL params.
+- [x] `/tools/investment-calculator`: 4 editable/toggleable rates (4/6/8/10%
+      default), 1–50 years, line chart + goal line, per-rate cards
+      (put in vs growth), year table, Reset, Print / save as PDF; phone
+      notice; admin redirected. Rail Tools entry.
+
+---
+
+## P40 — Tax Calculator: make refund/owing self-explanatory
+
+From staging testing: it wasn't clear what "Income taxes paid" compares
+against (copying "Total tax and contributions" showed a refund equal to
+CPP + EI), and an RRSP/FHSA contribution seemed to change nothing while
+the refund box was hidden. No engine rule changed.
+
+- [x] Results show an **Income tax (federal + provincial)** line — the
+      figure refund/owing is measured against.
+- [x] **Tax saved by RRSP/FHSA** line (`TaxResult.rrspFhsaTaxSaving`,
+      tested) whenever a contribution is entered.
+- [x] "Income taxes paid" hint: income tax withheld only (T4 box 22), not
+      CPP or EI; refund/owing explanation spells out the formula.
+- [x] Paying exactly the income tax shows $0, never -$0 (tested).
+
+---
+
 ## Working with Claude Code on this repo (token discipline)
 > Session-by-session prompts live in `docs/07-getting-started.md`. If the two
 > ever disagree, that file wins for *how to run a session*; this one wins for

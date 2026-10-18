@@ -5,6 +5,7 @@
 import {
   conversionFunnel,
   currentStreak,
+  streakHint,
   pipelineValueOpenAppts,
   noShowRateFrom,
   type DailyMetricsRow,
@@ -53,6 +54,7 @@ export interface DashboardViewModel {
   apptsHeld: number;
   premiumCents: number;
   streak: number;
+  streakHint: string;
   callsTarget: { value: string; pct: number } | undefined;
   apptsTarget: { value: string; pct: number } | undefined;
   premiumTarget: { value: string; pct: number } | undefined;
@@ -120,7 +122,8 @@ export function buildDashboardViewModel(input: {
     : 0;
 
   const pipelineValueCents = pipelineValueOpenAppts(openAppointments);
-  const streak = currentStreak(streakRows, target?.min_calls_per_day ?? 7, today);
+  const minCallsPerDay = target?.min_calls_per_day ?? 7;
+  const streak = currentStreak(streakRows, minCallsPerDay, today);
 
   const callsTargetPct = scaled?.calls_per_cycle ? Math.round((100 * (t2?.calls_made ?? 0)) / scaled.calls_per_cycle) : 0;
   const apptsTargetPct = scaled?.appts_held_per_cycle
@@ -160,6 +163,7 @@ export function buildDashboardViewModel(input: {
     apptsHeld: t2?.appt_held ?? 0,
     premiumCents: t2?.premium_cents ?? 0,
     streak,
+    streakHint: streakHint(streakRows, minCallsPerDay, today),
     callsTarget: scaled
       ? { value: `${targetPrefix}${scaled.calls_per_cycle}`, pct: callsTargetPct }
       : undefined,

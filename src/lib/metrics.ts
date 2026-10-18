@@ -136,6 +136,28 @@ export function currentStreak(
   return streak;
 }
 
+/**
+ * The line under the Current Streak tile. The streak itself counts from
+ * today, so it reads 0 until today's minimum is met -- this says what that
+ * minimum is and how far today is from it, instead of a bare "0d".
+ */
+export function streakHint(
+  rowsByDate: Map<string, DailyMetricsRow>,
+  minCallsPerDay: number,
+  asOf: string
+): string {
+  const todayCalls = rowsByDate.get(asOf)?.calls_made ?? 0;
+  if (todayCalls >= minCallsPerDay) return `Today's ${minCallsPerDay}-call minimum met`;
+  const remaining = minCallsPerDay - todayCalls;
+  const calls = remaining === 1 ? 'call' : 'calls';
+  const yesterday = new Date(asOf + 'T00:00:00Z');
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const prior = currentStreak(rowsByDate, minCallsPerDay, yesterday.toISOString().slice(0, 10));
+  return prior > 0
+    ? `${remaining} more ${calls} today to keep your ${prior}-day run (min ${minCallsPerDay}/day)`
+    : `${remaining} more ${calls} today to start a streak (min ${minCallsPerDay}/day)`;
+}
+
 export interface FunnelResult {
   callsMade: number;
   apptsSet: number;

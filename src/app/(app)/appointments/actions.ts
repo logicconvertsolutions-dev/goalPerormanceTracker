@@ -8,6 +8,7 @@ import { findOrCreateContact } from '@/lib/contacts';
 import { createSaleAction, deleteSaleAction } from '../sales/actions';
 import { deleteRecruitingLogAction } from '../recruiting/actions';
 import { todayIso, isoToDateInZone } from '@/lib/dates';
+import { FNA_APPT_TYPE } from '@/lib/appointment-types';
 import { appointmentDay, defaultOutcomeDate, outcomeDateError } from '@/lib/appointment-outcome-date';
 
 const APPT_STATUSES = ['scheduled', 'held', 'no_show', 'rescheduled', 'cancelled'] as const;
@@ -173,7 +174,7 @@ export async function createAppointmentAction(formData: FormData) {
       appointment_at: isScheduled ? parsed.data.appointmentAt : null,
       appt_type: parsed.data.apptType || null,
       status: parsed.data.status,
-      expected_premium_cents: parsed.data.expectedPremiumCents,
+      expected_premium_cents: parsed.data.apptType === FNA_APPT_TYPE ? 0 : parsed.data.expectedPremiumCents,
       referrals_given: parsed.data.referralsGiven,
       notes: parsed.data.notes || null,
       follow_up_on: parsed.data.followUpOn || null,
@@ -296,7 +297,7 @@ export async function updateAppointmentAction(formData: FormData) {
       appointment_at: isScheduled ? parsed.data.appointmentAt : null,
       appt_type: parsed.data.apptType || null,
       status: parsed.data.status,
-      expected_premium_cents: parsed.data.expectedPremiumCents,
+      expected_premium_cents: parsed.data.apptType === FNA_APPT_TYPE ? 0 : parsed.data.expectedPremiumCents,
       referrals_given: parsed.data.referralsGiven,
       notes: parsed.data.notes || null,
       follow_up_on: parsed.data.followUpOn || null,
@@ -482,6 +483,8 @@ const resolveHeldSchema = z.object({
   saleProductType: z.string().max(200).optional(),
   // The confirmed outcome day; absent from a pre-prompt client (-> today).
   resolvedOn: z.string().optional(),
+  // Asked for on an FNA only; absent leaves follow_up_on as it was.
+  followUpOn: z.string().optional(),
 });
 
 /**
@@ -503,6 +506,7 @@ export async function resolveAppointmentHeldAction(formData: FormData) {
     logAsSale: formData.get('logAsSale') === 'true',
     saleProductType: formData.get('saleProductType') || undefined,
     resolvedOn: formData.get('resolvedOn') || undefined,
+    followUpOn: formData.get('followUpOn') || undefined,
   });
 
   if (!parsed.success) {
@@ -552,7 +556,8 @@ export async function resolveAppointmentHeldAction(formData: FormData) {
       // updateAppointmentStatusAction; see its comment.
       ...(resolvedOn ? { resolved_on: resolvedOn } : {}),
       appt_type: apptType,
-      expected_premium_cents: parsed.data.expectedPremiumCents,
+      expected_premium_cents: apptType === FNA_APPT_TYPE ? 0 : parsed.data.expectedPremiumCents,
+      ...(parsed.data.followUpOn ? { follow_up_on: parsed.data.followUpOn } : {}),
       referrals_given: parsed.data.referralsGiven,
       notes: parsed.data.notes || null,
     })

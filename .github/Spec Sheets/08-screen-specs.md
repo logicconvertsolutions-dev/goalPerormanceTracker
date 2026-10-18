@@ -660,6 +660,45 @@ These existed only as one-line mentions in `docs/09-account-and-auth.md`
 - **`/confirm-email-change/[token]`** (P11, new) — the no-login confirm step
   for an admin-initiated email change; detailed in
   `docs/09-account-and-auth.md`.
+- **`/tools/tax-calculator`** (P38, new) — 2026 Canadian income tax
+  estimator combining TurboTax's income types with Talent.com's pay-period
+  view. Associate + leader (admin redirected to `/admin/orgs`).
+  - **Inputs:** province/territory (all 13), employment income + pay period
+    (annual/monthly/biweekly/weekly/daily/hourly; hours per week for
+    hourly, default 40), self-employment, other income, capital gains,
+    eligible and non-eligible dividends, RRSP/FHSA contributions, income
+    taxes paid. All in URL params (`prov, per, hrs, emp, se, oth, cg, ed,
+    nd, rrsp, paid`); live recalculation, no Calculate button.
+  - **Outputs:** total income, federal tax, provincial tax (Ontario Health
+    Premium broken out), CPP/QPP, EI, QPIP (QC), total, after-tax income;
+    average + marginal rate (income tax only); refund/owing (shown only
+    once taxes paid is entered, or with no employment income); donut of
+    net vs taxes; employer cost + real tax rate; per-pay-period table.
+  - **Width:** form and results side by side from `lg`, stacked at `md`;
+    below `md` a "open on a tablet or laptop" card replaces the form.
+  - **Engine:** `lib/tax/` — pure, tested against RCGT's 2026 Quebec tax
+    table and every jurisdiction's published top marginal rates. Rates in
+    `lib/tax/rates-2026.ts`; add a new year's file each January.
+  - **Session memory (P39):** inputs also kept in the tab's sessionStorage,
+    so leaving and returning via the bare sidebar link restores them; a URL
+    with params wins. **Reset** clears both. Wiped on any arrival at
+    `/login`.
+- **`/tools/investment-calculator`** (P39, new) — growth illustration.
+  Associate + leader (admin redirected), tablet/laptop only like the tax
+  calculator.
+  - **Inputs:** lump sum, monthly contribution, years (1–50, slider +
+    box, default 25), four growth rates (default 4/6/8/10%, each editable
+    and switchable), contribution timing (end/start of month), yearly
+    contribution raise %, optional goal, inflation % (default 2) with a
+    "today's dollars" toggle. URL params `ls, mo, yrs, r1..r4, on, inc,
+    tim, inf, real, goal`, plus the same session memory and **Reset**.
+  - **Outputs:** line chart (one line per enabled rate + dashed total
+    contributed + goal reference line, sr-only table fallback); one card
+    per rate with final balance, put in vs growth bar, goal reached year;
+    year-by-year table. **Print / save as PDF** prints an assumptions line,
+    chart, cards and table without the inputs.
+  - **Engine:** `lib/invest/calculate.ts` — monthly compounding (rate/12),
+    tested against closed-form lump-sum and annuity values.
 
 ---
 
