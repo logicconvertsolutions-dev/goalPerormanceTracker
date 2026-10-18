@@ -34,7 +34,7 @@ export function DashboardView({ vm }: { vm: DashboardViewModel }) {
           value={`$${(vm.premiumCents / 100).toLocaleString('en-CA')}`}
           target={vm.premiumTarget}
         />
-        <KpiCard label="Current Streak" value={`${vm.streak}d`} />
+        <KpiCard label="Current Streak" value={`${vm.streak}d`} hint={vm.streakHint} />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">

@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { APPT_TYPES } from '@/lib/appointment-types';
+import { APPT_TYPES, FNA_APPT_TYPE } from '@/lib/appointment-types';
 import { PRODUCT_TYPES } from '@/lib/product-types';
 import { browserTimeZone, isoToLocalParts, todayIso } from '@/lib/dates';
 import {
@@ -88,6 +88,7 @@ export function ResolveAppointmentDialog({
   const [premiumDollars, setPremiumDollars] = useState('0');
   const [referrals, setReferrals] = useState('0');
   const [notes, setNotes] = useState('');
+  const [followUpOn, setFollowUpOn] = useState('');
   const [logAsSale, setLogAsSale] = useState(false);
   const [saleProductType, setSaleProductType] = useState('');
   const [newDate, setNewDate] = useState('');
@@ -113,6 +114,7 @@ export function ResolveAppointmentDialog({
         setPremiumDollars(String(d.expectedPremiumCents / 100));
         setReferrals(String(d.referralsGiven));
         setNotes(d.notes ?? '');
+        setFollowUpOn('');
         setLogAsSale(false);
         // Prefill the picker with the slot it is moving FROM, so the agent
         // adjusts a date rather than re-entering one. Never today for a
@@ -142,8 +144,12 @@ export function ResolveAppointmentDialog({
     const formData = new FormData();
     formData.set('id', appointmentId);
     formData.set('apptType', apptType);
-    formData.set('expectedPremiumCents', String(Math.round(Number(premiumDollars || 0) * 100)));
-    formData.set('referralsGiven', String(Math.max(0, Math.round(Number(referrals || 0)))));
+    if (apptType === FNA_APPT_TYPE) {
+      if (followUpOn) formData.set('followUpOn', followUpOn);
+    } else {
+      formData.set('expectedPremiumCents', String(Math.round(Number(premiumDollars || 0) * 100)));
+      formData.set('referralsGiven', String(Math.max(0, Math.round(Number(referrals || 0)))));
+    }
     formData.set('resolvedOn', outcomeDate);
     if (notes.trim()) formData.set('notes', notes.trim());
     if (apptType === 'application' && logAsSale) {
@@ -280,6 +286,20 @@ export function ResolveAppointmentDialog({
               </Select>
             </div>
 
+            {apptType === FNA_APPT_TYPE ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="resolveFollowUpOn">Next follow-up</Label>
+                <Input
+                  id="resolveFollowUpOn"
+                  type="date"
+                  value={followUpOn}
+                  min={outcomeDate || undefined}
+                  onChange={(e) => setFollowUpOn(e.target.value)}
+                  className="w-auto"
+                />
+                <p className="text-xs text-fg-3">Shows up in My Day as a callback on that date.</p>
+              </div>
+            ) : (
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="resolvePremium">Expected premium ($)</Label>
@@ -304,6 +324,7 @@ export function ResolveAppointmentDialog({
                 />
               </div>
             </div>
+            )}
 
             {apptType === 'application' && (
               <div className="space-y-3 rounded-sm border border-line-2 p-3">
