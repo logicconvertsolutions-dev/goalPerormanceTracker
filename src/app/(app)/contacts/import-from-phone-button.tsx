@@ -13,9 +13,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { phoneFromDevice } from '@/lib/phone';
-import { importDeviceContactsAction } from './actions';
+import { pickDevicePhone } from '@/lib/phone';
+import { cleanName } from '@/lib/import/parse-vcard';
 import { ImportPrivacyNotice } from './import-privacy-notice';
+import { ImportProgressDialog, importContacts, importSummary, importingStatus } from './import-progress';
 
 // Not yet in lib.dom.d.ts -- the Contact Picker API. Shipped by default on
 // Android Chrome/Edge; WebKit has an experimental implementation too (behind
@@ -45,14 +46,16 @@ declare global {
  * behavior hid the button entirely, which looked like a bug rather than an
  * unsupported browser). No file, no template: the OS's own contact picker
  * hands back the name and (P33) phone numbers of only the contacts the agent
- * ticks -- the browser never exposes the rest of the address book. The first
- * number is kept, normalised to E.164 (a local North American number becomes
- * +1); one that can't be placed is dropped and the contact comes in by name.
+ * ticks -- the browser never exposes the rest of the address book. One number
+ * is kept (pickDevicePhone: a Canadian/US one first, else the first that can
+ * be placed), normalised to E.164. The picker has no notes property, so
+ * notes only come in through a .vcf file.
  */
 export function ImportFromPhoneButton() {
   const router = useRouter();
   const [supported, setSupported] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [status, setStatus] = useState<{ title: string; detail: string } | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [showNotice, setShowNotice] = useState(false);
 
@@ -86,32 +89,34 @@ export function ImportFromPhoneButton() {
       }
 
       const contacts = picked
-        .map((c) => ({ fullName: (c.name?.[0] ?? '').trim(), phoneNumber: phoneFromDevice(c.tel?.[0]) }))
+        .map((c) => ({ fullName: cleanName(c.name?.[0] ?? ''), phoneNumber: pickDevicePhone(c.tel ?? []) }))
         .filter((c) => c.fullName);
-      const withNumber = contacts.filter((c) => c.phoneNumber).length;
+      const noName = picked.length - contacts.length;
 
       if (contacts.length === 0) {
         toast.error('None of the selected contacts had a name.');
         return;
       }
 
-      const result = await importDeviceContactsAction(contacts);
-      if (!result.ok) {
-        toast.error(result.error);
-        return;
-      }
-      const skipped = picked.length - contacts.length;
-      toast.success(
-        `Imported ${result.imported} contact${result.imported === 1 ? '' : 's'} from your phone` +
-          (withNumber > 0 ? `, ${withNumber} with a phone number` : '') +
-          (skipped > 0 ? ` (${skipped} skipped — missing name)` : '')
+      setStatus(importingStatus(0, contacts.length));
+      const { totals, error } = await importContacts(contacts, (done) =>
+        setStatus(importingStatus(done, contacts.length))
       );
+      setStatus(null);
+      if (error) {
+        toast.error(totals.created + totals.existing > 0 ? `${error} (${importSummary(totals)} before this.)` : error);
+      } else {
+        const message = importSummary(totals, noName);
+        if (totals.failed > 0) toast.warning(message);
+        else toast.success(message);
+      }
       router.refresh();
     });
   }
 
   return (
     <>
+      <ImportProgressDialog status={status} />
       <Button variant="secondary" size="sm" disabled={pending} onClick={handlePick}>
         <Smartphone className="h-4 w-4" aria-hidden="true" />
         {pending ? 'Importing…' : 'Import from phone'}
