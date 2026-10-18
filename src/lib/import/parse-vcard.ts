@@ -1,4 +1,4 @@
-import { phoneFromDevice } from '@/lib/phone';
+import { pickDevicePhone } from '@/lib/phone';
 
 // vCard (.vcf) contact files -- the bulk path for Android, whose browser
 // contact picker only ticks contacts one at a time. The Contacts app exports
@@ -12,13 +12,16 @@ import { phoneFromDevice } from '@/lib/phone';
 //
 // Covers vCard 2.1 (Android's export: QUOTED-PRINTABLE + CHARSET for
 // non-ASCII names, bare TYPE params, "=" soft line breaks), 3.0 (iOS/macOS,
-// Google Contacts) and 4.0 (tel: URIs, PREF=1). No dependency: only FN, N and
-// TEL are read, everything else (PHOTO included) is skipped.
+// Google Contacts) and 4.0 (tel: URIs, PREF=1). No dependency: only FN, N,
+// TEL and NOTE are read, everything else (PHOTO, EMAIL, ADR, ORG...) is
+// skipped.
 
 export interface VCardContact {
   fullName: string;
   /** E.164, normalised the same way as a picked device contact. */
   phoneNumber: string | null;
+  /** The card's own notes (NOTE), trimmed to the contacts.notes limit. */
+  notes: string | null;
 }
 
 export interface VCardParseResult {
@@ -30,7 +33,8 @@ export interface VCardParseResult {
   droppedNumbers: number;
 }
 
-const MAX_NAME_LENGTH = 200; // importDeviceContactsAction's schema bound
+export const MAX_NAME_LENGTH = 200; // importDeviceContactsAction's schema bound
+export const MAX_NOTES_LENGTH = 2000; // same bound as the contact form's notes
 
 interface Property {
   name: string;
@@ -51,7 +55,7 @@ export function parseVCard(text: string): VCardParseResult {
     } else if (prop.name === 'END' && prop.value.trim().toUpperCase() === 'VCARD') {
       if (card) addCard(card, result);
       card = null;
-    } else if (card && (prop.name === 'FN' || prop.name === 'N' || prop.name === 'TEL')) {
+    } else if (card && (prop.name === 'FN' || prop.name === 'N' || prop.name === 'TEL' || prop.name === 'NOTE')) {
       card.push(prop);
     }
   }
@@ -67,17 +71,23 @@ function addCard(card: Property[], result: VCardParseResult): void {
   }
 
   const tels = card.filter((p) => p.name === 'TEL');
-  // Preferred number first, otherwise the card's own order -- the first one
-  // that can be placed wins (the picker keeps the first number too).
+  // Preferred number first, otherwise the card's own order; pickDevicePhone
+  // then prefers a Canadian/US number and skips any it can't place.
   const ordered = [...tels.filter(isPreferred), ...tels.filter((p) => !isPreferred(p))];
-  let phoneNumber: string | null = null;
-  for (const tel of ordered) {
-    phoneNumber = phoneFromDevice(decodeValue(tel).replace(/^tel:/i, ''));
-    if (phoneNumber) break;
-  }
+  const phoneNumber = pickDevicePhone(ordered.map((tel) => decodeValue(tel).replace(/^tel:/i, '')));
   if (!phoneNumber && tels.length > 0) result.droppedNumbers += 1;
 
-  result.contacts.push({ fullName, phoneNumber });
+  result.contacts.push({ fullName, phoneNumber, notes: notesFor(card) });
+}
+
+/** Every NOTE on the card, joined; line breaks kept (unlike in a name). */
+function notesFor(card: Property[]): string | null {
+  const notes = card
+    .filter((p) => p.name === 'NOTE')
+    .map((p) => unescapeNote(decodeValue(p)).trim())
+    .filter(Boolean)
+    .join('\n');
+  return cleanNotes(notes);
 }
 
 function nameFor(card: Property[]): string | null {
@@ -94,8 +104,16 @@ function nameFor(card: Property[]): string | null {
   return cleanName([prefix, given, additional, family, suffix].filter(Boolean).join(' ')) || null;
 }
 
-function cleanName(name: string): string {
+/** One line, single spaces, at most MAX_NAME_LENGTH -- shared with the phone
+ * picker so both import paths send the server the same shape of name. */
+export function cleanName(name: string): string {
   return name.replace(/\s+/g, ' ').trim().slice(0, MAX_NAME_LENGTH).trim();
+}
+
+/** Trimmed, at most MAX_NOTES_LENGTH, null when empty. */
+export function cleanNotes(notes: string | null | undefined): string | null {
+  const trimmed = (notes ?? '').replace(/\r\n?/g, '\n').trim().slice(0, MAX_NOTES_LENGTH).trim();
+  return trimmed || null;
 }
 
 function isPreferred(prop: Property): boolean {
@@ -225,6 +243,10 @@ function splitUnescaped(value: string, sep: string): string[] {
   }
   parts.push(current);
   return parts;
+}
+
+function unescapeNote(value: string): string {
+  return value.replace(/\\([nN,;:\\])/g, (_, ch: string) => (ch === 'n' || ch === 'N' ? '\n' : ch));
 }
 
 function unescapeText(value: string): string {

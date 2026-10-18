@@ -9,6 +9,7 @@ import {
   parsePhone,
   phoneError,
   phoneFromDevice,
+  pickDevicePhone,
   telHref,
   whatsAppHref,
 } from './phone';
@@ -64,6 +65,26 @@ describe('phoneFromDevice', () => {
     expect(phoneFromDevice('+44 7911 123456')).toBe('+447911123456');
     expect(phoneFromDevice('07911 123456')).toBeNull();
     expect(phoneFromDevice(undefined)).toBeNull();
+  });
+
+  it('only guesses +1 for an area code in use, so a foreign 10-digit number is not made Canadian', () => {
+    expect(phoneFromDevice('9876543210')).toBeNull(); // Indian mobile, no country code
+    expect(phoneFromDevice('1 987 654 3210')).toBeNull();
+    expect(phoneFromDevice('8005550100')).toBeNull(); // toll-free, not a person
+    expect(phoneFromDevice('437-555-0101')).toBe('+14375550101');
+    expect(phoneFromDevice('1 (212) 555-0100')).toBe('+12125550100');
+    expect(phoneFromDevice('876 555 0100')).toBe('+18765550100'); // Jamaica dials as +1
+    expect(phoneFromDevice('+91 98765 43210')).toBe('+919876543210'); // explicit country code kept
+  });
+});
+
+describe('pickDevicePhone', () => {
+  it('prefers a Canadian/US number, else the first that can be placed, trying every number', () => {
+    expect(pickDevicePhone(['+91 98765 43210', '(416) 555-0123'])).toBe('+14165550123');
+    expect(pickDevicePhone(['876 555 0100', '+1 604 555 0100'])).toBe('+16045550100');
+    expect(pickDevicePhone(['12345', '+44 7911 123456'])).toBe('+447911123456');
+    expect(pickDevicePhone(['9876543210'])).toBeNull();
+    expect(pickDevicePhone([])).toBeNull();
   });
 });
 
