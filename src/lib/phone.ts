@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isCanadaUsNumber, isNanpAreaCode } from './nanp-area-codes';
 
 // Contact phone numbers (P33). Stored in E.164 only -- "+" then the country
 // code and number, 8-15 digits, no spaces -- matching the database's
@@ -47,16 +48,32 @@ export function phoneError(parse: Exclude<PhoneParse, { ok: true }>): string {
 }
 
 /**
- * A number from the device's contact picker. Phones usually store local
- * numbers without "+1", so a North American-looking number is taken as
- * +1 here (the import toast says so); anything still ambiguous is dropped
- * and the contact is imported by name only.
+ * A number from the device's contact picker, a .vcf file or an Excel import.
+ * Phones usually store local numbers without "+1", so a North
+ * American-looking number is taken as +1 here -- but only when its area code
+ * is one actually in use (lib/nanp-area-codes.ts). Plenty of numbers from
+ * elsewhere are 10 digits too (an Indian mobile saved as 9876543210); those
+ * used to become a made-up +1 number. Anything still ambiguous is dropped and
+ * the contact is imported by name only.
  */
 export function phoneFromDevice(raw: string | undefined): string | null {
   if (!raw) return null;
   const parsed = parsePhone(raw);
   if (parsed.ok) return parsed.e164;
-  return parsed.reason === 'missing_country_code' ? parsed.suggestion : null;
+  if (parsed.reason !== 'missing_country_code' || !parsed.suggestion) return null;
+  return isNanpAreaCode(parsed.suggestion.slice(2, 5)) ? parsed.suggestion : null;
+}
+
+/**
+ * Picks the one number an import keeps from all of a contact's numbers, in
+ * the order given (a .vcf's preferred number first). A Canadian or US number
+ * wins over any other; otherwise the first one that can be placed. Every
+ * number is tried -- an unreadable first number no longer costs the contact
+ * a good second one.
+ */
+export function pickDevicePhone(raws: readonly (string | undefined)[]): string | null {
+  const numbers = raws.map(phoneFromDevice).filter((n): n is string => n !== null);
+  return numbers.find(isCanadaUsNumber) ?? numbers[0] ?? null;
 }
 
 /** Display form: "+1 416-555-0123" for North America, the stored E.164

@@ -968,6 +968,38 @@ the refund box was hidden. No engine rule changed.
 
 ---
 
+## P41 — Contact import reliability, number choice, .vcf notes
+
+From production logs, 2026-10-17: agents with 1,000+ contacts got almost
+nothing imported (every 200-contact chunk rejected on
+`contacts_agent_name_uq`), and a full phone-picker import of 1,500+ contacts
+failed outright with "No contacts to import." No database change.
+
+- [x] `lib/import/save-contacts.ts` (tested), shared by the picker/.vcf
+      action and the Excel import: reads **all** of an agent's contacts in
+      pages (PostgREST's `max_rows` 1000 cap silently truncated the old
+      one-shot read, so names past it were re-inserted and collided); a
+      chunk that still hits a unique violation is retried row by row.
+- [x] `importDeviceContactsAction`: lenient Zod schema — a long name is
+      cut to 200, a bad number dropped, an empty name skipped — instead of
+      one bad contact rejecting the whole list. Returns created / already
+      had / failed / skipped; both buttons show all four.
+- [x] Progress: blocking "Importing N contacts…" dialog with a spinner and
+      per-batch count; "Reading file…" while a .vcf is parsed. Calls are
+      split by body size as well as count (`lib/import/batch-contacts.ts`).
+- [x] Numbers (`lib/phone.ts`, `lib/nanp-area-codes.ts`, tested): a
+      10-digit number only becomes +1 when its area code is a geographic
+      NANP one (9876543210 no longer becomes a fake +1 987 number); of a
+      contact's numbers, a Canadian/US one wins, else the first that can
+      be placed — the picker now tries every number, not just the first.
+      Applies to the Excel import's phone column too.
+- [x] .vcf `NOTE` → contact notes (2,000-char cap, line breaks kept);
+      fills an existing contact's notes only when empty. Nothing else
+      (email, address, other numbers) is read. The privacy notice says so.
+- [ ] Area-code list: add new overlays as they are announced.
+
+---
+
 ## Working with Claude Code on this repo (token discipline)
 > Session-by-session prompts live in `docs/07-getting-started.md`. If the two
 > ever disagree, that file wins for *how to run a session*; this one wins for

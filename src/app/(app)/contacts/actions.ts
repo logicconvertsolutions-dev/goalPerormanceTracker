@@ -7,6 +7,8 @@ import { requireAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 import { findOrCreateContact } from '@/lib/contacts';
 import { E164, optionalPhoneSchema } from '@/lib/phone';
+import { cleanName, cleanNotes } from '@/lib/import/parse-vcard';
+import { saveContacts } from '@/lib/import/save-contacts';
 
 const createContactSchema = z.object({
   fullName: z.string().min(1, 'Enter a name.').max(200),
@@ -73,45 +75,47 @@ export async function createContactAction(formData: FormData) {
   return { ok: true, id: contact.id };
 }
 
+// Lenient on purpose: one contact the server can't use costs that contact,
+// never the whole import. The old strict schema (name max 200, number must be
+// E.164) rejected the entire list as "No contacts to import." whenever any one
+// of an agent's 1,500 phone contacts had a long name (2026-10-17). Names and
+// notes are cut to size here, an unusable number is dropped, and a name that
+// is empty after cleaning is counted as skipped. The raw bounds only stop
+// absurd payloads; the clients already send cleaned values.
 const deviceContactSchema = z.object({
-  fullName: z.string().min(1).max(200),
-  // Already normalised by the client (phoneFromDevice); re-checked here.
-  phoneNumber: z.string().regex(E164).nullable().optional(),
+  fullName: z.string().max(2000).transform(cleanName),
+  phoneNumber: z
+    .string()
+    .max(40)
+    .nullable()
+    .optional()
+    .transform((v) => (v && E164.test(v) ? v : null)),
+  notes: z.string().max(20000).nullable().optional().transform(cleanNotes),
 });
-// A phone's full contact list can easily run into the thousands; the old
-// 500 cap rejected the whole import outright above that (see below for why
-// that's now safe to lift).
+// A phone's full contact list can easily run into the thousands.
 const deviceContactsSchema = z.array(deviceContactSchema).min(1).max(5000);
 
-const INSERT_CHUNK_SIZE = 200;
+export type ImportContactsResult =
+  | { ok: true; created: number; existing: number; failed: number; skipped: number }
+  | { ok: false; error: string };
 
 /**
- * Bulk-import contacts picked from the device's native contact list via the
- * browser Contact Picker API (Android Chrome/Edge only — the client
- * component feature-detects and never renders its trigger elsewhere).
- * Name and, since P33, the contact's first phone number (when the agent
- * picks one; E.164, see lib/phone.ts). Contacts still match on name only. A
- * contact that already exists gets the picked number only if it has none --
- * an import never overwrites a number the agent already has.
- *
- * Deliberately NOT a loop of findOrCreateContact() calls: that issues
- * sequential network round-trips per contact (name lookup, insert), which
- * for a few hundred device contacts took minutes and routinely exceeded the
- * server action's execution limit -- from the user's side that reads as
- * "gets stuck and doesn't load anything." Instead this fetches the agent's
- * existing contacts once, dedupes in memory by name, and inserts everything
- * new in a handful of chunked bulk inserts.
+ * Bulk-imports contacts from the phone's contact picker (Contact Picker API)
+ * or a .vcf file (parsed in the browser, lib/import/parse-vcard.ts): name, one
+ * phone number (E.164, see lib/phone.ts) and, from a .vcf, the contact's
+ * notes. Matching is by name only; an existing contact only gains a number or
+ * notes it doesn't have yet. All the matching and writing is in
+ * saveContacts -- shared with the Excel import -- which reads every existing
+ * contact (not PostgREST's first 1000) and inserts in chunks.
  */
 export async function importDeviceContactsAction(
-  contacts: { fullName: string; phoneNumber?: string | null }[]
-): Promise<{ ok: true; imported: number; failed: number } | { ok: false; error: string }> {
+  contacts: { fullName: string; phoneNumber?: string | null; notes?: string | null }[]
+): Promise<ImportContactsResult> {
   const parsed = deviceContactsSchema.safeParse(contacts);
   if (!parsed.success) return { ok: false, error: 'No contacts to import.' };
 
   const session = await requireAgent();
   const supabase = await createClient();
-  const agentId = session.agent!.id;
-  const orgId = session.agent!.org_id!;
 
   // Same rate-limit scope/budget as the Excel importer (04-security.md) —
   // this is the same kind of bulk-write action, just a different source.
@@ -124,76 +128,23 @@ export async function importDeviceContactsAction(
     return { ok: false, error: 'Too many imports too quickly — try again in a bit.' };
   }
 
-  const { data: existingRows } = await supabase
-    .from('contacts')
-    .select('id, full_name, phone_number')
-    .eq('agent_id', agentId);
-
-  const byName = new Map<string, { id: string; phone_number: string | null }>();
-  for (const row of existingRows ?? []) {
-    byName.set(row.full_name.toLowerCase(), row);
-  }
-
-  let imported = 0;
-  let failed = 0;
-  const toInsert: { agent_id: string; org_id: string; full_name: string; phone_number: string | null }[] = [];
-  const phoneBackfill: { id: string; phone_number: string }[] = [];
-  const seenNames = new Set<string>();
-
-  for (const c of parsed.data) {
-    const trimmed = c.fullName.trim();
-    if (!trimmed) {
-      failed += 1;
-      continue;
-    }
-    const nameKey = trimmed.toLowerCase();
-
-    const existing = byName.get(nameKey);
-    if (existing) {
-      if (c.phoneNumber && !existing.phone_number) {
-        phoneBackfill.push({ id: existing.id, phone_number: c.phoneNumber });
-        existing.phone_number = c.phoneNumber;
-      }
-      imported += 1;
-      continue;
-    }
-
-    // De-dupe *within* this batch (two device contacts sharing a name) so we
-    // don't attempt two inserts that would collide on contacts_agent_name_uq.
-    if (seenNames.has(nameKey)) {
-      imported += 1;
-      continue;
-    }
-    seenNames.add(nameKey);
-
-    toInsert.push({ agent_id: agentId, org_id: orgId, full_name: trimmed, phone_number: c.phoneNumber ?? null });
-  }
-
-  for (let i = 0; i < toInsert.length; i += INSERT_CHUNK_SIZE) {
-    const chunk = toInsert.slice(i, i + INSERT_CHUNK_SIZE);
-    const { data, error } = await supabase.from('contacts').insert(chunk).select('id');
-    if (error) {
-      console.error('importDeviceContactsAction: bulk insert failed', error);
-      failed += chunk.length;
-    } else {
-      imported += data?.length ?? chunk.length;
-    }
-  }
-
-  // Existing contacts that had no number. One update each (they're a
-  // number, not a row, so no bulk upsert); the picker hands back a few
-  // hundred at most and most of those are new rows above.
-  for (const row of phoneBackfill) {
-    await supabase
-      .from('contacts')
-      .update({ phone_number: row.phone_number })
-      .eq('id', row.id)
-      .eq('agent_id', agentId)
-      .is('phone_number', null);
+  const usable = parsed.data.filter((c) => c.fullName);
+  let saved;
+  try {
+    saved = await saveContacts(supabase, session.agent!.id, session.agent!.org_id!, usable);
+  } catch (e) {
+    console.error('importDeviceContactsAction: could not read existing contacts', e);
+    return { ok: false, error: 'Could not import right now — try again.' };
   }
 
   revalidatePath('/contacts');
-  return { ok: true, imported, failed };
+  return {
+    ok: true,
+    created: saved.created,
+    existing: saved.existing,
+    failed: saved.failed,
+    skipped: parsed.data.length - usable.length,
+  };
 }
 
 const updateContactSchema = z.object({

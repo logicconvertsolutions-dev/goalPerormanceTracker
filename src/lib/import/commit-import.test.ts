@@ -1,127 +1,14 @@
 // Unit coverage for commitImport's batched rewrite (fixes the "still
 // failing on large batches" report -- the old version did up to 4 sequential
-// DB round-trips per row, fully serial). No local Supabase needed: a small
-// in-memory fake stands in for the query builder subset commit-import.ts
-// actually uses, including Postgres's real "one bad row aborts the whole
-// multi-row INSERT statement" behavior, so the pre-filter/fallback paths get
-// exercised the same way they would against a real database.
+// DB round-trips per row, fully serial). The database is the in-memory fake
+// in src/test/fake-supabase.ts.
 import { describe, expect, it } from 'vitest';
 import type { ParsedRow } from './parse-workbook';
 import { commitImport } from './commit-import';
-
-type Row = Record<string, unknown>;
-
-class FakeQuery implements PromiseLike<{ data: Row[] | null; error: { code: string } | null }> {
-  private filters: { kind: 'eq' | 'in' | 'is'; col: string; val: unknown }[] = [];
-  private selectCols: string[] | null = null;
-  private op: 'select' | 'insert' | 'update' = 'select';
-  private payload: Row[] = [];
-
-  constructor(
-    private table: Row[],
-    private tableName: string
-  ) {}
-
-  select(cols: string) {
-    this.selectCols = cols.split(',').map((c) => c.trim());
-    return this;
-  }
-  eq(col: string, val: unknown) {
-    this.filters.push({ kind: 'eq', col, val });
-    return this;
-  }
-  in(col: string, vals: unknown[]) {
-    this.filters.push({ kind: 'in', col, val: vals });
-    return this;
-  }
-  is(col: string, val: unknown) {
-    this.filters.push({ kind: 'is', col, val });
-    return this;
-  }
-  insert(rows: Row | Row[]) {
-    this.op = 'insert';
-    this.payload = Array.isArray(rows) ? rows : [rows];
-    return this;
-  }
-  update(data: Row) {
-    this.op = 'update';
-    this.payload = [data];
-    return this;
-  }
-  maybeSingle() {
-    return this;
-  }
-
-  private matches(row: Row): boolean {
-    return this.filters.every((f) => {
-      if (f.kind === 'eq') return row[f.col] === f.val;
-      if (f.kind === 'is') return (row[f.col] ?? null) === f.val;
-      return (f.val as unknown[]).includes(row[f.col]);
-    });
-  }
-
-  private project(rows: Row[]): Row[] {
-    if (!this.selectCols) return rows;
-    return rows.map((r) => Object.fromEntries(this.selectCols!.map((c) => [c, r[c]])));
-  }
-
-  private conflicts(row: Row): boolean {
-    if (this.tableName === 'contacts') {
-      const nameKey = String(row.full_name).toLowerCase();
-      if (this.table.some((r) => r.agent_id === row.agent_id && String(r.full_name).toLowerCase() === nameKey)) return true;
-      return false;
-    }
-    if (row.import_row_hash) {
-      return this.table.some((r) => r.agent_id === row.agent_id && r.import_row_hash === row.import_row_hash);
-    }
-    return false;
-  }
-
-  async execute(): Promise<{ data: Row[] | null; error: { code: string } | null }> {
-    if (this.op === 'select') {
-      return { data: this.project(this.table.filter((r) => this.matches(r))), error: null };
-    }
-    if (this.op === 'update') {
-      for (const r of this.table.filter((r) => this.matches(r))) Object.assign(r, this.payload[0]);
-      return { data: null, error: null };
-    }
-    // insert -- Postgres aborts the *entire* multi-row statement if any row
-    // in it conflicts, which is exactly the behavior commitActivityRows'
-    // pre-filter-then-fallback logic is designed around.
-    const seenInBatch = new Set<string>();
-    for (const row of this.payload) {
-      if (this.conflicts(row)) return { data: null, error: { code: '23505' } };
-      if (this.tableName === 'contacts') {
-        const key = String(row.full_name).toLowerCase();
-        if (seenInBatch.has(key)) return { data: null, error: { code: '23505' } };
-        seenInBatch.add(key);
-      }
-    }
-    const inserted = this.payload.map((row, i) => ({
-      id: `${this.tableName}-${this.table.length + i + 1}`,
-      ...row,
-    }));
-    this.table.push(...inserted);
-    return { data: this.project(inserted), error: null };
-  }
-
-  then<TResult1, TResult2 = never>(
-    onfulfilled?: ((value: { data: Row[] | null; error: { code: string } | null }) => TResult1 | PromiseLike<TResult1>) | null,
-    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
-  ): PromiseLike<TResult1 | TResult2> {
-    return this.execute().then(onfulfilled, onrejected);
-  }
-}
-
-class FakeSupabase {
-  tables: Record<string, Row[]> = { contacts: [], call_logs: [], appointments: [], sales: [], recruiting_logs: [] };
-  from(tableName: string) {
-    return new FakeQuery(this.tables[tableName], tableName);
-  }
-}
+import { fakeClient as makeFake, type FakeSupabase } from '@/test/fake-supabase';
 
 function fakeClient() {
-  return new FakeSupabase() as unknown as Parameters<typeof commitImport>[0];
+  return makeFake().client;
 }
 
 const AGENT_ID = 'agent-1';
