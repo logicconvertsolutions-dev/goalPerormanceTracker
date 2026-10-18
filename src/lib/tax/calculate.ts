@@ -278,6 +278,10 @@ export function calculateTax(input: TaxInput): TaxResult {
     nonNegative(input.employmentIncome) * periodsPerYear(input.payPeriod, input.hoursPerWeek);
 
   const core = computeCore(input, annualEmployment);
+  const withoutRrsp =
+    nonNegative(input.rrspFhsaContributions) > 0
+      ? computeCore({ ...input, rrspFhsaContributions: 0 }, annualEmployment)
+      : core;
   const bumped = computeCore(
     { ...input, otherIncome: nonNegative(input.otherIncome) + MARGINAL_STEP },
     annualEmployment
@@ -328,8 +332,10 @@ export function calculateTax(input: TaxInput): TaxResult {
     afterTaxIncome: cents(totalIncome - totalTax),
     averageTaxRate: totalIncome > 0 ? core.incomeTax / totalIncome : 0,
     marginalTaxRate: (bumped.incomeTax - core.incomeTax) / MARGINAL_STEP,
+    rrspFhsaTaxSaving: cents(withoutRrsp.incomeTax - core.incomeTax),
     totalDeductionRate: totalIncome > 0 ? totalTax / totalIncome : 0,
-    balance: cents(nonNegative(input.incomeTaxesPaid) - dueOnReturn),
+    // `+ 0` normalises -0, so paying exactly what's due shows $0, not -$0.
+    balance: cents(nonNegative(input.incomeTaxesPaid) - dueOnReturn) + 0,
     employer: {
       pensionPlan: cents(employerPension),
       ei: cents(employerEi),

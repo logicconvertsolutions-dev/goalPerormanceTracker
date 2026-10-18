@@ -951,6 +951,23 @@ database change, no new dependency.
 
 ---
 
+## P40 — Tax Calculator: make refund/owing self-explanatory
+
+From staging testing: it wasn't clear what "Income taxes paid" compares
+against (copying "Total tax and contributions" showed a refund equal to
+CPP + EI), and an RRSP/FHSA contribution seemed to change nothing while
+the refund box was hidden. No engine rule changed.
+
+- [x] Results show an **Income tax (federal + provincial)** line — the
+      figure refund/owing is measured against.
+- [x] **Tax saved by RRSP/FHSA** line (`TaxResult.rrspFhsaTaxSaving`,
+      tested) whenever a contribution is entered.
+- [x] "Income taxes paid" hint: income tax withheld only (T4 box 22), not
+      CPP or EI; refund/owing explanation spells out the formula.
+- [x] Paying exactly the income tax shows $0, never -$0 (tested).
+
+---
+
 ## Working with Claude Code on this repo (token discipline)
 > Session-by-session prompts live in `docs/07-getting-started.md`. If the two
 > ever disagree, that file wins for *how to run a session*; this one wins for

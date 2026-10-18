@@ -246,6 +246,28 @@ describe('income types and the return', () => {
     expect(r.balance).toBeCloseTo(500, 1);
   });
 
+  it('paying exactly the income tax shows a zero balance, not -0', () => {
+    const owed = calculateTax(input({ employmentIncome: 80_000 }));
+    const r = calculateTax(input({ employmentIncome: 80_000, incomeTaxesPaid: owed.incomeTax }));
+    expect(Object.is(r.balance, 0)).toBe(true);
+    // Copying "Total tax and contributions" instead over-states what was paid by CPP + EI.
+    const total = calculateTax(input({ employmentIncome: 80_000, incomeTaxesPaid: owed.totalTax }));
+    expect(total.balance).toBeCloseTo(owed.pensionPlan + owed.ei, 2);
+  });
+
+  it('reports the income tax an RRSP/FHSA contribution saves', () => {
+    expect(calculateTax(input({ employmentIncome: 80_000 })).rrspFhsaTaxSaving).toBe(0);
+    const without = calculateTax(input({ employmentIncome: 80_000 }));
+    const r = calculateTax(input({ employmentIncome: 80_000, rrspFhsaContributions: 10_000 }));
+    expect(r.rrspFhsaTaxSaving).toBeCloseTo(without.incomeTax - r.incomeTax, 2);
+    expect(r.rrspFhsaTaxSaving).toBeGreaterThan(0);
+    // ...and it becomes refund once the original withholding is entered.
+    const paid = calculateTax(
+      input({ employmentIncome: 80_000, rrspFhsaContributions: 10_000, incomeTaxesPaid: without.incomeTax })
+    );
+    expect(paid.balance).toBeCloseTo(r.rrspFhsaTaxSaving, 2);
+  });
+
   it('self-employed owe their CPP on the return', () => {
     const r = calculateTax(input({ selfEmploymentIncome: 60_000 }));
     expect(r.balance).toBeCloseTo(-(r.incomeTax + r.pensionPlan), 1);
