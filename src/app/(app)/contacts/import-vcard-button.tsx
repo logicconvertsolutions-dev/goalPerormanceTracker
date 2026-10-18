@@ -14,12 +14,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { parseVCard, type VCardParseResult } from '@/lib/import/parse-vcard';
-import { importDeviceContactsAction } from './actions';
 import { ImportPrivacyNotice } from './import-privacy-notice';
-
-// importDeviceContactsAction's per-call cap. A bigger file goes up in
-// batches; each batch counts against the same hourly import rate limit.
-const BATCH_SIZE = 5000;
+import { ImportProgressDialog, importContacts, importSummary, importingStatus } from './import-progress';
 
 /**
  * Bulk import from a vCard (.vcf) export -- the fast path on Android, whose
@@ -35,18 +31,26 @@ export function ImportVCardButton() {
   const [parsed, setParsed] = useState<VCardParseResult | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [status, setStatus] = useState<{ title: string; detail: string } | null>(null);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = ''; // so picking the same file again still fires change
     if (!file) return;
 
+    // A big export (photos included) can take a few seconds to read; say so
+    // instead of showing nothing until the confirm dialog appears.
+    setStatus({ title: 'Reading file…', detail: `${file.name} — this can take a few seconds for a large file.` });
     let result: VCardParseResult;
     try {
+      // Let the dialog paint before the parse ties up the main thread.
+      await new Promise((resolve) => setTimeout(resolve, 50));
       result = parseVCard(await file.text());
     } catch {
       toast.error('Could not read that file. Is it a .vcf contacts export?');
       return;
+    } finally {
+      setStatus(null);
     }
     if (result.contacts.length === 0) {
       toast.error(
@@ -62,30 +66,23 @@ export function ImportVCardButton() {
   function runImport(result: VCardParseResult) {
     setParsed(null);
     startTransition(async () => {
-      let imported = 0;
-      let failed = 0;
-      for (let i = 0; i < result.contacts.length; i += BATCH_SIZE) {
-        const outcome = await importDeviceContactsAction(result.contacts.slice(i, i + BATCH_SIZE));
-        if (!outcome.ok) {
-          toast.error(imported > 0 ? `${outcome.error} (${imported} imported before this.)` : outcome.error);
-          router.refresh();
-          return;
-        }
-        imported += outcome.imported;
-        failed += outcome.failed;
+      const total = result.contacts.length;
+      setStatus(importingStatus(0, total));
+      const { totals, error } = await importContacts(result.contacts, (done) => setStatus(importingStatus(done, total)));
+      setStatus(null);
+      if (error) {
+        toast.error(totals.created + totals.existing > 0 ? `${error} (${importSummary(totals)} before this.)` : error);
+      } else {
+        const message = importSummary(totals);
+        if (totals.failed > 0) toast.warning(message);
+        else toast.success(message);
       }
-
-      const withNumber = result.contacts.filter((c) => c.phoneNumber).length;
-      toast.success(
-        `Imported ${imported} contact${imported === 1 ? '' : 's'}` +
-          (withNumber > 0 ? `, ${withNumber} with a phone number` : '') +
-          (failed > 0 ? ` (${failed} failed)` : '')
-      );
       router.refresh();
     });
   }
 
   const withNumber = parsed?.contacts.filter((c) => c.phoneNumber).length ?? 0;
+  const withNotes = parsed?.contacts.filter((c) => c.notes).length ?? 0;
 
   return (
     <>
@@ -96,6 +93,7 @@ export function ImportVCardButton() {
         className="hidden"
         onChange={handleFile}
       />
+      <ImportProgressDialog status={status} />
       <Button variant="secondary" size="sm" disabled={pending} onClick={() => setShowHelp(true)}>
         <FileUp className="h-4 w-4" aria-hidden="true" />
         {pending ? 'Importing…' : 'Import .vcf file'}
@@ -147,15 +145,15 @@ export function ImportVCardButton() {
             <DialogDescription asChild>
               <div className="space-y-2 text-left">
                 <p>
-                  {withNumber} with a phone number.
+                  {withNumber} with a phone number{withNotes > 0 ? `, ${withNotes} with notes` : ''}.
                   {parsed && parsed.droppedNumbers > 0 &&
                     ` ${parsed.droppedNumbers} had a number without a country code that we couldn't place — those come in by name only.`}
                   {parsed && parsed.skippedNoName > 0 &&
                     ` ${parsed.skippedNoName} without a name will be skipped.`}{' '}
                   Contacts you already have are matched by name and never duplicated, and an existing
-                  number is never replaced.
+                  number or notes are never replaced.
                 </p>
-                <ImportPrivacyNotice />
+                <ImportPrivacyNotice withNotes />
               </div>
             </DialogDescription>
           </DialogHeader>

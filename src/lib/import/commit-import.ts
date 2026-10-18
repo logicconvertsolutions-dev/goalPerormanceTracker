@@ -2,6 +2,7 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../../types/database';
 import { E164 } from '@/lib/phone';
+import { saveContacts } from './save-contacts';
 import type {
   AppointmentImportData,
   CallLogImportData,
@@ -275,14 +276,10 @@ async function commitActivityRows(
 }
 
 /**
- * Resolves every row's contact in one bulk pass: fetch the agent's existing
- * contacts once, match each row against them in memory by name, collapse
- * rows that need a brand-new contact down to one insert per unique name (so
- * the same new person appearing on multiple sheets/rows becomes a single
- * contact, not several), and bulk-insert those in chunks. A phone number
- * goes onto a new contact, or onto an existing one that has none -- an
- * import never replaces a number the agent already has (same rule as the
- * phone picker's importDeviceContactsAction).
+ * Resolves every row's contact in one bulk pass through saveContacts (the
+ * same matching the phone/.vcf import uses): fetch the agent's existing
+ * contacts, match by name, create each new name once however many rows
+ * mention it, and give an existing contact a number only if it has none.
  */
 async function resolveContactsBulk(
   supabase: SupabaseClient<Database>,
@@ -293,111 +290,15 @@ async function resolveContactsBulk(
   const resolved = new Map<number, string>();
   if (refs.length === 0) return resolved;
 
-  const { data: existingRows } = await supabase
-    .from('contacts')
-    .select('id, full_name, phone_number')
-    .eq('agent_id', agentId);
-
-  const byName = new Map<string, { id: string; phone_number: string | null }>();
-  for (const row of existingRows ?? []) {
-    byName.set(row.full_name.toLowerCase(), row);
-  }
-
-  const pendingByKey = new Map<string, { fullName: string; phoneNumber: string | null; rowIndices: number[] }>();
-  const phoneBackfill = new Map<string, string>(); // contact id -> number
-
+  const { idsByName } = await saveContacts(
+    supabase,
+    agentId,
+    orgId,
+    refs.map((ref) => ({ fullName: ref.name, phoneNumber: ref.phoneNumber }))
+  );
   for (const ref of refs) {
-    const trimmed = ref.name.trim();
-    if (!trimmed) continue; // parser already validated a name exists on every sheet; defensive only
-    const nameKey = trimmed.toLowerCase();
-
-    const existing = byName.get(nameKey);
-    if (existing) {
-      resolved.set(ref.rowIndex, existing.id);
-      if (ref.phoneNumber && !existing.phone_number && !phoneBackfill.has(existing.id)) {
-        phoneBackfill.set(existing.id, ref.phoneNumber);
-      }
-      continue;
-    }
-
-    const pending = pendingByKey.get(nameKey);
-    if (pending) {
-      pending.rowIndices.push(ref.rowIndex);
-      pending.phoneNumber ??= ref.phoneNumber;
-      continue;
-    }
-    pendingByKey.set(nameKey, { fullName: trimmed, phoneNumber: ref.phoneNumber, rowIndices: [ref.rowIndex] });
+    const id = idsByName.get(ref.name.trim().toLowerCase());
+    if (id) resolved.set(ref.rowIndex, id);
   }
-
-  const pendingEntries = Array.from(pendingByKey.entries());
-  const toInsert = pendingEntries.map(([, p]) => ({
-    agent_id: agentId,
-    org_id: orgId,
-    full_name: p.fullName,
-    phone_number: p.phoneNumber,
-  }));
-
-  for (let i = 0; i < toInsert.length; i += INSERT_CHUNK_SIZE) {
-    const chunk = toInsert.slice(i, i + INSERT_CHUNK_SIZE);
-    const chunkEntries = pendingEntries.slice(i, i + INSERT_CHUNK_SIZE);
-    const { data, error } = await supabase.from('contacts').insert(chunk).select('id, full_name');
-    if (!error && data) {
-      const insertedByName = new Map(data.map((c) => [c.full_name.toLowerCase(), c.id]));
-      for (const [nameKey, p] of chunkEntries) {
-        const id = insertedByName.get(nameKey);
-        if (id) for (const rowIndex of p.rowIndices) resolved.set(rowIndex, id);
-      }
-      continue;
-    }
-
-    if (error?.code === UNIQUE_VIOLATION) {
-      // A concurrent save (another import, or a manual "Add contact") created
-      // one of these names between the existingRows lookup above and this
-      // insert -- fall back to one-by-one, same pattern as
-      // commitActivityRows, so a single collision doesn't strand every other
-      // new name in the chunk unresolved. A per-row conflict means the
-      // contact now exists via the other request -- look it up rather than
-      // leaving these rows unresolved (findOrCreateContact's own fix for the
-      // identical race, applied here for the bulk path).
-      for (const [, p] of chunkEntries) {
-        const { data: single, error: rowError } = await supabase
-          .from('contacts')
-          .insert({ agent_id: agentId, org_id: orgId, full_name: p.fullName, phone_number: p.phoneNumber })
-          .select('id')
-          .single();
-        if (single) {
-          for (const rowIndex of p.rowIndices) resolved.set(rowIndex, single.id);
-          continue;
-        }
-        if (rowError?.code === UNIQUE_VIOLATION) {
-          const { data: winner } = await supabase
-            .from('contacts')
-            .select('id')
-            .eq('agent_id', agentId)
-            .filter('full_name', 'ilike', p.fullName.replace(/[%_]/g, '\\$&'))
-            .maybeSingle();
-          if (winner) for (const rowIndex of p.rowIndices) resolved.set(rowIndex, winner.id);
-        } else {
-          console.error('resolveContactsBulk: per-row contact insert failed', rowError);
-        }
-      }
-      continue;
-    }
-
-    console.error('resolveContactsBulk: bulk contact insert failed', error);
-    // rows referencing these pending contacts stay unresolved -> reported as errors by the caller
-  }
-
-  // One update each (a number, not a row, so no bulk upsert). `is null`
-  // keeps a number saved by someone else in the meantime.
-  for (const [id, phoneNumber] of phoneBackfill) {
-    await supabase
-      .from('contacts')
-      .update({ phone_number: phoneNumber })
-      .eq('id', id)
-      .eq('agent_id', agentId)
-      .is('phone_number', null);
-  }
-
   return resolved;
 }

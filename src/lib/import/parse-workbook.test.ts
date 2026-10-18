@@ -180,7 +180,7 @@ describe('parseWorkbook', () => {
     const buf = buildWorkbook({
       'Call Log': [
         [...CALL_LOG_HEADER, 'Phone'],
-        ['2026-07-06', 'Jane Doe', 'Acme Inc.', 'Warm Market', 'Connected', 'note', '555-123-4567'],
+        ['2026-07-06', 'Jane Doe', 'Acme Inc.', 'Warm Market', 'Connected', 'note', '416-123-4567'],
       ],
     });
 
@@ -188,7 +188,7 @@ describe('parseWorkbook', () => {
     expect(result.rows[0].errors).toEqual([]);
     expect(result.rows[0].data).toMatchObject({ contactName: 'Jane Doe' });
     expect(result.rows[0].data).not.toHaveProperty('phoneNumber');
-    expect(result.rows[0].phoneNumber).toBe('+15551234567');
+    expect(result.rows[0].phoneNumber).toBe('+14161234567');
   });
 
   it('skips fully-blank rows without emitting them', () => {
