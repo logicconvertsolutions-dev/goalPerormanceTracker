@@ -1,5 +1,20 @@
 import { requireAgent } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
+import { fetchAllPages } from '@/lib/supabase/fetch-all';
+
+type AgentTable =
+  | 'contacts'
+  | 'call_logs'
+  | 'appointments'
+  | 'sales'
+  | 'recruiting_logs'
+  | 'daily_metrics'
+  | 'tasks'
+  | 'reminders'
+  | 'notifications'
+  | 'push_subscriptions'
+  | 'feedback'
+  | 'pending_calls';
 
 // "Download everything" (09-account-and-auth.md /settings "Your data"):
 // JSON of every row this agent owns. RLS already scopes every one of
@@ -17,6 +32,47 @@ export async function GET() {
   const supabase = await createClient();
   const agentId = session.agent!.id;
 
+  // Every multi-row table is read through fetchAllPages: a plain select stops
+  // silently at max_rows (1000), and a right-of-access export that quietly
+  // drops an agent's 1,001st contact is worse than one that fails loudly.
+  const all = <T,>(table: AgentTable, columns = '*', orderBy = 'id') =>
+    fetchAllPages<T>((from, to) =>
+      supabase
+        .from(table)
+        .select(columns)
+        .eq('agent_id', agentId)
+        .order(orderBy, { ascending: true })
+        .range(from, to)
+        .returns<T[]>()
+    );
+
+  let results;
+  try {
+    results = await Promise.all([
+      supabase
+        .from('agents')
+        .select('full_name, email, role, joined_at, time_zone, terms_accepted_at')
+        .eq('id', agentId)
+        .single(),
+      all('contacts'),
+      all('call_logs'),
+      all('appointments'),
+      all('sales'),
+      all('recruiting_logs'),
+      // Keyed (agent_id, activity_date) -- no id column.
+      all('daily_metrics', '*', 'activity_date'),
+      all('tasks'),
+      all('reminders'),
+      all('notifications'),
+      supabase.from('notification_prefs').select('*').eq('agent_id', agentId).maybeSingle(),
+      all('push_subscriptions', 'id, user_agent, created_at, last_seen_at'),
+      all('feedback'),
+      all('pending_calls'),
+    ]);
+  } catch (e) {
+    console.error('[settings/export] read failed', e);
+    return new Response('Could not export your data right now -- try again.', { status: 500 });
+  }
   const [
     profile,
     contacts,
@@ -32,46 +88,24 @@ export async function GET() {
     pushDevices,
     feedback,
     pendingCalls,
-  ] = await Promise.all([
-      supabase
-        .from('agents')
-        .select('full_name, email, role, joined_at, time_zone, terms_accepted_at')
-        .eq('id', agentId)
-        .single(),
-      supabase.from('contacts').select('*').eq('agent_id', agentId),
-      supabase.from('call_logs').select('*').eq('agent_id', agentId),
-      supabase.from('appointments').select('*').eq('agent_id', agentId),
-      supabase.from('sales').select('*').eq('agent_id', agentId),
-      supabase.from('recruiting_logs').select('*').eq('agent_id', agentId),
-      supabase.from('daily_metrics').select('*').eq('agent_id', agentId),
-      supabase.from('tasks').select('*').eq('agent_id', agentId),
-      supabase.from('reminders').select('*').eq('agent_id', agentId),
-      supabase.from('notifications').select('*').eq('agent_id', agentId),
-      supabase.from('notification_prefs').select('*').eq('agent_id', agentId).maybeSingle(),
-      supabase
-        .from('push_subscriptions')
-        .select('id, user_agent, created_at, last_seen_at')
-        .eq('agent_id', agentId),
-      supabase.from('feedback').select('*').eq('agent_id', agentId),
-      supabase.from('pending_calls').select('*').eq('agent_id', agentId),
-    ]);
+  ] = results;
 
   const bundle = {
     exported_at: new Date().toISOString(),
     profile: profile.data,
-    contacts: contacts.data ?? [],
-    call_logs: callLogs.data ?? [],
-    appointments: appointments.data ?? [],
-    sales: sales.data ?? [],
-    recruiting_logs: recruitingLogs.data ?? [],
-    daily_metrics: dailyMetrics.data ?? [],
-    tasks: tasks.data ?? [],
-    reminders: reminders.data ?? [],
-    notifications: notifications.data ?? [],
+    contacts,
+    call_logs: callLogs,
+    appointments,
+    sales,
+    recruiting_logs: recruitingLogs,
+    daily_metrics: dailyMetrics,
+    tasks,
+    reminders,
+    notifications,
     notification_settings: notificationPrefs.data,
-    push_devices: pushDevices.data ?? [],
-    feedback: feedback.data ?? [],
-    calls_to_finish: pendingCalls.data ?? [],
+    push_devices: pushDevices,
+    feedback,
+    calls_to_finish: pendingCalls,
   };
 
   return new Response(JSON.stringify(bundle, null, 2), {
