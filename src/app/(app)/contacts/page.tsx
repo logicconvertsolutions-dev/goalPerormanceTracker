@@ -11,39 +11,29 @@ import { ImportVCardButton } from './import-vcard-button';
 import { ContactsSearch } from './contacts-search';
 import { ContactCallButtons } from '@/components/shell/contact-call-buttons';
 import { outcomeLabel } from '@/lib/call-outcomes';
-
-interface ContactRow {
-  id: string;
-  phone_number: string | null;
-  full_name: string;
-  notes: string | null;
-  call_logs: { call_date: string; outcome: string; follow_up_on: string | null; follow_up_done_at: string | null }[];
-}
+import { CONTACTS_PAGE_SIZE, contactsHref, pageCount, parsePage } from './paging';
 
 export default async function ContactsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 }) {
-  const session = await requireVerifiedAgent();
+  await requireVerifiedAgent();
   const supabase = await createClient();
-  const { q: qRaw } = await searchParams;
+  const { q: qRaw, page: pageRaw } = await searchParams;
   const q = qRaw?.trim();
+  const page = parsePage(pageRaw);
 
-  let query = supabase
-    .from('contacts')
-    .select('id, full_name, phone_number, notes, call_logs(call_date, outcome, follow_up_on, follow_up_done_at)')
-    .eq('agent_id', session.agent!.id);
-
-  if (q) {
-    const escaped = q.replace(/[%_]/g, '\\$&');
-    query = query.or(`full_name.ilike.%${escaped}%,notes.ilike.%${escaped}%`);
-  }
-
-  const { data: contacts } = await query
-    .order('full_name', { ascending: true })
-    .returns<ContactRow[]>();
-  const rows = contacts ?? [];
+  // P42: one page, summarised in the database. Reading every contact with
+  // its call_logs here stopped silently at PostgREST's 1,000-row cap.
+  const { data } = await supabase.rpc('my_contacts', {
+    p_q: q || undefined,
+    p_limit: CONTACTS_PAGE_SIZE,
+    p_offset: (page - 1) * CONTACTS_PAGE_SIZE,
+  });
+  const rows = data ?? [];
+  const total = rows[0]?.total_count ?? 0;
+  const pages = pageCount(total);
 
   return (
     <div className="max-w-3xl space-y-5">
@@ -70,9 +60,18 @@ export default async function ContactsPage({
         <Card>
           <CardContent className="pt-4">
             <p className="text-sm text-fg-2">
-              {q
-                ? `No contacts matching "${q}".`
-                : 'No contacts yet. They appear automatically when you log a call.'}
+              {page > 1 ? (
+                <>
+                  There are no contacts on this page.{' '}
+                  <Link href={contactsHref(1, q)} className="text-fg underline">
+                    Back to the first page
+                  </Link>
+                </>
+              ) : q ? (
+                `No contacts matching "${q}".`
+              ) : (
+                'No contacts yet. They appear automatically when you log a call.'
+              )}
             </p>
           </CardContent>
         </Card>
@@ -82,32 +81,24 @@ export default async function ContactsPage({
               Activity — a table's horizontal scroll doesn't work well on a
               small screen. */}
           <div className="divide-y divide-line rounded-lg border border-line bg-panel px-4 shadow-card md:hidden">
-            {rows.map((c) => {
-              const calls = [...c.call_logs].sort((a, b) => (a.call_date < b.call_date ? 1 : -1));
-              const last = calls[0];
-              const nextFollowUp = c.call_logs
-                .filter((cl) => cl.follow_up_on && !cl.follow_up_done_at)
-                .sort((a, b) => (a.follow_up_on! < b.follow_up_on! ? -1 : 1))[0]?.follow_up_on;
-
-              return (
-                <div key={c.id} className="flex items-center gap-2 py-3">
+            {rows.map((c) => (
+              <div key={c.id} className="flex items-center gap-2 py-3">
                 <Link href={`/contacts/${c.id}`} className="block min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
                     <p className="truncate text-[15px] font-semibold text-fg">{c.full_name}</p>
-                    <span className="shrink-0 text-xs text-fg-3">{calls.length} calls</span>
+                    <span className="shrink-0 text-xs text-fg-3">{c.times_called} calls</span>
                   </div>
                   {c.notes && <p className="mt-0.5 truncate text-sm text-fg-2">{c.notes}</p>}
                   <p className="mt-0.5 truncate text-sm text-fg-3">
-                    {last
-                      ? `${formatDisplayDate(last.call_date)} · ${outcomeLabel(last.outcome)}`
+                    {c.last_call_date && c.last_outcome
+                      ? `${formatDisplayDate(c.last_call_date)} · ${outcomeLabel(c.last_outcome)}`
                       : 'No calls yet'}
-                    {nextFollowUp && ` · Follow-up ${formatDisplayDate(nextFollowUp)}`}
+                    {c.next_follow_up && ` · Follow-up ${formatDisplayDate(c.next_follow_up)}`}
                   </p>
                 </Link>
                 <ContactCallButtons contactId={c.id} phoneNumber={c.phone_number} contactName={c.full_name} size="sm" />
-                </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
 
           {/* Desktop / tablet: full table. */}
@@ -127,48 +118,79 @@ export default async function ContactsPage({
                 </tr>
               </thead>
               <tbody>
-                {rows.map((c) => {
-                  const calls = [...c.call_logs].sort((a, b) => (a.call_date < b.call_date ? 1 : -1));
-                  const last = calls[0];
-                  const nextFollowUp = c.call_logs
-                    .filter((cl) => cl.follow_up_on && !cl.follow_up_done_at)
-                    .sort((a, b) => (a.follow_up_on! < b.follow_up_on! ? -1 : 1))[0]?.follow_up_on;
-
-                  return (
-                    <tr key={c.id} className="border-t border-line hover:bg-hover">
-                      <td className="px-4 py-2.5">
-                        <Link href={`/contacts/${c.id}`} className="text-fg font-medium hover:underline">
-                          {c.full_name}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-2.5 text-fg-2 max-w-xs truncate">{c.notes ?? '—'}</td>
-                      <td className="px-4 py-2.5 text-fg-2">{calls.length}</td>
-                      <td className="px-4 py-2.5 text-fg-2">
-                        {last ? formatDisplayDate(last.call_date) : '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-fg-2">
-                        {last ? outcomeLabel(last.outcome) : '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-fg-2">
-                        {nextFollowUp ? formatDisplayDate(nextFollowUp) : '—'}
-                      </td>
-                      <td className="px-4 py-2">
-                        <ContactCallButtons
-                          contactId={c.id}
-                          phoneNumber={c.phone_number}
-                          contactName={c.full_name}
-                          size="sm"
-                          className="justify-end"
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
+                {rows.map((c) => (
+                  <tr key={c.id} className="border-t border-line hover:bg-hover">
+                    <td className="px-4 py-2.5">
+                      <Link href={`/contacts/${c.id}`} className="text-fg font-medium hover:underline">
+                        {c.full_name}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-2.5 text-fg-2 max-w-xs truncate">{c.notes ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-fg-2">{c.times_called}</td>
+                    <td className="px-4 py-2.5 text-fg-2">
+                      {c.last_call_date ? formatDisplayDate(c.last_call_date) : '—'}
+                    </td>
+                    <td className="px-4 py-2.5 text-fg-2">
+                      {c.last_outcome ? outcomeLabel(c.last_outcome) : '—'}
+                    </td>
+                    <td className="px-4 py-2.5 text-fg-2">
+                      {c.next_follow_up ? formatDisplayDate(c.next_follow_up) : '—'}
+                    </td>
+                    <td className="px-4 py-2">
+                      <ContactCallButtons
+                        contactId={c.id}
+                        phoneNumber={c.phone_number}
+                        contactName={c.full_name}
+                        size="sm"
+                        className="justify-end"
+                      />
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
+
+          <ContactsPager page={page} pages={pages} total={total} q={q} />
         </>
       )}
     </div>
+  );
+}
+
+function ContactsPager({ page, pages, total, q }: { page: number; pages: number; total: number; q?: string }) {
+  const first = (page - 1) * CONTACTS_PAGE_SIZE + 1;
+  const last = Math.min(page * CONTACTS_PAGE_SIZE, total);
+  return (
+    <nav aria-label="Contacts pages" className="flex items-center justify-between gap-3 text-sm text-fg-2">
+      <p>
+        {first}–{last} of {total}
+      </p>
+      {pages > 1 && (
+        <div className="flex items-center gap-2">
+          {page > 1 ? (
+            <Button asChild variant="secondary" size="sm">
+              <Link href={contactsHref(page - 1, q)}>Previous</Link>
+            </Button>
+          ) : (
+            <Button variant="secondary" size="sm" disabled>
+              Previous
+            </Button>
+          )}
+          <span className="text-fg-3">
+            Page {page} of {pages}
+          </span>
+          {page < pages ? (
+            <Button asChild variant="secondary" size="sm">
+              <Link href={contactsHref(page + 1, q)}>Next</Link>
+            </Button>
+          ) : (
+            <Button variant="secondary" size="sm" disabled>
+              Next
+            </Button>
+          )}
+        </div>
+      )}
+    </nav>
   );
 }

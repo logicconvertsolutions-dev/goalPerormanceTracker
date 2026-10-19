@@ -1000,6 +1000,37 @@ failed outright with "No contacts to import." No database change.
 
 ---
 
+## P42 — Contacts screen pages in the database; contact indexes
+
+From the 2026-10-19 capacity review: the Contacts screen read every contact
+plus every call logged against each one in one request, so it stopped
+silently at PostgREST's 1,000-row cap (agents past ~1,000 contacts lost
+everyone after roughly "M") and grew with every call. Migration
+`20261019100000_p42_contacts_paging_and_indexes.sql`.
+
+- [x] `public.my_contacts(p_q, p_limit, p_offset)`: one page of the
+      caller's contacts, sorted by `lower(full_name), id`, with times
+      called, last call + outcome, next open follow-up and the total match
+      count computed in SQL. `SECURITY INVOKER` — RLS stays the boundary;
+      it checks `agent_id` and `org_id` itself too (rule 8). Search is a
+      case-insensitive substring of name or notes, LIKE wildcards escaped.
+      Page size capped at 200. pgTAP `017_p42_my_contacts.sql` (new);
+      `001` guard now names it alongside `my_followups` as an own-data
+      exception.
+- [x] `/contacts`: 50 per page, `?page=` in the URL alongside `?q=`
+      (`contacts/paging.ts`, tested); a new search starts at page 1; a page
+      past the end links back to page 1.
+- [x] `pg_trgm` (in `extensions`) + trigram GIN indexes on
+      `contacts.full_name` and `.notes` for the "contains" search.
+- [x] Covering indexes on the `contact_id` FKs (call_logs, appointments,
+      sales, recruiting_logs, tasks, reminders, pending_calls) and the
+      `org_id` FKs on contacts, tasks, reminders, notifications,
+      pending_calls, push_subscriptions (Supabase performance advisor).
+- [x] Local check: 5,000 contacts / 50,000 calls for one agent — every
+      page and search 15–20 ms.
+
+---
+
 ## Working with Claude Code on this repo (token discipline)
 > Session-by-session prompts live in `docs/07-getting-started.md`. If the two
 > ever disagree, that file wins for *how to run a session*; this one wins for

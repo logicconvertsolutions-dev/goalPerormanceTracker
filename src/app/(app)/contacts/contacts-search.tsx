@@ -23,6 +23,8 @@ export function ContactsSearch({ initialQuery }: { initialQuery: string }) {
       } else {
         params.delete('q');
       }
+      // A new search starts from its first page (P42).
+      params.delete('page');
       router.replace(`${pathname}?${params.toString()}`);
     }, 250);
     return () => clearTimeout(timer);

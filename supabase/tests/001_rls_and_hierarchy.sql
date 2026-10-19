@@ -443,16 +443,21 @@ select throws_ok(
 -- aggregate RPCs an upline calls across the hierarchy boundary), so it is
 -- excluded by name rather than by column list, keeping the assertion below
 -- a true zero-tolerance check for every other function.
+--
+-- my_contacts (P42) is the same kind of exception -- the agent's own
+-- contacts page, names and notes included -- and is SECURITY INVOKER on
+-- top of that, so RLS (contacts_own) filters it; 017_p42_my_contacts.sql
+-- asserts both that and that an upline gets nothing from it.
 select is(
   (select count(*)::int from information_schema.routines r
    join information_schema.parameters p
      on p.specific_schema = r.specific_schema and p.specific_name = r.specific_name
    where r.routine_schema = 'public'
-     and r.routine_name <> 'my_followups'
+     and r.routine_name not in ('my_followups', 'my_contacts')
      and p.parameter_mode = 'OUT'
      and p.parameter_name in ('contact_name','client_name','prospect_name','notes','last_note')
   ), 0,
-  'no public RPC (other than the deliberate my_followups own-data exception) returns a name/note/free-text column'
+  'no public RPC (other than the deliberate my_followups/my_contacts own-data exceptions) returns a name/note/free-text column'
 );
 
 -- ============================================================
