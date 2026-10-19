@@ -8,6 +8,10 @@
 //     -e PEAK_VUS=250
 //
 // accounts.json (never commit it): [{"email","password","totp_secret"}, ...]
+// -- or, instead, -e COOKIES_FILE=/path/outside/repo/cookies.json:
+// [{"label":"agent 1","cookies":{"sb-<ref>-auth-token":"base64-..."}}, ...],
+// copied from a browser already signed in to staging with MFA done. Nobody
+// shares a password or TOTP secret that way; the session lasts ~1h.
 // -- staging test agents with an authenticator enrolled (every app page
 // requires aal2) and current terms accepted. setup() signs each one in ONCE
 // and the virtual users share those sessions, so the run stays far below the
@@ -35,6 +39,7 @@ if (/(^|\/\/)(www\.)?kautis\.ca/.test(BASE_URL) || (SUPABASE_URL || '').includes
 }
 
 const accounts = __ENV.ACCOUNTS_FILE ? JSON.parse(open(__ENV.ACCOUNTS_FILE)) : [];
+const cookieSessions = __ENV.COOKIES_FILE ? JSON.parse(open(__ENV.COOKIES_FILE)) : [];
 
 const pageTime = {
   today: new Trend('page_today', true),
@@ -151,13 +156,18 @@ function signIn(acct) {
 }
 
 export function setup() {
-  if (!SUPABASE_URL || !ANON_KEY) fail('SUPABASE_URL and SUPABASE_ANON_KEY are required');
-  if (accounts.length === 0) fail('ACCOUNTS_FILE with at least one staging test account is required');
-  const sessions = accounts.map((a) => {
-    const s = signIn(a);
-    sleep(1); // stay well inside the sign-in rate limit
-    return s;
-  });
+  let sessions;
+  if (cookieSessions.length > 0) {
+    sessions = cookieSessions.map((c, i) => ({ email: c.label || `cookie session ${i + 1}`, cookies: c.cookies }));
+  } else {
+    if (!SUPABASE_URL || !ANON_KEY) fail('SUPABASE_URL and SUPABASE_ANON_KEY are required');
+    if (accounts.length === 0) fail('ACCOUNTS_FILE (or COOKIES_FILE) with at least one staging test account is required');
+    sessions = accounts.map((a) => {
+      const s = signIn(a);
+      sleep(1); // stay well inside the sign-in rate limit
+      return s;
+    });
+  }
   // Prove each session reaches an app page instead of a login/MFA redirect.
   for (const s of sessions) {
     const r = http.get(`${BASE_URL}/today`, { cookies: s.cookies, redirects: 0 });
