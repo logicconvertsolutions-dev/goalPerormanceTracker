@@ -1804,6 +1804,20 @@ export type Database = {
         Returns: undefined
       }
       drain_metrics: { Args: { p_limit?: number }; Returns: number }
+      my_contacts: {
+        Args: { p_limit?: number; p_offset?: number; p_q?: string }
+        Returns: {
+          full_name: string
+          id: string
+          last_call_date: string
+          last_outcome: Database["public"]["Enums"]["call_outcome"]
+          next_follow_up: string
+          notes: string
+          phone_number: string
+          times_called: number
+          total_count: number
+        }[]
+      }
       my_followups: {
         Args: { p_as_of?: string }
         Returns: {
