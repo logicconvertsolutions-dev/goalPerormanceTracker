@@ -46,6 +46,16 @@ describe('ContactsSearch', () => {
     expect(replace).toHaveBeenCalledWith('/contacts?');
   });
 
+  it('sends a new search back to its first page', () => {
+    mockSearchParams = new URLSearchParams('page=4');
+    render(<ContactsSearch initialQuery="" />);
+
+    fireEvent.change(screen.getByPlaceholderText('Search name or notes'), { target: { value: 'Deepak' } });
+    vi.advanceTimersByTime(300);
+
+    expect(replace).toHaveBeenCalledWith('/contacts?q=Deepak');
+  });
+
   it('does not navigate before the debounce window elapses', () => {
     render(<ContactsSearch initialQuery="" />);
 

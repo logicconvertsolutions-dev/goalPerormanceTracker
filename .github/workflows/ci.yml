@@ -81,7 +81,10 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned: `latest` makes every run ask GitHub's releases API which
+          # version that is, and a rate-limited answer failed CI on #101
+          # (2026-10-19) after every test had passed. Bump deliberately.
+          version: 2.121.0
 
       - name: Start local Supabase
         run: supabase start
