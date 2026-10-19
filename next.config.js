@@ -51,6 +51,14 @@ const nextConfig = {
   typescript: {
     tsconfigPath: './tsconfig.json',
   },
+  // icon.tsx and apple-touch-icon-v3 readFile() the brand mark at request
+  // time. File tracing doesn't reliably follow join(process.cwd(), ...): it
+  // picked the PNG up for apple-touch-icon-v3 but not for /icon, which threw
+  // ENOENT on Vercel. List it explicitly for both.
+  outputFileTracingIncludes: {
+    '/icon': ['./public/kautis-logo.png'],
+    '/apple-touch-icon-v3': ['./public/kautis-logo.png'],
+  },
   headers: async () => {
     return [
       {
