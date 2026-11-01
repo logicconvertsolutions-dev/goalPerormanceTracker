@@ -21,11 +21,13 @@ describe('tool session drafts', () => {
   it('clears one tool or all of them', () => {
     saveDraft('tax', 'emp=1');
     saveDraft('investment', 'ls=1');
+    saveDraft('snapshot', '{"v":1}');
     clearDraft('tax');
     expect(loadDraft('tax')).toBeNull();
     expect(loadDraft('investment')).toBe('ls=1');
     clearAllToolDrafts();
     expect(loadDraft('investment')).toBeNull();
+    expect(loadDraft('snapshot')).toBeNull();
   });
 
   it('never throws when storage is unavailable', () => {

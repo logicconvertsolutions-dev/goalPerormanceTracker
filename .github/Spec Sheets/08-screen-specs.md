@@ -702,6 +702,37 @@ These existed only as one-line mentions in `docs/09-account-and-auth.md`
 
 ---
 
+## `/tools/client-snapshot` — Client Snapshot (P43, new)
+
+Tablet/laptop tool (rail Tools group; phones get a notice, admins are
+redirected). Digitises the agent's intake template. **Browser-only**: the
+form lives in the tab's sessionStorage, never the URL or the server, and is
+wiped at sign-out.
+
+**Inputs (left column, template order):** Household (province; client and
+optional spouse name + DOB → age; children with DOB, RESP balance and
+monthly, CCB) · Income per person (gross annual, net take-home + frequency
+with a tax-engine estimate, other income + frequency; tax refund this/last
+year) · Savings per person (RRSP/TFSA/FHSA balance, room left, monthly;
+non-registered; chequing/savings; home value) · Insurance per person (group
+and personal life; years of income to replace; education per child) · Debts
+(type, balance, rate, years left, payment — blank = estimate; payoff line
+under each) · Expenses (label, amount, frequency, essential, per-month;
+car/mortgage payments come from Debts) · Goals (text, amount, target month
+→ monthly needed, link to the Investment Calculator).
+
+**Results (right column, sticky; printed first):** the template chain —
+Total net income − Savings = Net income after savings − Expenses − Debt
+payments = **Balance amount** (green surplus / red shortfall) · Net worth ·
+Emergency fund months (target 3–6) · Savings rate · Tax refund · Life
+insurance gap per person · expense donut (debt payments, top 3 lines, rest)
+· numbered talking points (shortfall, high-interest debt, emergency fund,
+insurance gap, over-contribution, FHSA, RESP grant, RRSP vs TFSA) ·
+disclaimer.
+
+**Empty state:** every total reads $0.00, no donut, no talking points; Print
+is disabled until something is entered.
+
 ## States, on every screen — mostly matches, one gap
 
 Loading → skeletons matching final layout. Empty → names the reason, offers
