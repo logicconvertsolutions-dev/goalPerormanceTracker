@@ -1031,6 +1031,47 @@ everyone after roughly "M") and grew with every call. Migration
 
 ---
 
+## P43 — Client Snapshot tool (budget & balance, browser-only)
+
+The agent's client intake template (household, income, savings, insurance,
+tax refund, debts, expenses, goals) as a fourth rail Tool, with the
+template's totals computed live and the analysis an FNA meeting needs. No
+database change, no new dependency, nothing stored server-side.
+
+- [x] `lib/snapshot/calculate.ts` (tested): every amount normalized to
+      monthly (bi-weekly ×26/12); the template's Total Net Income → Net
+      Income after savings → Total Expenses → **Balance Amount** chain;
+      debt payments counted in expenses (entered, else estimated: 3% card
+      minimum, interest-only LOC, amortized car/other, semi-annual
+      compounding for mortgages), interest/month, payoff time, high-interest
+      flag; RRSP/TFSA/FHSA room warnings for the rest of the calendar year;
+      net worth; emergency-fund months on essential spending; per-person
+      life-insurance gap (debts + N years' net income + education − cover −
+      cash/TFSA/non-reg); goal monthly amount; age from DOB; take-home pay,
+      marginal rate and RRSP/FHSA saving via `lib/tax/calculate.ts`;
+      ordered talking points. Zero balance shows $0, never -$0 (P40).
+- [x] `lib/snapshot/form.ts` (tested): text-as-typed form state, Zod-read
+      session draft (bad fields repaired, foreign JSON → defaults).
+      **Names and DOB never go in the URL** — unlike the calculators, the
+      whole form lives only in the tab's sessionStorage as JSON (new
+      `snapshot` key in `lib/tools/session-draft.ts`, so `/login` wipes it
+      too). Email from the template is deliberately not captured: nothing
+      browser-only would use it.
+- [x] `/tools/client-snapshot`: guarded page, phone notice, admin
+      redirected; spouse and children optional; "Use this estimate" fills
+      net pay from gross; goals link to the Investment Calculator with
+      `mo`/`goal`/`yrs` pre-filled (amounts only); Print / save as PDF puts
+      the results first; Reset asks before clearing. Rail Tools entry.
+- [ ] P44 (needs sign-off): save a snapshot against a contact —
+      `client_snapshots` with `org_id` + `agent_id`, agent-only RLS, no
+      upline RPC (rules 1, 2, 8), pgTAP, migration review before push.
+- Not modelled (on-page disclaimer): spousal/pension credits and the rest
+  of the Tax Calculator's exclusions; variable-rate debt; investment growth
+  inside goals (that's the Investment Calculator's job); a full insurance
+  needs analysis.
+
+---
+
 ## Working with Claude Code on this repo (token discipline)
 > Session-by-session prompts live in `docs/07-getting-started.md`. If the two
 > ever disagree, that file wins for *how to run a session*; this one wins for
