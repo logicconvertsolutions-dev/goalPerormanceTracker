@@ -743,6 +743,20 @@ editing. A status chip shows the version and whether there are unsaved
 changes; Reset/Open ask "Download snapshot first / Discard changes /
 Cancel" when there are. The printed PDF carries "Snapshot vN · date".
 
+**P43c additions:**
+- **Net income** (deposited to bank) is calculated from gross by default
+  (tag "Calculated"). Typing the real deposit switches to manual, with
+  "Recalculate from gross" to switch back.
+- **Workplace deductions (per pay cheque)** per person: type, amount per pay,
+  employer adds, pay frequency, before/after-tax hint per row.
+  - The income box shows the calculated deposit, the tax already saved
+    through payroll and the expected refund on personal RRSP/FHSA.
+  - A typed deposit far from the calculation gets an amber prompt.
+- **Summary** adds "After 5% protection set-aside" and "Saved through work".
+- **Recommendations** can be edited (pencil, "Edited", "Restore suggested")
+  and removed (trash, "N removed · Show" with Restore). The list starts
+  with the 5% protection set-aside.
+
 **Empty state:** every total reads $0.00, no donut, Recommendations shows
 its hint; Print and Download are disabled until something is entered.
 

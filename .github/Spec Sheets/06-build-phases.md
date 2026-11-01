@@ -1111,6 +1111,53 @@ No database change, no new dependency.
 
 ---
 
+## P43c — Client Snapshot: editable recommendations, auto net income, workplace deductions, 5% protection
+
+From staging testing of P43b. Still browser-only; no database change, no
+new dependency. Older snapshot files and drafts load with safe defaults.
+
+- [x] **Recommendations editable and removable**
+      (`recommendationEdits: Record<id, { text?, base?, hidden? }>`):
+      - the pencil rewords an item; it gets an "Edited" tag and "Restore suggested";
+      - when the generated wording changes with the numbers (compared with
+        `base`), the page says so;
+      - the trash removes an item; "N removed · Show" lists them with Restore;
+      - removed items aren't printed.
+- [x] **Net income fills itself in** (`netMode`):
+      - **auto** shows the calculated monthly deposit from gross and
+        recalculates as inputs change;
+      - typing switches to **manual** (e.g. the actual bi-weekly deposit), and
+        "Recalculate from gross" switches back;
+      - P43b files with a typed net load as manual, so a typed figure is never
+        overwritten.
+- [x] **Workplace deductions per pay cheque** (`payroll[]`, pay frequency):
+      group RRSP, pension, dues and other pre-tax items; benefit premiums,
+      ESPP and other after-tax items; employer match where it applies
+      (`PAYROLL_INFO` in `lib/snapshot/types.ts`).
+      - **Deposit** = `calculateTax(gross, pre-tax as deduction).afterTaxIncome`
+        − pre-tax − after-tax. CPP/EI stay on gross.
+      - Pre-tax savings show as "already lowers the tax on each cheque by about
+        $X, so no refund is expected for them".
+      - Personal RRSP/FHSA from the bank show their expected refund separately.
+      - Payroll savings and employer match are **"Saved through work"**: never
+        subtracted from the deposit again, but counted in the savings rate.
+      - Group RRSP plus the employer match count against RRSP room.
+      - Savings fields are relabelled "From bank / month".
+- [x] **Reconciliation:** a typed deposit more than $25 and 3% away from the
+      calculation gets a prompt explaining likely workplace deductions (or
+      bonus/overtime/province when higher).
+- [x] **5% protection set-aside** (`PROTECTION_PCT`), from household net income:
+      - recommendation `protection` with $/month and $/year, crediting the new
+        default "Life / health insurance premiums" expense line;
+      - shown alongside the Balance as "After 5% protection set-aside"; the
+        Balance Amount itself is unchanged.
+- [x] **Recommendation `employer-match:<person>`:** a group RRSP with no
+      employer match entered.
+- [x] Shared inputs moved to `client-snapshot/fields.tsx`; the payroll block is
+      in `payroll-deductions.tsx`.
+
+---
+
 ## Working with Claude Code on this repo (token discipline)
 > Session-by-session prompts live in `docs/07-getting-started.md`. If the two
 > ever disagree, that file wins for *how to run a session*; this one wins for
