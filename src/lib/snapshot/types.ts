@@ -1,3 +1,5 @@
+import type { ProvinceCode } from '@/lib/tax/rates-2026';
+
 /*
  * Client Financial Snapshot (P43): the agent's intake template — household,
  * income, savings, insurance, debts, expenses, goals — as numbers. All
@@ -24,10 +26,60 @@ export interface RoomAccount {
   monthly: number;
 }
 
+/** Pay frequencies a payroll deduction can be quoted in. */
+export const PAY_FREQUENCIES = ['weekly', 'biweekly', 'semimonthly', 'monthly'] as const;
+export type PayFrequency = (typeof PAY_FREQUENCIES)[number];
+
+export const PAYROLL_KINDS = [
+  'group-rrsp',
+  'pension',
+  'union-dues',
+  'benefits',
+  'espp',
+  'other-pre',
+  'other-after',
+] as const;
+export type PayrollKind = (typeof PAYROLL_KINDS)[number];
+
+/**
+ * How each workplace deduction behaves (P43c). Pre-tax deductions come off
+ * the cheque before tax is withheld, so the tax saving is already in every
+ * pay and there's no refund for them at tax time; after-tax ones don't
+ * change tax at all.
+ */
+export const PAYROLL_INFO: Record<
+  PayrollKind,
+  { label: string; preTax: boolean; savings: boolean; rrspRoom: boolean; employerMatch: boolean }
+> = {
+  'group-rrsp': { label: 'Group RRSP', preTax: true, savings: true, rrspRoom: true, employerMatch: true },
+  pension: { label: 'Pension plan (RPP)', preTax: true, savings: true, rrspRoom: false, employerMatch: true },
+  'union-dues': { label: 'Union / professional dues', preTax: true, savings: false, rrspRoom: false, employerMatch: false },
+  benefits: { label: 'Health / dental / life premiums', preTax: false, savings: false, rrspRoom: false, employerMatch: false },
+  espp: { label: 'Share purchase / after-tax savings', preTax: false, savings: true, rrspRoom: false, employerMatch: true },
+  'other-pre': { label: 'Other (before tax)', preTax: true, savings: false, rrspRoom: false, employerMatch: false },
+  'other-after': { label: 'Other (after tax)', preTax: false, savings: false, rrspRoom: false, employerMatch: false },
+};
+
+export interface PayrollDeduction {
+  kind: PayrollKind;
+  /** Taken from the employee's pay, per pay period. */
+  amount: number;
+  /** What the employer adds on top, per pay period (match / DPSP / pension share). */
+  employer: number;
+}
+
 export interface PersonMoney {
   grossAnnual: number;
+  /**
+   * auto: net income is the calculated deposit from gross (tax + payroll
+   * deductions); manual: the typed `net` at `netFrequency` (e.g. the actual
+   * bi-weekly deposit).
+   */
+  netMode: 'auto' | 'manual';
   net: number;
   netFrequency: Frequency;
+  payFrequency: PayFrequency;
+  payroll: PayrollDeduction[];
   other: number;
   otherFrequency: Frequency;
   rrsp: RoomAccount;
@@ -71,6 +123,8 @@ export interface ExpenseLine {
   amount: number;
   frequency: Frequency;
   essential: boolean;
+  /** Life / health insurance premiums: counts toward the 5% protection set-aside. */
+  protection: boolean;
 }
 
 export interface Goal {
@@ -80,6 +134,8 @@ export interface Goal {
 }
 
 export interface Household {
+  /** Drives the take-home estimate for people whose net income is auto. */
+  province: ProvinceCode;
   client: PersonMoney;
   spouse: PersonMoney | null;
   children: ChildMoney[];
@@ -138,8 +194,18 @@ export interface Summary {
   assets: number;
   liabilities: number;
   netWorth: number;
-  /** savings ÷ total net income; null without income. */
+  /** (bank savings + saved through work) ÷ (net income + saved through work); null without income. */
   savingsRate: number | null;
+  /** Payroll savings that never reach the bank: group RRSP, pension, ESPP, employer matches. Monthly. */
+  savedThroughWork: number;
+  /** 5% of total net income, monthly. */
+  protectionTarget: number;
+  /** Insurance premiums already in expenses (protection lines), monthly. */
+  protectionCurrent: number;
+  /** max(0, target − current). */
+  protectionGap: number;
+  /** balance − protectionGap: informational, the Balance Amount is unchanged. */
+  balanceAfterProtection: number;
   debts: DebtResult[];
   roomWarnings: RoomWarning[];
   insurance: InsuranceGap[];

@@ -132,3 +132,39 @@ describe('session draft envelope (P43b)', () => {
     expect(parseForm(JSON.stringify(raw)).recommendationNotes.emergency).toHaveLength(NOTE_MAX);
   });
 });
+
+describe('P43c fields', () => {
+  it('a P43b file with a typed net income keeps it (manual); a blank one becomes auto', () => {
+    const form = defaultForm();
+    const raw = JSON.parse(JSON.stringify(form));
+    delete raw.client.netMode;
+    delete raw.client.payroll;
+    delete raw.client.payFrequency;
+    raw.client.net = '4200';
+    delete raw.spouse.netMode;
+    delete raw.recommendationEdits;
+    const parsed = parseForm(JSON.stringify(raw));
+    expect(parsed.client.netMode).toBe('manual');
+    expect(parsed.client.net).toBe('4200');
+    expect(parsed.client.payroll).toEqual([]);
+    expect(parsed.client.payFrequency).toBe('biweekly');
+    expect(parsed.spouse.netMode).toBe('auto');
+    expect(parsed.recommendationEdits).toEqual({});
+  });
+
+  it('round-trips payroll rows and recommendation edits', () => {
+    const form = defaultForm();
+    form.client.payroll = [{ id: 'p-1', kind: 'group-rrsp', amount: '150', employer: '75' }];
+    form.recommendationEdits = {
+      emergency: { text: 'Build 6 months by June', base: 'Build an emergency fund…' },
+      resp: { hidden: true },
+    };
+    expect(parseForm(serializeForm(form))).toEqual(form);
+  });
+
+  it('defaults include a protection premiums line', () => {
+    const line = defaultForm().expenses.find((e) => e.protection);
+    expect(line?.label).toBe('Life / health insurance premiums');
+    expect(toHousehold(defaultForm()).expenses.filter((e) => e.protection)).toHaveLength(1);
+  });
+});

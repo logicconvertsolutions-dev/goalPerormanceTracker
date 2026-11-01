@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   ageOn,
+  estimateDeposit,
+  payrollTotals,
+  reconcileDeposit,
   amortizedPayment,
   analyzeDebt,
   estimatePayment,
@@ -22,8 +25,12 @@ const NOV_2026 = new Date(2026, 10, 1); // 1 Nov 2026: 2 months left in the year
 function person(over: Partial<PersonMoney> = {}): PersonMoney {
   return {
     grossAnnual: 0,
+    // Tests that set `net` mean a typed figure; auto mode is tested explicitly.
+    netMode: 'manual',
     net: 0,
     netFrequency: 'monthly',
+    payFrequency: 'biweekly',
+    payroll: [],
     other: 0,
     otherFrequency: 'monthly',
     rrsp: { balance: 0, room: 0, monthly: 0 },
@@ -40,6 +47,7 @@ function person(over: Partial<PersonMoney> = {}): PersonMoney {
 
 function household(over: Partial<Household> = {}): Household {
   return {
+    province: 'ON',
     client: person(),
     spouse: null,
     children: [],
@@ -80,9 +88,9 @@ function templateExample(): Household {
       debt({ kind: 'car', balance: 20_000, ratePct: 6, termYears: 5, monthlyPayment: 400 }),
     ],
     expenses: [
-      { amount: 2000, frequency: 'monthly', essential: true },
-      { amount: 250, frequency: 'weekly', essential: true },
-      { amount: 1200, frequency: 'annual', essential: false },
+      { amount: 2000, frequency: 'monthly', essential: true, protection: false },
+      { amount: 250, frequency: 'weekly', essential: true, protection: false },
+      { amount: 1200, frequency: 'annual', essential: false, protection: false },
     ],
   });
 }
@@ -152,7 +160,7 @@ describe('summarize — edge cases', () => {
     const s = summarize(
       household({
         client: person({ net: 1000 }),
-        expenses: [{ amount: 1000, frequency: 'monthly', essential: true }],
+        expenses: [{ amount: 1000, frequency: 'monthly', essential: true, protection: false }],
       })
     );
     expect(Object.is(s.balance, 0)).toBe(true);
@@ -162,7 +170,7 @@ describe('summarize — edge cases', () => {
     const s = summarize(
       household({
         client: person({ net: 1000 }),
-        expenses: [{ amount: 1500, frequency: 'monthly', essential: true }],
+        expenses: [{ amount: 1500, frequency: 'monthly', essential: true, protection: false }],
       })
     );
     expect(s.balance).toBe(-500);
@@ -292,7 +300,8 @@ describe('suggestions', () => {
     const h = templateExample();
     h.client.cash = 1000;
     const tips = suggestions(h, summarize(h, NOV_2026), ctx).map((t) => t.text);
-    expect(tips[0]).toMatch(/Credit card \(19\.99%\)/);
+    expect(tips[0]).toMatch(/^Set aside 5% of net income for protection/);
+    expect(tips[1]).toMatch(/Credit card \(19\.99%\)/);
     expect(tips.some((t) => t.startsWith('Build an emergency fund'))).toBe(true);
     expect(tips.some((t) => t.startsWith('Asha: estimated life-insurance gap'))).toBe(true);
     expect(tips.some((t) => t.startsWith('RESP:'))).toBe(true);
@@ -302,12 +311,13 @@ describe('suggestions', () => {
   it('leads with a shortfall and skips the surplus tip', () => {
     const h = household({
       client: person({ net: 1000, personalLife: 1e7 }),
-      expenses: [{ amount: 1500, frequency: 'monthly', essential: true }],
+      expenses: [{ amount: 1500, frequency: 'monthly', essential: true, protection: false }],
     });
     h.client.cash = 1e6;
     const tips = suggestions(h, summarize(h), ctx).map((t) => t.text);
-    expect(tips).toHaveLength(1);
+    expect(tips).toHaveLength(2);
     expect(tips[0]).toMatch(/^Spending is \$500 a month more/);
+    expect(tips[1]).toMatch(/^Set aside 5%/);
   });
 
   it('suggests the FHSA only when there is unused room and no mortgage', () => {
@@ -336,6 +346,139 @@ describe('suggestions', () => {
 
   it('falls back to the row index when no debt ids are given', () => {
     const h = templateExample();
-    expect(suggestions(h, summarize(h, NOV_2026), ctx)[0].id).toBe('debt:0');
+    expect(suggestions(h, summarize(h, NOV_2026), ctx).map((t) => t.id)).toContain('debt:0');
+  });
+});
+
+describe('workplace deductions and auto net income (P43c)', () => {
+  const gross = 85_000;
+
+  it('auto net income is the calculated deposit; typed net is ignored in auto mode', () => {
+    const p = person({ grossAnnual: gross, netMode: 'auto', net: 1 });
+    const est = estimateDeposit(p, 'ON')!;
+    expect(est.depositMonthly).toBeGreaterThan(5_000);
+    expect(est.depositMonthly).toBeLessThan(6_000);
+    expect(summarize(household({ client: p })).totalNetIncome).toBe(est.depositMonthly);
+  });
+
+  it('manual mode uses exactly what was typed', () => {
+    const p = person({ grossAnnual: gross, netMode: 'manual', net: 2000, netFrequency: 'biweekly' });
+    expect(summarize(household({ client: p })).totalNetIncome).toBe(4333.33);
+  });
+
+  it('a pre-tax group RRSP lowers tax, so the deposit drops by less than the contribution', () => {
+    const base = estimateDeposit(person({ grossAnnual: gross }), 'ON')!;
+    const rrsp = person({
+      grossAnnual: gross,
+      payroll: [{ kind: 'group-rrsp', amount: 150, employer: 0 }],
+    });
+    const est = estimateDeposit(rrsp, 'ON')!;
+    const contributionMonthly = (150 * 26) / 12; // 325
+    const drop = base.depositMonthly - est.depositMonthly;
+    expect(drop).toBeGreaterThan(0);
+    expect(drop).toBeLessThan(contributionMonthly);
+    expect(est.payrollTaxSaving).toBeCloseTo((contributionMonthly - drop) * 12, 0);
+  });
+
+  it('an after-tax premium comes off the deposit one for one', () => {
+    const base = estimateDeposit(person({ grossAnnual: gross }), 'ON')!;
+    const est = estimateDeposit(
+      person({ grossAnnual: gross, payroll: [{ kind: 'benefits', amount: 40, employer: 99 }] }),
+      'ON'
+    )!;
+    expect(round2(base.depositMonthly - est.depositMonthly)).toBe(round2((40 * 26) / 12));
+    expect(est.payrollTaxSaving).toBe(0);
+  });
+
+  it('personal RRSP from the bank earns a refund; payroll RRSP does not add to it', () => {
+    const p = person({ grossAnnual: gross, rrsp: { balance: 0, room: 0, monthly: 500 } });
+    expect(estimateDeposit(p, 'ON')!.personalRefund).toBeGreaterThan(1_500);
+    const payrollOnly = person({
+      grossAnnual: gross,
+      payroll: [{ kind: 'group-rrsp', amount: 230, employer: 0 }],
+    });
+    expect(estimateDeposit(payrollOnly, 'ON')!.personalRefund).toBe(0);
+  });
+
+  it('payroll savings are counted once: shown as saved through work, never subtracted from the deposit again', () => {
+    const p = person({
+      grossAnnual: gross,
+      netMode: 'auto',
+      payroll: [
+        { kind: 'group-rrsp', amount: 100, employer: 50 },
+        { kind: 'benefits', amount: 40, employer: 0 },
+      ],
+    });
+    const s = summarize(household({ client: p }));
+    expect(s.savedThroughWork).toBe(round2((150 * 26) / 12));
+    expect(s.savingsMonthly).toBe(0);
+    expect(s.netAfterSavings).toBe(s.totalNetIncome);
+    expect(payrollTotals(p)).toMatchObject({ preTax: 2600, afterTax: 1040, employeeSavings: 2600, employerMatch: 1300 });
+  });
+
+  it('group RRSP and the employer match use RRSP room', () => {
+    const p = person({
+      grossAnnual: gross,
+      rrsp: { balance: 0, room: 500, monthly: 0 },
+      payroll: [{ kind: 'group-rrsp', amount: 100, employer: 50 }],
+    });
+    const [w] = summarize(household({ client: p }), NOV_2026).roomWarnings;
+    expect(w).toMatchObject({ account: 'RRSP', projected: 650, room: 500, over: 150 });
+  });
+
+  it('reconciles a typed deposit only when the gap is meaningful', () => {
+    const est = estimateDeposit(person({ grossAnnual: gross }), 'ON')!.depositMonthly;
+    const close = person({ grossAnnual: gross, netMode: 'manual', net: est - 20 });
+    expect(reconcileDeposit(close, 'ON')).toBeNull();
+    const far = person({ grossAnnual: gross, netMode: 'manual', net: est - 400 });
+    expect(reconcileDeposit(far, 'ON')).toEqual({ estimated: est, entered: round2(est - 400), gap: 400 });
+    expect(reconcileDeposit({ ...far, netMode: 'auto' }, 'ON')).toBeNull();
+    expect(reconcileDeposit({ ...far, grossAnnual: 0 }, 'ON')).toBeNull();
+  });
+});
+
+describe('5% protection set-aside (P43c)', () => {
+  const ctx = { names: { client: 'Asha', spouse: '' }, marginalRate: null, debtLabels: [] };
+  const premiums = (amount: number) => ({ amount, frequency: 'monthly' as const, essential: true, protection: true });
+
+  it('is 5% of household net income, shown alongside the balance', () => {
+    const h = household({ client: person({ net: 6000 }), ccbMonthly: 400 });
+    const s = summarize(h);
+    expect(s.protectionTarget).toBe(320);
+    expect(s.protectionGap).toBe(320);
+    expect(s.balance).toBe(6400);
+    expect(s.balanceAfterProtection).toBe(6080);
+    const tip = suggestions(h, s, ctx).find((t) => t.id === 'protection')!;
+    expect(tip.text).toBe(
+      'Set aside 5% of net income for protection: $320/month ($3,840/year), before other expenses.'
+    );
+  });
+
+  it('credits premiums already paid', () => {
+    const h = household({ client: person({ net: 6000 }), expenses: [premiums(200)] });
+    const s = summarize(h);
+    expect(s.protectionGap).toBe(100);
+    expect(suggestions(h, s, ctx).find((t) => t.id === 'protection')!.text).toMatch(
+      /Currently paying \$200; about \$100 more a month would reach 5%\.$/
+    );
+    const enough = household({ client: person({ net: 6000 }), expenses: [premiums(350)] });
+    const s2 = summarize(enough);
+    expect(s2.protectionGap).toBe(0);
+    expect(s2.balanceAfterProtection).toBe(s2.balance);
+    expect(suggestions(enough, s2, ctx).find((t) => t.id === 'protection')!.text).toMatch(/which meets it\.$/);
+  });
+
+  it('is not shown without income', () => {
+    const h = household();
+    expect(suggestions(h, summarize(h), ctx).some((t) => t.id === 'protection')).toBe(false);
+  });
+
+  it('asks about an employer match on a group RRSP with none entered', () => {
+    const h = household({
+      client: person({ net: 5000, payroll: [{ kind: 'group-rrsp', amount: 100, employer: 0 }] }),
+    });
+    expect(suggestions(h, summarize(h), ctx).some((t) => t.id === 'employer-match:client')).toBe(true);
+    h.client.payroll[0].employer = 50;
+    expect(suggestions(h, summarize(h), ctx).some((t) => t.id === 'employer-match:client')).toBe(false);
   });
 });
