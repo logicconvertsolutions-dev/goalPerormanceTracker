@@ -6,15 +6,17 @@
 // savings figures, so they must not outlive the tab on a shared computer —
 // and the login form wipes them on every arrival at /login (sign-out,
 // sign-out-everywhere, expired session). Nothing here is ever sent to the
-// server. What's stored is the calculator's own serialized query string, so
-// the URL stays the single source of truth and the same Zod parser reads
-// both. Every read and write is guarded: storage can throw in a private
+// server. For the calculators, what's stored is their own serialized query
+// string, so the URL stays the single source of truth and the same Zod
+// parser reads both. The Client Snapshot (P43) is the exception: it holds
+// names and dates of birth, so it stores JSON here and never touches the
+// URL (lib/snapshot/form.ts). Every read and write is guarded: storage can throw in a private
 // window or when blocked, and the calculator then simply starts blank.
 
-export type ToolKey = 'tax' | 'investment';
+export type ToolKey = 'tax' | 'investment' | 'snapshot';
 
 const PREFIX = 'kautis.tools.';
-const TOOLS: ToolKey[] = ['tax', 'investment'];
+const TOOLS: ToolKey[] = ['tax', 'investment', 'snapshot'];
 
 export function loadDraft(tool: ToolKey): string | null {
   try {
