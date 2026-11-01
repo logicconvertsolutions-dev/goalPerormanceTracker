@@ -8,6 +8,8 @@ import {
   type Frequency,
   type Household,
   type InsuranceGap,
+  PAYROLL_INFO,
+  type PayFrequency,
   type PersonMoney,
   type RoomWarning,
   type Summary,
@@ -20,6 +22,11 @@ export const CARD_MIN_PCT = 0.03;
 export const CARD_MIN_FLOOR = 10;
 /** Full CESG: 20% of the first $2,500 a year per child. */
 export const RESP_GRANT_CONTRIBUTION = 2_500;
+/** Share of household net income to set aside for protection (life/CI/disability). */
+export const PROTECTION_PCT = 0.05;
+/** A typed deposit this far from the calculated one gets a reconciliation prompt. */
+export const RECONCILE_MIN_GAP = 25;
+export const RECONCILE_MIN_SHARE = 0.03;
 
 const PER_MONTH: Record<Frequency, number> = {
   weekly: 52 / 12,
@@ -43,8 +50,126 @@ export function toMonthly(amount: number, frequency: Frequency): number {
   return pos(amount) * PER_MONTH[frequency];
 }
 
-export function personNetMonthly(p: PersonMoney): number {
-  return toMonthly(p.net, p.netFrequency) + toMonthly(p.other, p.otherFrequency);
+const PAYS_PER_YEAR: Record<PayFrequency, number> = {
+  weekly: 52,
+  biweekly: 26,
+  semimonthly: 24,
+  monthly: 12,
+};
+
+export interface PayrollTotals {
+  /** Annual amounts. */
+  preTax: number;
+  afterTax: number;
+  /** Employee contributions that are savings (group RRSP, pension, ESPP). */
+  employeeSavings: number;
+  employerMatch: number;
+  /** Group RRSP employee + employer contributions: they use RRSP room. */
+  rrspRoomUse: number;
+}
+
+/** A person's workplace deductions, annualized from their pay frequency. */
+export function payrollTotals(p: PersonMoney): PayrollTotals {
+  const n = PAYS_PER_YEAR[p.payFrequency] ?? 26;
+  const t: PayrollTotals = { preTax: 0, afterTax: 0, employeeSavings: 0, employerMatch: 0, rrspRoomUse: 0 };
+  for (const d of p.payroll) {
+    const info = PAYROLL_INFO[d.kind];
+    const own = pos(d.amount) * n;
+    const employer = info.employerMatch ? pos(d.employer) * n : 0;
+    if (info.preTax) t.preTax += own;
+    else t.afterTax += own;
+    if (info.savings) {
+      t.employeeSavings += own;
+      t.employerMatch += employer;
+    }
+    if (info.rrspRoom) t.rrspRoomUse += own + employer;
+  }
+  return t;
+}
+
+export interface DepositEstimate {
+  /** What should reach the bank each month: gross − tax − CPP/EI − payroll deductions. */
+  depositMonthly: number;
+  marginalRate: number;
+  /** Income tax the pre-tax payroll deductions already save, a year (inside every cheque). */
+  payrollTaxSaving: number;
+  /** Refund at tax time from personal RRSP/FHSA contributions made from the bank, a year. */
+  personalRefund: number;
+}
+
+function taxOn(grossAnnual: number, province: ProvinceCode, deductions: number) {
+  return calculateTax({
+    province,
+    employmentIncome: grossAnnual,
+    payPeriod: 'annual',
+    hoursPerWeek: 40,
+    selfEmploymentIncome: 0,
+    otherIncome: 0,
+    capitalGains: 0,
+    eligibleDividends: 0,
+    nonEligibleDividends: 0,
+    rrspFhsaContributions: deductions,
+    incomeTaxesPaid: 0,
+  });
+}
+
+/**
+ * The bank deposit a salaried person should see, from the Tax Calculator's
+ * own engine (so the two tools agree). Pre-tax payroll deductions (group
+ * RRSP, pension, dues) go in as deductions — that's what lowers the tax
+ * withheld on each cheque — while CPP/EI stay on full gross, as on a real
+ * pay stub. After-tax deductions (benefit premiums, ESPP) just come off the
+ * deposit.
+ */
+export function estimateDeposit(p: PersonMoney, province: ProvinceCode): DepositEstimate | null {
+  const gross = pos(p.grossAnnual);
+  if (gross === 0) return null;
+  const pay = payrollTotals(p);
+  const withPayroll = taxOn(gross, province, pay.preTax);
+  const personal = (pos(p.rrsp.monthly) + pos(p.fhsa.monthly)) * 12;
+  const withPersonal = personal > 0 ? taxOn(gross, province, pay.preTax + personal) : withPayroll;
+  return {
+    depositMonthly: round2(Math.max(0, withPayroll.afterTaxIncome - pay.preTax - pay.afterTax) / 12),
+    marginalRate: withPayroll.marginalTaxRate,
+    payrollTaxSaving: round2(withPayroll.rrspFhsaTaxSaving),
+    personalRefund: round2(Math.max(0, withPayroll.incomeTax - withPersonal.incomeTax)),
+  };
+}
+
+/** Take-home pay per month: the calculated deposit in auto mode, else what was typed. */
+export function personPayMonthly(p: PersonMoney, province: ProvinceCode): number {
+  if (p.netMode === 'auto') {
+    const est = estimateDeposit(p, province);
+    if (est) return est.depositMonthly;
+  }
+  return toMonthly(p.net, p.netFrequency);
+}
+
+export function personNetMonthly(p: PersonMoney, province: ProvinceCode): number {
+  return personPayMonthly(p, province) + toMonthly(p.other, p.otherFrequency);
+}
+
+export interface Reconciliation {
+  estimated: number;
+  entered: number;
+  /** estimated − entered: positive = the deposit is lower than calculated. */
+  gap: number;
+}
+
+/**
+ * When the agent typed the real deposit, compare it with the calculated one.
+ * A gap usually means workplace deductions that aren't entered yet (benefit
+ * premiums, pension, RRSP) — worth asking about, not an error.
+ */
+export function reconcileDeposit(p: PersonMoney, province: ProvinceCode): Reconciliation | null {
+  if (p.netMode !== 'manual' || pos(p.net) === 0) return null;
+  const est = estimateDeposit(p, province);
+  if (!est) return null;
+  const entered = toMonthly(p.net, p.netFrequency);
+  const gap = est.depositMonthly - entered;
+  const threshold = Math.max(RECONCILE_MIN_GAP, est.depositMonthly * RECONCILE_MIN_SHARE);
+  if (Math.abs(gap) <= threshold) return null;
+  return { estimated: est.depositMonthly, entered: round2(entered), gap: round2(gap) };
 }
 
 function personSavingsMonthly(p: PersonMoney): number {
@@ -144,7 +269,9 @@ function roomWarnings(h: Household, today: Date): RoomWarning[] {
       ['FHSA', p.fhsa],
     ] as const) {
       const room = pos(acc.room);
-      const projected = pos(acc.monthly) * left;
+      // Group RRSP through payroll (and the employer's match) uses the same room.
+      const payroll = account === 'RRSP' ? payrollTotals(p).rrspRoomUse / 12 : 0;
+      const projected = (pos(acc.monthly) + payroll) * left;
       if (room > 0 && projected > room + 0.005) {
         out.push({
           person,
@@ -162,7 +289,13 @@ function roomWarnings(h: Household, today: Date): RoomWarning[] {
 export function summarize(h: Household, today: Date = new Date()): Summary {
   const people = h.spouse ? [h.client, h.spouse] : [h.client];
 
-  const totalNetIncome = people.reduce((s, p) => s + personNetMonthly(p), 0) + pos(h.ccbMonthly);
+  const totalNetIncome =
+    people.reduce((s, p) => s + personNetMonthly(p, h.province), 0) + pos(h.ccbMonthly);
+  // Never reached the bank, so not subtracted from it again — shown on its own.
+  const savedThroughWork = people.reduce((s, p) => {
+    const t = payrollTotals(p);
+    return s + (t.employeeSavings + t.employerMatch) / 12;
+  }, 0);
   const savingsMonthly =
     people.reduce((s, p) => s + personSavingsMonthly(p), 0) +
     h.children.reduce((s, c) => s + pos(c.respMonthly), 0);
@@ -203,11 +336,18 @@ export function summarize(h: Household, today: Date = new Date()): Summary {
     .map(([person, p]) => {
       const need =
         liabilities +
-        pos(h.incomeReplacementYears) * 12 * personNetMonthly(p) +
+        pos(h.incomeReplacementYears) * 12 * personNetMonthly(p, h.province) +
         pos(h.educationPerChild) * h.children.length;
       const have = pos(p.groupLife) + pos(p.personalLife) + accessible;
       return { person, need: round2(need), have: round2(have), gap: round2(Math.max(0, need - have)) };
     });
+
+  const protectionTarget = totalNetIncome * PROTECTION_PCT;
+  const protectionCurrent = h.expenses
+    .filter((e) => e.protection)
+    .reduce((s, e) => s + toMonthly(e.amount, e.frequency), 0);
+  const protectionGap = Math.max(0, protectionTarget - protectionCurrent);
+  const balance = netAfterSavings - totalExpenses;
 
   return {
     totalNetIncome: round2(totalNetIncome),
@@ -216,14 +356,22 @@ export function summarize(h: Household, today: Date = new Date()): Summary {
     debtPayments: round2(debtPayments),
     expenseLines: round2(expenseLines),
     totalExpenses: round2(totalExpenses),
-    balance: round2(netAfterSavings - totalExpenses),
+    balance: round2(balance),
     essentialMonthly: round2(essentialMonthly),
     liquid: round2(liquid),
     emergencyMonths: essentialMonthly > 0 ? liquid / essentialMonthly : null,
     assets: round2(assets),
     liabilities: round2(liabilities),
     netWorth: round2(assets - liabilities),
-    savingsRate: totalNetIncome > 0 ? savingsMonthly / totalNetIncome : null,
+    savingsRate:
+      totalNetIncome > 0
+        ? (savingsMonthly + savedThroughWork) / (totalNetIncome + savedThroughWork)
+        : null,
+    savedThroughWork: round2(savedThroughWork),
+    protectionTarget: round2(protectionTarget),
+    protectionCurrent: round2(protectionCurrent),
+    protectionGap: round2(protectionGap),
+    balanceAfterProtection: round2(balance - protectionGap),
     debts,
     roomWarnings: roomWarnings(h, today),
     insurance,
@@ -325,6 +473,18 @@ export function suggestions(h: Household, s: Summary, ctx: SuggestionContext): S
     );
   }
 
+  // Protection first: 5% of household take-home, set aside before other expenses.
+  if (s.protectionTarget > 0) {
+    const base = `Set aside ${Math.round(PROTECTION_PCT * 100)}% of net income for protection: ${whole(s.protectionTarget)}/month (${whole(s.protectionTarget * 12)}/year), before other expenses.`;
+    const current =
+      s.protectionCurrent <= 0
+        ? ''
+        : s.protectionGap > 0
+          ? ` Currently paying ${whole(s.protectionCurrent)}; about ${whole(s.protectionGap)} more a month would reach ${Math.round(PROTECTION_PCT * 100)}%.`
+          : ` Currently paying ${whole(s.protectionCurrent)}, which meets it.`;
+    add('protection', base + current);
+  }
+
   h.debts
     .map((d, i) => ({
       d,
@@ -370,6 +530,17 @@ export function suggestions(h: Household, s: Summary, ctx: SuggestionContext): S
       ['spouse', h.spouse],
     ] as const
   ).filter((e) => e[1] !== null);
+
+  // Group RRSP through payroll with no employer match entered: worth asking.
+  for (const [person, p] of people) {
+    const rows = p ? p.payroll.filter((d) => d.kind === 'group-rrsp' && d.amount > 0) : [];
+    if (rows.length > 0 && rows.every((d) => !(d.employer > 0))) {
+      add(
+        `employer-match:${person}`,
+        `${who(person)} contributes to a group RRSP. Check whether the employer matches contributions; an unclaimed match is free money.`
+      );
+    }
+  }
   const hasMortgage = h.debts.some((d) => d.kind === 'mortgage' && d.balance > 0);
   if (!hasMortgage) {
     for (const [person, p] of people) {

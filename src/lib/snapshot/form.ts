@@ -3,9 +3,13 @@ import { PROVINCE_NAMES, type ProvinceCode } from '@/lib/tax/rates-2026';
 import {
   DEBT_KINDS,
   FREQUENCIES,
+  PAY_FREQUENCIES,
+  PAYROLL_KINDS,
   type DebtKind,
   type Frequency,
   type Household,
+  type PayFrequency,
+  type PayrollKind,
   type PersonMoney,
 } from './types';
 
@@ -27,8 +31,12 @@ export interface PersonForm {
   /** "YYYY-MM-DD" */
   dob: string;
   grossAnnual: string;
+  /** auto = net is calculated from gross; manual = the typed `net` (P43c). */
+  netMode: 'auto' | 'manual';
   net: string;
   netFrequency: Frequency;
+  payFrequency: PayFrequency;
+  payroll: PayrollForm[];
   other: string;
   otherFrequency: Frequency;
   rrspBalance: string;
@@ -65,12 +73,34 @@ export interface DebtForm {
   monthlyPayment: string;
 }
 
+export interface PayrollForm {
+  id: string;
+  kind: PayrollKind;
+  /** Per pay, from the employee's cheque. */
+  amount: string;
+  /** Per pay, added by the employer (match), where the kind allows it. */
+  employer: string;
+}
+
 export interface ExpenseForm {
   id: string;
   label: string;
   amount: string;
   frequency: Frequency;
   essential: boolean;
+  /** Insurance premiums: counts toward the 5% protection set-aside. */
+  protection: boolean;
+}
+
+/**
+ * The agent's change to an automatic recommendation (P43c): new wording
+ * and/or hidden. `base` is the suggested text when it was edited, so the page
+ * can say when the suggestion has since changed.
+ */
+export interface RecommendationEdit {
+  text?: string;
+  base?: string;
+  hidden?: boolean;
 }
 
 export interface GoalForm {
@@ -110,6 +140,7 @@ export interface SnapshotForm {
   recommendationNotes: Record<string, string>;
   customRecommendations: CustomRecommendation[];
   advisorNotes: string;
+  recommendationEdits: Record<string, RecommendationEdit>;
 }
 
 /** Where the open snapshot came from: version 0 = never downloaded or opened from a file. */
@@ -128,8 +159,11 @@ export function emptyPerson(): PersonForm {
     name: '',
     dob: '',
     grossAnnual: '',
+    netMode: 'auto',
     net: '',
     netFrequency: 'monthly',
+    payFrequency: 'biweekly',
+    payroll: [],
     other: '',
     otherFrequency: 'monthly',
     rrspBalance: '',
@@ -162,11 +196,16 @@ export function newDebt(kind: DebtKind = 'other'): DebtForm {
 }
 
 export function newExpense(): ExpenseForm {
-  return { id: newId('e'), label: '', amount: '', frequency: 'monthly', essential: true };
+  return { id: newId('e'), label: '', amount: '', frequency: 'monthly', essential: true, protection: false };
 }
 
-/** The intake template's own lines, plus the common ones it was missing. */
-const DEFAULT_EXPENSES: [string, boolean][] = [
+export function newPayroll(kind: PayrollKind = 'group-rrsp'): PayrollForm {
+  return { id: newId('p'), kind, amount: '', employer: '' };
+}
+
+/** The intake template's own lines, plus the common ones it was missing. [label, essential, protection] */
+const DEFAULT_EXPENSES: [string, boolean, boolean?][] = [
+  ['Life / health insurance premiums', true, true],
   ['Rent', true],
   ['Utilities', true],
   ['Car insurance', true],
@@ -193,12 +232,13 @@ export function defaultForm(): SnapshotForm {
     taxRefund: '',
     taxRefundYear: 'last',
     debts: DEBT_KINDS.map((kind) => ({ ...newDebt(kind), id: `d-${kind}` })),
-    expenses: DEFAULT_EXPENSES.map(([label, essential], i) => ({
+    expenses: DEFAULT_EXPENSES.map(([label, essential, protection = false], i) => ({
       id: `e-${i}`,
       label,
       amount: '',
       frequency: 'monthly',
       essential,
+      protection,
     })),
     goals: [1, 2, 3].map((n) => ({ id: `g-${n}`, text: '', amount: '', targetMonth: '' })),
     incomeReplacementYears: '10',
@@ -206,6 +246,7 @@ export function defaultForm(): SnapshotForm {
     recommendationNotes: {},
     customRecommendations: [],
     advisorNotes: '',
+    recommendationEdits: {},
   };
 }
 
@@ -226,13 +267,30 @@ const note = (max: number) =>
     .transform((v) => v.slice(0, max));
 const PROVINCE_CODES = Object.keys(PROVINCE_NAMES) as [ProvinceCode, ...ProvinceCode[]];
 
+function rows<T extends z.ZodTypeAny>(item: T, fallback: () => z.infer<T>[]) {
+  return z.array(item).max(MAX_ROWS).catch(fallback);
+}
+
+const optionalText = (max: number) =>
+  z
+    .string()
+    .optional()
+    .catch(undefined)
+    .transform((v) => (v === undefined ? undefined : v.slice(0, max)));
+
 const personSchema = z
   .object({
     name: text,
     dob: isoDate,
     grossAnnual: text,
+    netMode: z.enum(['auto', 'manual']).optional().catch(undefined),
     net: text,
     netFrequency: freq,
+    payFrequency: z.enum(PAY_FREQUENCIES).catch('biweekly'),
+    payroll: rows(
+      z.object({ id, kind: z.enum(PAYROLL_KINDS).catch('other-after'), amount: text, employer: text }),
+      () => []
+    ),
     other: text,
     otherFrequency: freq,
     rrspBalance: text,
@@ -250,11 +308,10 @@ const personSchema = z
     groupLife: text,
     personalLife: text,
   })
+  // Files from before P43c have no netMode: a typed net income stays exactly
+  // as typed (manual) — only a blank one switches to the calculated value.
+  .transform((p): PersonForm => ({ ...p, netMode: p.netMode ?? (p.net.trim() ? 'manual' : 'auto') }))
   .catch(emptyPerson);
-
-function rows<T extends z.ZodTypeAny>(item: T, fallback: () => z.infer<T>[]) {
-  return z.array(item).max(MAX_ROWS).catch(fallback);
-}
 
 const schema = z.object({
   v: z.literal(FORM_VERSION),
@@ -283,7 +340,14 @@ const schema = z.object({
     () => defaultForm().debts
   ),
   expenses: rows(
-    z.object({ id, label: text, amount: text, frequency: freq, essential: z.boolean().catch(true) }),
+    z.object({
+      id,
+      label: text,
+      amount: text,
+      frequency: freq,
+      essential: z.boolean().catch(true),
+      protection: z.boolean().catch(false),
+    }),
     () => defaultForm().expenses
   ),
   goals: rows(
@@ -299,6 +363,18 @@ const schema = z.object({
     .catch({}),
   customRecommendations: rows(z.object({ id, text: note(NOTE_MAX) }), () => []),
   advisorNotes: note(ADVISOR_NOTES_MAX),
+  // Added in P43c.
+  recommendationEdits: z
+    .record(
+      z.string().max(80),
+      z.object({
+        text: optionalText(NOTE_MAX),
+        base: optionalText(2000),
+        hidden: z.boolean().optional().catch(undefined),
+      })
+    )
+    .refine((r) => Object.keys(r).length <= 100)
+    .catch({}),
 });
 
 /** Any parsed value -> form, or null when it isn't a v1 snapshot form at all. */
@@ -372,8 +448,11 @@ function personMoney(p: PersonForm): PersonMoney {
   const a = parseAmount;
   return {
     grossAnnual: a(p.grossAnnual),
+    netMode: p.netMode,
     net: a(p.net),
     netFrequency: p.netFrequency,
+    payFrequency: p.payFrequency,
+    payroll: p.payroll.map((d) => ({ kind: d.kind, amount: a(d.amount), employer: a(d.employer) })),
     other: a(p.other),
     otherFrequency: p.otherFrequency,
     rrsp: { balance: a(p.rrspBalance), room: a(p.rrspRoom), monthly: a(p.rrspMonthly) },
@@ -390,6 +469,7 @@ function personMoney(p: PersonForm): PersonMoney {
 export function toHousehold(form: SnapshotForm): Household {
   const a = parseAmount;
   return {
+    province: form.province,
     client: personMoney(form.client),
     spouse: form.hasSpouse ? personMoney(form.spouse) : null,
     children: form.children.map((c) => ({
@@ -409,6 +489,7 @@ export function toHousehold(form: SnapshotForm): Household {
       amount: a(e.amount),
       frequency: e.frequency,
       essential: e.essential,
+      protection: e.protection,
     })),
     goals: form.goals.map((g) => ({ amount: a(g.amount), targetMonth: g.targetMonth })),
     incomeReplacementYears: Math.min(a(form.incomeReplacementYears), 40),

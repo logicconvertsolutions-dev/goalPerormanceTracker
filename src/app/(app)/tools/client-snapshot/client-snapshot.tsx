@@ -21,7 +21,8 @@ import { Label } from '@/components/ui/label';
 import { MAX_YEARS, MIN_YEARS } from '@/lib/invest/types';
 import {
   ageOn,
-  estimateTax,
+  estimateDeposit,
+  reconcileDeposit,
   goalMonthly,
   suggestions,
   summarize,
@@ -55,6 +56,8 @@ import { formatMoney, formatPercent } from '@/lib/tax/format';
 import { PROVINCE_NAMES, type ProvinceCode } from '@/lib/tax/rates-2026';
 import { loadDraft, saveDraft } from '@/lib/tools/session-draft';
 import { cn } from '@/lib/utils';
+import { Field, MoneyField, MoneyInput, NativeSelect, Num, PercentField, RemoveButton } from './fields';
+import { PayrollDeductions } from './payroll-deductions';
 import { Recommendations } from './recommendations';
 
 const SAVE_DELAY_MS = 400;
@@ -62,6 +65,8 @@ const whole = (n: number) => formatMoney(n, { whole: true });
 const money = (n: number) => formatMoney(n);
 
 type Who = 'client' | 'spouse';
+/** PersonForm fields that hold text (everything but the payroll rows). */
+type PersonText = { [K in keyof PersonForm]: PersonForm[K] extends string ? K : never }[keyof PersonForm];
 type ListKey = 'children' | 'debts' | 'expenses' | 'goals';
 type Row<K extends ListKey> = SnapshotForm[K][number];
 
@@ -125,15 +130,13 @@ export function ClientSnapshot() {
   const household = useMemo(() => toHousehold(form), [form]);
   const summary = useMemo(() => summarize(household, today), [household, today]);
 
-  const tax = useMemo(() => {
-    const est = (p: PersonForm) =>
-      estimateTax(
-        parseAmount(p.grossAnnual),
-        form.province,
-        (parseAmount(p.rrspMonthly) + parseAmount(p.fhsaMonthly)) * 12
-      );
-    return { client: est(form.client), spouse: form.hasSpouse ? est(form.spouse) : null };
-  }, [form.client, form.spouse, form.hasSpouse, form.province]);
+  // Calculated deposit, marginal rate and refund split per person (P43c),
+  // plus a prompt when a typed deposit doesn't match the calculation.
+  const pay = useMemo(() => {
+    const of = (p: typeof household.client | null) =>
+      p ? { est: estimateDeposit(p, household.province), gap: reconcileDeposit(p, household.province) } : null;
+    return { client: of(household.client), spouse: of(household.spouse) };
+  }, [household]);
 
   const names = { client: form.client.name.trim(), spouse: form.spouse.name.trim() };
   const label = (who: Who) => names[who] || (who === 'client' ? 'Client' : 'Spouse');
@@ -143,11 +146,11 @@ export function ClientSnapshot() {
     () =>
       suggestions(household, summary, {
         names: { client: form.client.name.trim(), spouse: form.spouse.name.trim() },
-        marginalRate: tax.client?.marginalRate ?? null,
+        marginalRate: pay.client?.est?.marginalRate ?? null,
         debtLabels: form.debts.map((d) => d.label.trim()),
         debtIds: form.debts.map((d) => d.id),
       }),
-    [household, summary, form.client.name, form.spouse.name, form.debts, tax.client]
+    [household, summary, form.client.name, form.spouse.name, form.debts, pay.client]
   );
 
   /* ---------- updaters ---------- */
@@ -155,7 +158,7 @@ export function ClientSnapshot() {
   const set = <K extends keyof SnapshotForm>(key: K, value: SnapshotForm[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
 
-  const setPerson = (who: Who, key: keyof PersonForm, value: string) =>
+  const setPerson = (who: Who, key: PersonText, value: string) =>
     setForm((f) => ({ ...f, [who]: { ...f[who], [key]: value } }));
 
   const patchRow = <K extends ListKey>(key: K, id: string, patch: Partial<Row<K>>) =>
@@ -170,12 +173,12 @@ export function ClientSnapshot() {
   const addRow = <K extends ListKey>(key: K, row: Row<K>) =>
     setForm((f) => ({ ...f, [key]: [...(f[key] as Row<K>[]), row] }));
 
-  const personField = (who: Who, key: keyof PersonForm) => ({
+  const personField = (who: Who, key: PersonText) => ({
     value: form[who][key],
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => setPerson(who, key, e.target.value),
   });
 
-  const personMoney = (who: Who, key: keyof PersonForm) => ({
+  const personMoney = (who: Who, key: PersonText) => ({
     value: form[who][key] as string,
     onChange: (v: string) => setPerson(who, key, v),
   });
@@ -468,38 +471,55 @@ export function ClientSnapshot() {
               {(who) => (
                 <div className="space-y-3">
                   <MoneyField id={`snap-${who}-gross`} label="Gross annual income" {...personMoney(who, 'grossAnnual')} />
-                  <AmountWithFrequency
-                    id={`snap-${who}-net`}
-                    label="Net income (take-home)"
-                    value={form[who].net}
-                    frequency={form[who].netFrequency}
-                    onValue={(v) => setPerson(who, 'net', v)}
-                    onFrequency={(f) => setPerson(who, 'netFrequency', f)}
+                  <NetIncomeField
+                    who={who}
+                    form={form[who]}
+                    estimate={pay[who]?.est ?? null}
+                    onTyped={(v) =>
+                      setForm((f) =>
+                        f[who].netMode === 'auto'
+                          ? // First keystroke in a calculated field: switch to the agent's own figure.
+                            { ...f, [who]: { ...f[who], netMode: 'manual', net: v, netFrequency: 'monthly' } }
+                          : { ...f, [who]: { ...f[who], net: v } }
+                      )
+                    }
+                    onFrequency={(fr) => setPerson(who, 'netFrequency', fr)}
+                    onRecalculate={() => setPerson(who, 'netMode', 'auto')}
                   />
-                  {tax[who] && (
+                  <PayrollDeductions
+                    rows={form[who].payroll}
+                    payFrequency={form[who].payFrequency}
+                    person={who === 'client' ? household.client : (household.spouse ?? household.client)}
+                    onRows={(rows) => setForm((f) => ({ ...f, [who]: { ...f[who], payroll: rows } }))}
+                    onPayFrequency={(fr) => setPerson(who, 'payFrequency', fr)}
+                  />
+                  {pay[who]?.est && (
                     <div className="space-y-1 rounded-sm bg-sunken px-3 py-2 text-xs text-fg-2">
                       <p>
-                        Estimated take-home in {form.province}: <Num>{money(tax[who]!.netMonthly)}</Num>/month ·
-                        marginal rate <Num>{formatPercent(tax[who]!.marginalRate)}</Num>
+                        Calculated deposit in {form.province}: <Num>{money(pay[who]!.est!.depositMonthly)}</Num>/month
+                        (after tax, CPP/EI and workplace deductions) · marginal rate{' '}
+                        <Num>{formatPercent(pay[who]!.est!.marginalRate)}</Num>
                       </p>
-                      {tax[who]!.rrspFhsaSaving > 0 && (
+                      {pay[who]!.est!.payrollTaxSaving > 0 && (
                         <p>
-                          RRSP/FHSA contributions save about <Num>{whole(tax[who]!.rrspFhsaSaving)}</Num> tax a year.
+                          Before-tax workplace deductions already lower the tax on each cheque by about{' '}
+                          <Num>{whole(pay[who]!.est!.payrollTaxSaving)}</Num> a year, so no refund is expected for them.
                         </p>
                       )}
-                      <button
-                        type="button"
-                        className="font-medium text-acc underline-offset-4 hover:underline print:hidden"
-                        onClick={() =>
-                          setForm((f) => ({
-                            ...f,
-                            [who]: { ...f[who], net: String(tax[who]!.netMonthly), netFrequency: 'monthly' },
-                          }))
-                        }
-                      >
-                        Use this estimate
-                      </button>
+                      {pay[who]!.est!.personalRefund > 0 && (
+                        <p>
+                          Personal RRSP/FHSA contributions from the bank: expected refund about{' '}
+                          <Num>{whole(pay[who]!.est!.personalRefund)}</Num> a year at tax time.
+                        </p>
+                      )}
                     </div>
+                  )}
+                  {pay[who]?.gap && (
+                    <p role="note" className="rounded-sm bg-warn-dim px-3 py-2 text-xs text-warn">
+                      {pay[who]!.gap!.gap > 0
+                        ? `The deposit entered (${money(pay[who]!.gap!.entered)}/month) is ${money(pay[who]!.gap!.gap)} a month less than calculated (${money(pay[who]!.gap!.estimated)}). That's usually workplace deductions: benefit premiums, pension or group RRSP. Add them above so savings through work are counted.`
+                        : `The deposit entered (${money(pay[who]!.gap!.entered)}/month) is ${money(-pay[who]!.gap!.gap)} a month more than calculated (${money(pay[who]!.gap!.estimated)}). Check the gross income, or whether it includes overtime, bonuses or a different province.`}
+                    </p>
                   )}
                   <AmountWithFrequency
                     id={`snap-${who}-other`}
@@ -537,13 +557,13 @@ export function ClientSnapshot() {
                     <div key={acct} className="grid grid-cols-3 gap-2">
                       <MoneyField id={`snap-${who}-${acct}-bal`} label={`${acct.toUpperCase()} balance`} {...personMoney(who, `${acct}Balance`)} />
                       <MoneyField id={`snap-${who}-${acct}-room`} label="Room left" {...personMoney(who, `${acct}Room`)} />
-                      <MoneyField id={`snap-${who}-${acct}-mo`} label="Per month" {...personMoney(who, `${acct}Monthly`)} />
+                      <MoneyField id={`snap-${who}-${acct}-mo`} label="From bank / month" {...personMoney(who, `${acct}Monthly`)} />
                     </div>
                   ))}
                   <div className="grid grid-cols-3 gap-2">
                     <MoneyField id={`snap-${who}-nr-bal`} label="Non-registered" {...personMoney(who, 'nonRegBalance')} />
                     <div />
-                    <MoneyField id={`snap-${who}-nr-mo`} label="Per month" {...personMoney(who, 'nonRegMonthly')} />
+                    <MoneyField id={`snap-${who}-nr-mo`} label="From bank / month" {...personMoney(who, 'nonRegMonthly')} />
                   </div>
                   <MoneyField id={`snap-${who}-cash`} label="Chequing / savings" {...personMoney(who, 'cash')} />
                 </div>
@@ -814,6 +834,29 @@ export function ClientSnapshot() {
                     ? 'Left over each month: available for goals, debt or protection.'
                     : 'Income and outgoings are balanced.'}
               </p>
+              {summary.protectionTarget > 0 && (
+                <div className="flex items-baseline justify-between border-t border-line pt-2 text-sm">
+                  <span className="text-fg-2">
+                    After 5% protection set-aside
+                    <span className="block text-xs text-fg-3">
+                      {money(summary.protectionTarget)}/month target
+                      {summary.protectionCurrent > 0 && `, ${money(summary.protectionCurrent)} already in premiums`}
+                    </span>
+                  </span>
+                  <span className={cn('font-mono tabular-nums', summary.balanceAfterProtection < 0 ? 'text-bad' : 'text-fg')}>
+                    {money(summary.balanceAfterProtection)}
+                  </span>
+                </div>
+              )}
+              {summary.savedThroughWork > 0 && (
+                <div className="flex items-baseline justify-between text-sm">
+                  <span className="text-fg-2">
+                    Saved through work
+                    <span className="block text-xs text-fg-3">Group RRSP, pension, share plans and employer match; not in the deposit.</span>
+                  </span>
+                  <span className="font-mono tabular-nums text-ok">{money(summary.savedThroughWork)}</span>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -878,6 +921,15 @@ export function ClientSnapshot() {
                 return { ...f, recommendationNotes: notes };
               })
             }
+            edits={form.recommendationEdits}
+            onEdit={(id, edit) =>
+              setForm((f) => {
+                const edits = { ...f.recommendationEdits };
+                if (edit) edits[id] = edit;
+                else delete edits[id];
+                return { ...f, recommendationEdits: edits };
+              })
+            }
             onCustom={(next) => set('customRecommendations', next)}
             onAdvisorNotes={(text) => set('advisorNotes', text)}
           />
@@ -889,6 +941,64 @@ export function ClientSnapshot() {
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Net income that fills itself in (P43c). Auto: shows the calculated
+ * monthly deposit from gross, recalculating as inputs change. Typing
+ * switches to the agent's own figure (e.g. the actual bi-weekly deposit);
+ * "Recalculate" switches back.
+ */
+function NetIncomeField({
+  who,
+  form,
+  estimate,
+  onTyped,
+  onFrequency,
+  onRecalculate,
+}: {
+  who: Who;
+  form: PersonForm;
+  estimate: { depositMonthly: number } | null;
+  onTyped: (v: string) => void;
+  onFrequency: (f: Frequency) => void;
+  onRecalculate: () => void;
+}) {
+  const id = `snap-${who}-net`;
+  const auto = form.netMode === 'auto' && estimate !== null;
+  return (
+    <div className="min-w-0 space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <Label htmlFor={id} className="text-xs">
+          Net income (deposited to bank)
+        </Label>
+        {auto ? (
+          <span className="rounded-full bg-acc-dim px-2 py-0.5 text-[11px] font-medium text-acc">Calculated</span>
+        ) : (
+          estimate && (
+            <button
+              type="button"
+              className="text-xs font-medium text-acc underline-offset-4 hover:underline print:hidden"
+              onClick={onRecalculate}
+            >
+              Recalculate from gross
+            </button>
+          )
+        )}
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
+        <MoneyInput id={id} value={auto ? estimate.depositMonthly.toFixed(2) : form.net} onChange={onTyped} />
+        <NativeSelect
+          aria-label="Net income frequency"
+          value={auto ? 'monthly' : form.netFrequency}
+          onChange={(v) => onFrequency(v as Frequency)}
+          options={FREQUENCY_OPTIONS}
+          disabled={auto}
+        />
+      </div>
+      {auto && <p className="text-xs text-fg-3">Type the actual deposit to use it instead.</p>}
     </div>
   );
 }
@@ -937,116 +1047,6 @@ function PersonColumns({
         </div>
       ))}
     </div>
-  );
-}
-
-function Field({ id, label, hint, children }: { id: string; label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div className="min-w-0 space-y-1.5">
-      <Label htmlFor={id} className="text-xs">
-        {label}
-      </Label>
-      {children}
-      {hint && <p className="text-xs text-fg-3">{hint}</p>}
-    </div>
-  );
-}
-
-function MoneyInput({
-  value,
-  onChange,
-  className,
-  ...rest
-}: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value'> & {
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div className="relative min-w-0">
-      <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-fg-3">$</span>
-      <Input
-        inputMode="decimal"
-        autoComplete="off"
-        placeholder="0"
-        className={cn('pl-6 text-right font-mono tabular-nums', className)}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        {...rest}
-      />
-    </div>
-  );
-}
-
-function MoneyField({
-  id,
-  label,
-  hint,
-  value,
-  onChange,
-  placeholder,
-}: {
-  id: string;
-  label: string;
-  hint?: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-}) {
-  return (
-    <Field id={id} label={label} hint={hint}>
-      <MoneyInput id={id} value={value} onChange={onChange} placeholder={placeholder} />
-    </Field>
-  );
-}
-
-function PercentField({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <Field id={id} label={label}>
-      <div className="relative min-w-0">
-        <Input
-          id={id}
-          inputMode="decimal"
-          autoComplete="off"
-          placeholder="0"
-          className="pr-7 text-right font-mono tabular-nums"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-fg-3">%</span>
-      </div>
-    </Field>
-  );
-}
-
-function NativeSelect({
-  id,
-  value,
-  onChange,
-  options,
-  className,
-  ...rest
-}: {
-  id?: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: [string, string][];
-  className?: string;
-  'aria-label'?: string;
-}) {
-  return (
-    <select
-      id={id}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={cn('h-11 w-full min-w-0 rounded-sm border border-line-2 bg-sunken px-2 text-sm text-fg', className)}
-      {...rest}
-    >
-      {options.map(([v, l]) => (
-        <option key={v} value={v}>
-          {l}
-        </option>
-      ))}
-    </select>
   );
 }
 
@@ -1102,21 +1102,6 @@ function AmountWithFrequency({
   );
 }
 
-function RemoveButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <Button
-      type="button"
-      size="icon"
-      variant="ghost"
-      aria-label={label}
-      className="h-9 min-h-0 w-9 justify-self-end print:hidden"
-      onClick={onClick}
-    >
-      <Trash2 className="h-4 w-4" aria-hidden="true" />
-    </Button>
-  );
-}
-
 function AgeTag({ dob, today }: { dob: string; today: Date }) {
   const age = ageOn(dob, today);
   return (
@@ -1126,11 +1111,6 @@ function AgeTag({ dob, today }: { dob: string; today: Date }) {
   );
 }
 
-function Num({ children }: { children: React.ReactNode }) {
-  return <span className="font-mono tabular-nums text-fg">{children}</span>;
-}
-
-/** `minus` rows are deductions: shown as "−$X", but a zero stays "$0.00" (P40: never -$0). */
 function SumRow({ label, value, strong, minus }: { label: string; value: number; strong?: boolean; minus?: boolean }) {
   return (
     <div className={cn('flex items-baseline justify-between', strong && 'border-t border-line pt-1 font-medium text-fg')}>
