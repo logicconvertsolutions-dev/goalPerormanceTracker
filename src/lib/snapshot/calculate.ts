@@ -297,6 +297,14 @@ export interface SuggestionContext {
   /** The client's marginal tax rate, when a gross income is known. */
   marginalRate: number | null;
   debtLabels: string[];
+  /** Form row ids, so a debt's recommendation id survives edits and reordering. */
+  debtIds?: string[];
+}
+
+/** One automatic recommendation; `id` is stable while the situation lasts, so a note can hang off it. */
+export interface Suggestion {
+  id: string;
+  text: string;
 }
 
 const whole = (n: number) => formatMoney(n, { whole: true });
@@ -305,42 +313,53 @@ const whole = (n: number) => formatMoney(n, { whole: true });
  * Plain-language next steps, in the order an agent would raise them. This
  * is a conversation guide, not advice — the page says so.
  */
-export function suggestions(h: Household, s: Summary, ctx: SuggestionContext): string[] {
-  const out: string[] = [];
+export function suggestions(h: Household, s: Summary, ctx: SuggestionContext): Suggestion[] {
+  const out: Suggestion[] = [];
+  const add = (id: string, text: string) => out.push({ id, text });
   const who = (p: 'client' | 'spouse') => ctx.names[p] || (p === 'client' ? 'Client' : 'Spouse');
 
   if (s.balance < 0) {
-    out.push(
+    add(
+      'shortfall',
       `Spending is ${whole(-s.balance)} a month more than take-home pay after savings. Review expenses before adding new commitments.`
     );
   }
 
   h.debts
-    .map((d, i) => ({ d, r: s.debts[i], label: ctx.debtLabels[i] || DEBT_KIND_LABELS[d.kind] }))
+    .map((d, i) => ({
+      d,
+      r: s.debts[i],
+      id: `debt:${ctx.debtIds?.[i] ?? i}`,
+      label: ctx.debtLabels[i] || DEBT_KIND_LABELS[d.kind],
+    }))
     .filter((x) => x.r.highInterest)
     .sort((a, b) => b.d.ratePct - a.d.ratePct)
-    .forEach(({ d, r, label }) => {
-      out.push(
+    .forEach(({ d, r, id, label }) => {
+      add(
+        id,
         `Pay down the ${label} (${d.ratePct}%) first. It costs about ${whole(r.monthlyInterest)} a month in interest.`
       );
     });
 
   if (s.emergencyMonths !== null && s.emergencyMonths < 3) {
-    out.push(
+    add(
+      'emergency',
       `Build an emergency fund of 3–6 months of essential spending (${whole(s.essentialMonthly * 3)}–${whole(s.essentialMonthly * 6)}). Chequing/savings covers ${s.emergencyMonths.toFixed(1)} months now.`
     );
   }
 
   for (const g of s.insurance) {
     if (g.gap > 0) {
-      out.push(
+      add(
+        `insurance:${g.person}`,
         `${who(g.person)}: estimated life-insurance gap of ${whole(g.gap)}. Group cover through work usually ends when the job does.`
       );
     }
   }
 
   for (const w of s.roomWarnings) {
-    out.push(
+    add(
+      `room:${w.person}:${w.account}`,
       `${who(w.person)}'s ${w.account} contributions would go ${whole(w.over)} over the room left this year. Over-contributions are penalized.`
     );
   }
@@ -355,7 +374,8 @@ export function suggestions(h: Household, s: Summary, ctx: SuggestionContext): s
   if (!hasMortgage) {
     for (const [person, p] of people) {
       if (p && p.fhsa.room > 0 && p.fhsa.monthly === 0) {
-        out.push(
+        add(
+          `fhsa:${person}`,
           `${who(person)} has FHSA room. Contributions are deductible like an RRSP and tax-free for a first home.`
         );
       }
@@ -364,13 +384,15 @@ export function suggestions(h: Household, s: Summary, ctx: SuggestionContext): s
 
   const grantMonthly = RESP_GRANT_CONTRIBUTION / 12;
   if (h.children.some((c) => c.respMonthly + 0.005 < grantMonthly)) {
-    out.push(
+    add(
+      'resp',
       `RESP: ${whole(RESP_GRANT_CONTRIBUTION)} a year (${formatMoney(grantMonthly)}/month) per child earns the full $500 CESG grant.`
     );
   }
 
   if (s.balance > 0 && ctx.marginalRate !== null) {
-    out.push(
+    add(
+      'registered-choice',
       ctx.marginalRate >= 0.3
         ? `At a ${Math.round(ctx.marginalRate * 100)}% marginal rate, RRSP contributions give a larger refund. Consider RRSP before TFSA for the ${whole(s.balance)}/month left over.`
         : `At a ${Math.round(ctx.marginalRate * 100)}% marginal rate, a TFSA is usually the better first choice for the ${whole(s.balance)}/month left over.`

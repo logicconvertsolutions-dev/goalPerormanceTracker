@@ -1072,6 +1072,45 @@ database change, no new dependency, nothing stored server-side.
 
 ---
 
+## P43b — Client Snapshot: save to file, reopen, versions, recommendation notes
+
+From staging testing of P43: agents need to keep a snapshot in the
+client's folder and update it at the next meeting, and to record their own
+advice next to the generated recommendations. Still browser-only: the file
+goes from the browser to the agent's device and back, never the server.
+No database change, no new dependency.
+
+- [x] `lib/snapshot/file.ts` (tested): JSON file
+      `{ kind: "kautis.client-snapshot", schema: 1, version, savedAt,
+      client, form, summary }`; filename `<Client-Name>_<YYYY-MM-DD>_v<N>.json`
+      (accents stripped, unsafe characters → `-`, 60-char cap, `Client`
+      fallback, the agent's own local date via `browserTimeZone()`). The
+      version goes up only when the form changed since the last
+      download/open (FNV-1a hash); saving twice gives the same vN. Upload
+      rejects non-JSON, the wrong `kind`, a newer `schema`, >1 MB, a damaged
+      form; bad fields are repaired by the same Zod schema as the draft.
+- [x] Session draft is now `{ form, meta }` (`parseDraft`/`serializeDraft`)
+      so the version and "unsaved changes" survive leaving the page; P43
+      drafts (form only) still restore.
+- [x] Toolbar: **Download snapshot** · **Open snapshot** · Print · Reset,
+      with a status chip ("Not saved to a file yet" / "Snapshot v3 · saved
+      …" / "Unsaved changes since v3"). Reset and Open ask first when there
+      are unsaved changes: Download snapshot first / Discard changes /
+      Cancel. Closing or reloading the tab with unsaved changes gets the
+      browser's leave-site prompt. The PDF prints "Snapshot vN · date".
+- [x] "Talking points" → **Recommendations**, always shown. A note per
+      automatic recommendation (500 chars), the agent's own
+      recommendations, and Advisor notes (2,000 chars) — all saved in the
+      file and the draft, and printed (notes as annotations, empty ones
+      skipped). `suggestions()` returns `{ id, text }` with stable ids
+      (`debt:<rowId>`, `emergency`, `insurance:client`, …) so a note stays
+      attached while numbers change; a note whose recommendation no longer
+      applies moves to "Earlier notes" instead of disappearing.
+- Sign-out still wipes the tab's draft (all tools); the page says to
+  download first.
+
+---
+
 ## Working with Claude Code on this repo (token discipline)
 > Session-by-session prompts live in `docs/07-getting-started.md`. If the two
 > ever disagree, that file wins for *how to run a session*; this one wins for

@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { defaultForm, parseAmount, parseForm, serializeForm, toHousehold } from './form';
+import {
+  defaultForm,
+  EMPTY_META,
+  NOTE_MAX,
+  parseAmount,
+  parseDraft,
+  parseForm,
+  serializeDraft,
+  serializeForm,
+  toHousehold,
+} from './form';
 
 describe('snapshot form draft', () => {
   it('an untouched form serializes to "" so the draft is removed', () => {
@@ -77,5 +87,48 @@ describe('toHousehold', () => {
     expect(form.debts.map((d) => d.kind)).toEqual(['card', 'loc', 'car', 'mortgage', 'other']);
     expect(form.expenses.map((e) => e.label)).toContain('India commitments');
     expect(form.goals).toHaveLength(3);
+  });
+});
+
+describe('session draft envelope (P43b)', () => {
+  const meta = { version: 2, savedAt: '2026-11-01T14:05:00.000Z', savedHash: 'abcd1234' };
+
+  it('round-trips form + meta', () => {
+    const form = defaultForm();
+    form.client.name = 'Asha';
+    form.recommendationNotes = { resp: 'Starting in January' };
+    expect(parseDraft(serializeDraft(form, meta))).toEqual({ form, meta });
+  });
+
+  it('removes the draft for an untouched, never-saved form, but keeps a saved one', () => {
+    expect(serializeDraft(defaultForm(), EMPTY_META)).toBe('');
+    expect(serializeDraft(defaultForm(), meta)).not.toBe('');
+  });
+
+  it('still restores a P43 draft (form only, no envelope)', () => {
+    const form = defaultForm();
+    form.client.name = 'Asha';
+    const legacy = JSON.stringify(form);
+    const draft = parseDraft(legacy);
+    expect(draft.meta).toEqual(EMPTY_META);
+    expect(draft.form.client.name).toBe('Asha');
+    expect(draft.form.recommendationNotes).toEqual({});
+    expect(draft.form.advisorNotes).toBe('');
+  });
+
+  it('bad meta falls back to never-saved; garbage falls back to defaults', () => {
+    const form = defaultForm();
+    form.client.name = 'Asha';
+    const d = parseDraft(JSON.stringify({ form, meta: { version: 'x' } }));
+    expect(d.meta).toEqual(EMPTY_META);
+    expect(d.form.client.name).toBe('Asha');
+    expect(parseDraft('{oops')).toEqual({ form: defaultForm(), meta: EMPTY_META });
+  });
+
+  it('cuts an over-long note instead of wiping it', () => {
+    const form = defaultForm();
+    const raw = JSON.parse(JSON.stringify(form));
+    raw.recommendationNotes = { emergency: 'x'.repeat(NOTE_MAX + 50) };
+    expect(parseForm(JSON.stringify(raw)).recommendationNotes.emergency).toHaveLength(NOTE_MAX);
   });
 });
