@@ -81,6 +81,14 @@ export interface GoalForm {
   targetMonth: string;
 }
 
+export interface CustomRecommendation {
+  id: string;
+  text: string;
+}
+
+export const NOTE_MAX = 500;
+export const ADVISOR_NOTES_MAX = 2000;
+
 export interface SnapshotForm {
   v: typeof FORM_VERSION;
   province: ProvinceCode;
@@ -98,7 +106,22 @@ export interface SnapshotForm {
   goals: GoalForm[];
   incomeReplacementYears: string;
   educationPerChild: string;
+  /** Agent's note per automatic recommendation, keyed by its stable id (calculate.ts `Suggestion.id`). */
+  recommendationNotes: Record<string, string>;
+  customRecommendations: CustomRecommendation[];
+  advisorNotes: string;
 }
+
+/** Where the open snapshot came from: version 0 = never downloaded or opened from a file. */
+export interface SnapshotMeta {
+  version: number;
+  /** ISO timestamp of the last download/open; "" when version is 0. */
+  savedAt: string;
+  /** hashForm() of the form as last downloaded/opened; "" when version is 0. */
+  savedHash: string;
+}
+
+export const EMPTY_META: SnapshotMeta = { version: 0, savedAt: '', savedHash: '' };
 
 export function emptyPerson(): PersonForm {
   return {
@@ -180,6 +203,9 @@ export function defaultForm(): SnapshotForm {
     goals: [1, 2, 3].map((n) => ({ id: `g-${n}`, text: '', amount: '', targetMonth: '' })),
     incomeReplacementYears: '10',
     educationPerChild: '',
+    recommendationNotes: {},
+    customRecommendations: [],
+    advisorNotes: '',
   };
 }
 
@@ -192,6 +218,12 @@ const freq = z.enum(FREQUENCIES).catch('monthly');
 const isoDate = z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/).catch('');
 const isoMonth = z.string().regex(/^(\d{4}-\d{2})?$/).catch('');
 const id = z.string().min(1).max(40);
+/** Long text is cut, not wiped: losing a whole note to one extra character would be worse. */
+const note = (max: number) =>
+  z
+    .string()
+    .catch('')
+    .transform((v) => v.slice(0, max));
 const PROVINCE_CODES = Object.keys(PROVINCE_NAMES) as [ProvinceCode, ...ProvinceCode[]];
 
 const personSchema = z
@@ -260,16 +292,65 @@ const schema = z.object({
   ),
   incomeReplacementYears: text,
   educationPerChild: text,
+  // Added in P43b; absent from older drafts and files, which load them empty.
+  recommendationNotes: z
+    .record(z.string().max(80), note(NOTE_MAX))
+    .refine((r) => Object.keys(r).length <= 100)
+    .catch({}),
+  customRecommendations: rows(z.object({ id, text: note(NOTE_MAX) }), () => []),
+  advisorNotes: note(ADVISOR_NOTES_MAX),
 });
 
-/** A stored draft (JSON text) -> form; anything unreadable gives the defaults. */
+/** Any parsed value -> form, or null when it isn't a v1 snapshot form at all. */
+export function parseFormValue(value: unknown): SnapshotForm | null {
+  const result = schema.safeParse(value);
+  return result.success ? result.data : null;
+}
+
+/** JSON text -> form; anything unreadable gives the defaults. */
 export function parseForm(json: string | null): SnapshotForm {
   if (!json) return defaultForm();
   try {
-    const result = schema.safeParse(JSON.parse(json));
-    return result.success ? result.data : defaultForm();
+    return parseFormValue(JSON.parse(json)) ?? defaultForm();
   } catch {
     return defaultForm();
+  }
+}
+
+/* ---------- the tab's session draft: form + snapshot meta ---------- */
+
+const metaSchema = z
+  .object({
+    version: z.number().int().min(0).max(100_000),
+    savedAt: z.string().max(40),
+    savedHash: z.string().max(40),
+  })
+  .catch(EMPTY_META);
+
+/** "" for an untouched, never-saved form, so the draft is removed. */
+export function serializeDraft(form: SnapshotForm, meta: SnapshotMeta): string {
+  if (meta.version === 0 && !serializeForm(form)) return '';
+  return JSON.stringify({ form, meta });
+}
+
+/**
+ * Reads `{ form, meta }`, and also the P43 draft, which stored the form on
+ * its own — a draft from before this change still restores.
+ */
+export function parseDraft(json: string | null): { form: SnapshotForm; meta: SnapshotMeta } {
+  const fallback = { form: defaultForm(), meta: EMPTY_META };
+  if (!json) return fallback;
+  try {
+    const raw: unknown = JSON.parse(json);
+    if (raw && typeof raw === 'object' && 'form' in raw) {
+      const env = raw as { form: unknown; meta?: unknown };
+      const form = parseFormValue(env.form);
+      return form ? { form, meta: metaSchema.parse(env.meta) } : fallback;
+    }
+    const legacy = parseFormValue(raw);
+    return legacy ? { form: legacy, meta: EMPTY_META } : fallback;
+  } catch {
+    return fallback;
   }
 }
 

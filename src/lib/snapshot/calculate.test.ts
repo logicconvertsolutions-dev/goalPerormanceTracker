@@ -291,7 +291,7 @@ describe('suggestions', () => {
   it('raises the high-interest card, emergency fund, RESP and RRSP-vs-TFSA', () => {
     const h = templateExample();
     h.client.cash = 1000;
-    const tips = suggestions(h, summarize(h, NOV_2026), ctx);
+    const tips = suggestions(h, summarize(h, NOV_2026), ctx).map((t) => t.text);
     expect(tips[0]).toMatch(/Credit card \(19\.99%\)/);
     expect(tips.some((t) => t.startsWith('Build an emergency fund'))).toBe(true);
     expect(tips.some((t) => t.startsWith('Asha: estimated life-insurance gap'))).toBe(true);
@@ -305,15 +305,37 @@ describe('suggestions', () => {
       expenses: [{ amount: 1500, frequency: 'monthly', essential: true }],
     });
     h.client.cash = 1e6;
-    const tips = suggestions(h, summarize(h), ctx);
+    const tips = suggestions(h, summarize(h), ctx).map((t) => t.text);
     expect(tips).toHaveLength(1);
     expect(tips[0]).toMatch(/^Spending is \$500 a month more/);
   });
 
   it('suggests the FHSA only when there is unused room and no mortgage', () => {
     const h = household({ client: person({ fhsa: { balance: 0, room: 8000, monthly: 0 }, personalLife: 1e7 }) });
-    expect(suggestions(h, summarize(h), ctx).some((t) => t.includes('FHSA room'))).toBe(true);
+    expect(suggestions(h, summarize(h), ctx).some((t) => t.text.includes('FHSA room'))).toBe(true);
     h.debts = [debt({ kind: 'mortgage', balance: 1 })];
-    expect(suggestions(h, summarize(h), ctx).some((t) => t.includes('FHSA room'))).toBe(false);
+    expect(suggestions(h, summarize(h), ctx).some((t) => t.text.includes('FHSA room'))).toBe(false);
+  });
+
+  it('gives each recommendation a stable id that survives changing numbers', () => {
+    const ids = (h: Household) =>
+      suggestions(h, summarize(h, NOV_2026), { ...ctx, debtIds: ['d-card', 'd-car'] }).map((t) => t.id);
+    const h = templateExample();
+    h.client.cash = 1000;
+    const before = ids(h);
+    expect(before).toContain('debt:d-card');
+    expect(before).toContain('emergency');
+    expect(before).toContain('insurance:client');
+    expect(before).toContain('resp');
+    expect(before).toContain('registered-choice');
+    h.debts[0].balance = 4000; // numbers change, ids don't
+    expect(ids(h)).toEqual(before);
+    h.debts[0].balance = 0; // card paid off: its recommendation goes away
+    expect(ids(h)).not.toContain('debt:d-card');
+  });
+
+  it('falls back to the row index when no debt ids are given', () => {
+    const h = templateExample();
+    expect(suggestions(h, summarize(h, NOV_2026), ctx)[0].id).toBe('debt:0');
   });
 });
