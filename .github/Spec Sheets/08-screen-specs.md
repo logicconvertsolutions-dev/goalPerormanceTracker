@@ -730,8 +730,21 @@ insurance gap per person · expense donut (debt payments, top 3 lines, rest)
 insurance gap, over-contribution, FHSA, RESP grant, RRSP vs TFSA) ·
 disclaimer.
 
-**Empty state:** every total reads $0.00, no donut, no talking points; Print
-is disabled until something is entered.
+**Recommendations (P43b, replaces "talking points"):** always shown; the
+numbered automatic items each take an optional note; the agent can add
+their own recommendations and Advisor notes. Notes print under their item;
+a note whose recommendation no longer applies is kept under "Earlier
+notes".
+
+**Snapshot files (P43b):** Download snapshot saves
+`<Client-Name>_<YYYY-MM-DD>_v<N>.json` to the agent's device (version goes
+up only when something changed); Open snapshot loads one back for
+editing. A status chip shows the version and whether there are unsaved
+changes; Reset/Open ask "Download snapshot first / Discard changes /
+Cancel" when there are. The printed PDF carries "Snapshot vN · date".
+
+**Empty state:** every total reads $0.00, no donut, Recommendations shows
+its hint; Print and Download are disabled until something is entered.
 
 ## States, on every screen — mostly matches, one gap
 

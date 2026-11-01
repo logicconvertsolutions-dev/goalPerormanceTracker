@@ -1,12 +1,21 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Lock, Plus, Printer, RotateCcw, Sparkles, Trash2 } from 'lucide-react';
+import { Download, FolderOpen, Lock, Plus, Printer, RotateCcw, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { DonutChart, type DonutSlice } from '@/components/charts/donut-chart';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MAX_YEARS, MIN_YEARS } from '@/lib/invest/types';
@@ -18,17 +27,21 @@ import {
   summarize,
   toMonthly,
 } from '@/lib/snapshot/calculate';
+import { browserTimeZone, formatLongDate, isoToDateInZone, todayIso } from '@/lib/dates';
+import { buildSnapshotFile, hasUnsavedChanges, parseSnapshotFile } from '@/lib/snapshot/file';
 import {
   defaultForm,
+  EMPTY_META,
   newChild,
   newDebt,
   newExpense,
   parseAmount,
-  parseForm,
-  serializeForm,
+  parseDraft,
+  serializeDraft,
   toHousehold,
   type PersonForm,
   type SnapshotForm,
+  type SnapshotMeta,
 } from '@/lib/snapshot/form';
 import {
   DEBT_KINDS,
@@ -42,6 +55,7 @@ import { formatMoney, formatPercent } from '@/lib/tax/format';
 import { PROVINCE_NAMES, type ProvinceCode } from '@/lib/tax/rates-2026';
 import { loadDraft, saveDraft } from '@/lib/tools/session-draft';
 import { cn } from '@/lib/utils';
+import { Recommendations } from './recommendations';
 
 const SAVE_DELAY_MS = 400;
 const whole = (n: number) => formatMoney(n, { whole: true });
@@ -64,22 +78,49 @@ function payoffText(r: DebtResult): string {
   return `Paid off in ${span} · ${whole(r.totalInterest ?? 0)} interest`;
 }
 
+/** "November 1, 2026" for a snapshot's ISO savedAt, in the agent's own zone. */
+function savedOn(savedAt: string): string {
+  return savedAt ? formatLongDate(isoToDateInZone(savedAt, browserTimeZone())) : '';
+}
+
+type PendingAction = 'reset' | 'open';
+
 export function ClientSnapshot() {
   const [form, setForm] = useState<SnapshotForm>(defaultForm);
+  const [meta, setMeta] = useState<SnapshotMeta>(EMPTY_META);
   const [restored, setRestored] = useState(false);
+  const [pending, setPending] = useState<PendingAction | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const today = useMemo(() => new Date(), []);
 
   // Restore this tab's draft once, then save (debounced). Saving waits for
-  // the restore so the blank first render can't overwrite the draft.
+  // the restore so the blank first render can't overwrite the draft. The
+  // draft carries the snapshot's version too, so leaving and coming back
+  // keeps "v3 · unsaved changes" accurate.
   useEffect(() => {
-    setForm(parseForm(loadDraft('snapshot')));
+    const draft = parseDraft(loadDraft('snapshot'));
+    setForm(draft.form);
+    setMeta(draft.meta);
     setRestored(true);
   }, []);
   useEffect(() => {
     if (!restored) return;
-    const handle = window.setTimeout(() => saveDraft('snapshot', serializeForm(form)), SAVE_DELAY_MS);
+    const handle = window.setTimeout(() => saveDraft('snapshot', serializeDraft(form, meta)), SAVE_DELAY_MS);
     return () => window.clearTimeout(handle);
-  }, [form, restored]);
+  }, [form, meta, restored]);
+
+  const dirty = useMemo(() => hasUnsavedChanges(form, meta), [form, meta]);
+
+  // Closing or reloading the tab loses the draft; navigating inside Kautis doesn't.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
 
   const household = useMemo(() => toHousehold(form), [form]);
   const summary = useMemo(() => summarize(household, today), [household, today]);
@@ -104,6 +145,7 @@ export function ClientSnapshot() {
         names: { client: form.client.name.trim(), spouse: form.spouse.name.trim() },
         marginalRate: tax.client?.marginalRate ?? null,
         debtLabels: form.debts.map((d) => d.label.trim()),
+        debtIds: form.debts.map((d) => d.id),
       }),
     [household, summary, form.client.name, form.spouse.name, form.debts, tax.client]
   );
@@ -160,33 +202,164 @@ export function ClientSnapshot() {
   const hasData = summary.totalNetIncome > 0 || summary.totalExpenses > 0 || summary.assets > 0;
   const balanceTone = summary.balance < 0 ? 'text-bad' : summary.balance > 0 ? 'text-ok' : 'text-fg';
 
+  /* ---------- snapshot files ---------- */
+
+  /** Saves the snapshot to the agent's device; the version only goes up when something changed. */
+  const downloadSnapshot = () => {
+    const out = buildSnapshotFile(form, meta, summary, new Date(), todayIso(browserTimeZone()));
+    const url = URL.createObjectURL(new Blob([out.json], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = out.filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setMeta(out.meta);
+    toast.success(`Saved ${out.filename}`);
+  };
+
+  const resetSnapshot = () => {
+    setForm(defaultForm());
+    setMeta(EMPTY_META);
+  };
+
+  const chooseFile = () => fileInput.current?.click();
+
+  const runAction = (action: PendingAction) => (action === 'reset' ? resetSnapshot() : chooseFile());
+
+  /** Reset/Open replace what's on screen, so ask first when it isn't in a file yet. */
+  const requestAction = (action: PendingAction) => (dirty ? setPending(action) : runAction(action));
+
+  const openFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // so choosing the same file again still fires
+    if (!file) return;
+    const parsed = parseSnapshotFile(await file.text());
+    if (!parsed.ok) {
+      toast.error(parsed.error);
+      return;
+    }
+    setForm(parsed.form);
+    setMeta(parsed.meta);
+    const who = parsed.form.client.name.trim() || 'Client';
+    const when = parsed.meta.savedAt ? ` (${savedOn(parsed.meta.savedAt)})` : '';
+    toast.success(`Opened ${who}, snapshot v${parsed.meta.version}${when}`);
+  };
+
+  const status =
+    meta.version === 0
+      ? hasData
+        ? 'Not saved to a file yet'
+        : null
+      : dirty
+        ? `Unsaved changes since v${meta.version}`
+        : `Snapshot v${meta.version} · saved ${savedOn(meta.savedAt)}`;
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
-        <p className="flex items-center gap-1.5 text-xs text-fg-3">
-          <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-          Stays in this browser tab only. Nothing is saved to Kautis, and it&apos;s cleared when you
-          sign out.
-        </p>
-        <div className="flex gap-2">
-          <Button type="button" size="sm" onClick={() => window.print()} disabled={!hasData}>
-            <Printer className="h-4 w-4" aria-hidden="true" />
-            Print / save as PDF
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => {
-              if (!hasData || window.confirm('Clear every field and start a new snapshot?')) {
-                setForm(defaultForm());
-              }
-            }}
-          >
-            <RotateCcw className="h-4 w-4" aria-hidden="true" />
-            Reset
-          </Button>
+      <div className="space-y-2 print:hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {status && (
+              <span
+                role="status"
+                className={cn(
+                  'rounded-full px-2.5 py-1 text-xs font-medium',
+                  dirty ? 'bg-warn-dim text-warn' : 'bg-ok-dim text-ok'
+                )}
+              >
+                {status}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="primary" onClick={downloadSnapshot} disabled={!hasData && meta.version === 0}>
+              <Download className="h-4 w-4" aria-hidden="true" />
+              Download snapshot
+            </Button>
+            <Button type="button" size="sm" onClick={() => requestAction('open')}>
+              <FolderOpen className="h-4 w-4" aria-hidden="true" />
+              Open snapshot
+            </Button>
+            <input
+              ref={fileInput}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              aria-hidden="true"
+              tabIndex={-1}
+              onChange={openFile}
+            />
+            <Button type="button" size="sm" onClick={() => window.print()} disabled={!hasData}>
+              <Printer className="h-4 w-4" aria-hidden="true" />
+              Print / save as PDF
+            </Button>
+            <Button type="button" size="sm" onClick={() => requestAction('reset')}>
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              Reset
+            </Button>
+          </div>
         </div>
+        <p className="flex items-center gap-1.5 text-xs text-fg-3">
+          <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          Nothing is saved to Kautis. This tab keeps your work until you sign out; use Download snapshot to keep it.
+          The file contains the client&apos;s personal details, so save it in the client&apos;s folder.
+        </p>
       </div>
+
+      {meta.version > 0 && (
+        <p className="hidden text-sm text-fg-2 print:block">
+          Snapshot v{meta.version}
+          {meta.savedAt && ` · ${savedOn(meta.savedAt)}`}
+          {dirty && ' (with changes since)'}
+        </p>
+      )}
+
+      <Dialog open={pending !== null} onOpenChange={(o) => !o && setPending(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save this snapshot first?</DialogTitle>
+            <DialogDescription>
+              {meta.version > 0
+                ? `You've changed this snapshot since v${meta.version} was saved.`
+                : "This snapshot hasn't been saved to a file yet."}{' '}
+              {pending === 'open' ? 'Opening another snapshot' : 'Resetting'} will clear it from this page.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-wrap">
+            <Button type="button" size="sm" variant="ghost" onClick={() => setPending(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              onClick={() => {
+                const action = pending!;
+                setPending(null);
+                runAction(action);
+              }}
+            >
+              Discard changes
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="primary"
+              onClick={() => {
+                const action = pending!;
+                setPending(null);
+                downloadSnapshot();
+                runAction(action);
+              }}
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              Download snapshot first
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-start print:flex print:flex-col print:gap-4">
         <div className="space-y-4">
@@ -691,24 +864,23 @@ export function ClientSnapshot() {
             </Card>
           )}
 
-          {tips.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-gold-dark" aria-hidden="true" />
-                  Talking points
-                </CardTitle>
-                <CardDescription>A guide for the conversation, not financial advice.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ol className="list-decimal space-y-2 pl-5 text-sm text-fg-2">
-                  {tips.map((t) => (
-                    <li key={t}>{t}</li>
-                  ))}
-                </ol>
-              </CardContent>
-            </Card>
-          )}
+          <Recommendations
+            tips={tips}
+            notes={form.recommendationNotes}
+            custom={form.customRecommendations}
+            advisorNotes={form.advisorNotes}
+            onNote={(id, text) =>
+              setForm((f) => {
+                const notes = { ...f.recommendationNotes };
+                // An emptied note is removed, so clearing it reads as "no change".
+                if (text) notes[id] = text;
+                else delete notes[id];
+                return { ...f, recommendationNotes: notes };
+              })
+            }
+            onCustom={(next) => set('customRecommendations', next)}
+            onAdvisorNotes={(text) => set('advisorNotes', text)}
+          />
 
           <p className="text-xs text-fg-3">
             Estimates only. Take-home pay and tax use the Tax Calculator&apos;s single-filer {today.getFullYear()} model.
