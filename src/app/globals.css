@@ -43,6 +43,16 @@
   --shadow-card: 0 14px 32px -8px rgba(11, 30, 61, 0.2), 0 4px 12px -2px rgba(11, 30, 61, 0.12);
   --focus-ring: #0B1E3D;
 
+  /* Glass cards (.shadow-card below): a translucent pane over the page
+     backdrop with a bright top edge. */
+  --card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.6));
+  --card-border: rgba(255, 255, 255, 0.85);
+  --card-hi: rgba(255, 255, 255, 0.95);
+  --card-head: rgba(255, 255, 255, 0.45);
+  --card-solid: #FFFFFF;
+  --gloss: rgba(255, 255, 255, 0.22);
+  --acc-glow: 0 6px 16px rgba(11, 30, 61, 0.28);
+
   /* Navigation chrome (desktop rail, phone tab bar): navy in light, glass in
      dark. Its ink is light in both themes. */
   --side-bg: linear-gradient(180deg, rgba(18, 42, 84, 0.95), rgba(11, 30, 61, 0.95));
@@ -107,6 +117,17 @@
   --shadow-float: 0 10px 28px rgba(0, 0, 0, 0.5);
   --shadow-card: 0 14px 40px rgba(0, 0, 0, 0.38);
   --focus-ring: #8FB4FF;
+
+  /* Dark glass adds a diagonal sheen band across each pane. */
+  --card-bg:
+    linear-gradient(115deg, transparent 58%, rgba(255, 255, 255, 0.06) 58%, rgba(255, 255, 255, 0.012) 82%, transparent 82%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.05));
+  --card-border: rgba(255, 255, 255, 0.16);
+  --card-hi: rgba(255, 255, 255, 0.4);
+  --card-head: rgba(255, 255, 255, 0.05);
+  --card-solid: #151B28;
+  --gloss: rgba(255, 255, 255, 0.34);
+  --acc-glow: 0 0 18px rgba(72, 130, 255, 0.5);
 
   --side-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04));
   --side-border: rgba(255, 255, 255, 0.16);
@@ -184,6 +205,43 @@ button:active:focus-visible {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 0 18px rgba(72, 130, 255, 0.55);
 }
 
+/* Glass cards. Every card-style surface already carries the `shadow-card`
+   utility (Card, KPI tiles, list and table containers), so the treatment
+   hooks onto that class instead of touching each call site. Cards that set
+   their own status or accent fill (bg-acc, bg-warn-dim, bg-bad-dim, ...)
+   keep it and only gain the top edge. Menus and dialogs use shadow-lift /
+   shadow-float and stay solid, so text over them is never see-through. */
+.shadow-card {
+  border-color: var(--card-border);
+  box-shadow: inset 0 1px 0 var(--card-hi), var(--shadow-card);
+}
+
+.shadow-card:not([class*='bg-acc']):not([class*='bg-warn']):not([class*='bg-bad']):not([class*='bg-ok']):not([class*='bg-gold']) {
+  background-color: transparent;
+  background-image: var(--card-bg);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+
+/* Linked tiles (My Day KPI row): the pane brightens on hover. */
+a.shadow-card:hover {
+  filter: brightness(1.05);
+}
+
+/* Table headers inside a glass card: a tint, not an opaque band. */
+.shadow-card thead,
+.shadow-card thead tr,
+.shadow-card thead th {
+  background-color: var(--card-head);
+}
+
+/* Accent fills (primary button, quote card): a soft highlight from the top
+   edge and a lift, so they read as glossy rather than flat. */
+.gloss {
+  background-image: radial-gradient(120% 90% at 50% -10%, var(--gloss), transparent 60%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), var(--acc-glow);
+}
+
 /* Dark page backdrop (page-backdrop.tsx): colour glows on a near-black
    ground, fixed behind everything. */
 .backdrop-glow {
@@ -201,6 +259,13 @@ button:active:focus-visible {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
     background: #0B1E3D;
+  }
+
+  .shadow-card:not([class*='bg-acc']):not([class*='bg-warn']):not([class*='bg-bad']):not([class*='bg-ok']):not([class*='bg-gold']) {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background-image: none;
+    background-color: var(--card-solid);
   }
 }
 
