@@ -13,9 +13,13 @@ RLS) · Tailwind + shadcn/ui · Recharts · Zod · Vercel · Resend (transaction
 email).
 (Started on Next.js 14 per the original P0 scaffold; upgraded to 15 during
 build-out. `package.json` is the source of truth if this drifts again.)
-**Light theme only** (see `.github/Spec Sheets/03-ui.md` — supersedes an
-earlier dark-theme direction shipped through P0–P2). No second theme, no
-theme toggle in v1.
+**Themes: Auto / Light / Dark**, chosen by the user with a three-way switch
+(Auto follows the OS `prefers-color-scheme`). Decided 2026-11-12; supersedes
+the light-only rule that was in force from August 2026. **Not built yet** —
+the live app still ships the light theme only until the redesign lands. See
+`.github/Spec Sheets/03-ui.md` → "Theme rule". Every new surface must be
+specified in both light and dark; do not add a fourth mode or per-page
+themes without asking.
 
 ## Environments
 - `master` → production (Vercel production deployment + Supabase production project). Protected: requires a PR and passing `ci (18.x)`/`ci (20.x)` checks — no direct pushes, no bypass, including for admins.
