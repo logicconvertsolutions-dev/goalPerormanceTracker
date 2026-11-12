@@ -94,11 +94,11 @@ export function AppHeader({
       <header
         ref={barRef}
         className={cn(
-          'sticky top-0 z-20 px-4 pt-[env(safe-area-inset-top)] md:px-6 print:hidden',
+          'sticky top-0 z-20 px-4 pt-[env(safe-area-inset-top)] md:top-3 md:mx-3 md:mt-3 md:rounded-lg md:px-5 print:hidden',
           // Other pages: the navy bar My Day pins to once scrolled. A white bar
           // made iOS paint the status bar white at rest (it takes its colour
           // from the top of the page), so every page now reads navy there.
-          hero ? 'pointer-events-none text-white' : 'bg-navy text-white shadow-[0_2px_12px_rgba(11,30,61,0.25)]'
+          hero ? 'pointer-events-none text-white' : 'header-chrome text-white'
         )}
       >
         <div className="flex h-16 items-center justify-between gap-3">
@@ -116,7 +116,7 @@ export function AppHeader({
       {hero && (
         <section
           ref={heroRef}
-          className="relative z-10 -mt-16 flex gap-3 px-4 pb-2 text-white md:px-6 print:hidden"
+          className="relative z-10 -mt-16 flex gap-3 px-4 pb-2 text-white md:mx-3 md:px-5 print:hidden"
         >
           {/* Logo column: the logo itself lives in the sticky bar above. */}
           <div className="w-[52px] shrink-0" aria-hidden="true" />

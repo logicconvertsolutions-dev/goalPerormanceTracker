@@ -1,65 +1,38 @@
 'use client';
 
-import Image, { type StaticImageData } from 'next/image';
 import { usePathname } from 'next/navigation';
-import mountain from './page-backdrop-mountain.avif';
 import { HERO_PATH } from './hero-path';
 
-// Per-section photos: first matching path prefix wins, anything else gets
-// DEFAULT_IMAGE. Add an entry (and the .avif next to this file -- AVIF so the
-// build needs no sharp, see the note below) to give a section its own.
-const SECTION_IMAGES: { prefix: string; image: StaticImageData }[] = [];
-const DEFAULT_IMAGE = mountain;
-
 /**
- * App-wide page background (P30, every page since P31): a photo behind the
- * content, washed toward white further down so the white cards float on it
- * and long lists stay readable. Fixed, so it holds still while the page
- * scrolls. Runs behind the floating desktop/tablet rail too (rail-nav.tsx);
- * the sticky header (z-20) and mobile tab bar (z-40) sit above it.
+ * App-wide page background: a fixed, tinted ground behind everything, so the
+ * glass cards and navigation chrome have something to sit on. Light is a pale
+ * navy tint with faint navy glows (globals.css .backdrop-tint); dark is dim
+ * navy glows on near-black (.backdrop-glow). It runs behind the floating
+ * rail too; the header (z-20) and mobile tab bar (z-40) sit above it.
  *
- * Dark theme: no photo and no white wash -- colour glows on a near-black
- * ground instead (globals.css .backdrop-glow). The My Day navy shade is kept
- * in both themes; it is what the white greeting sits on.
+ * There is no photo any more (it was a mountain image from P30 to
+ * 2026-11-12, washed toward white -- it read as fog behind glass cards).
  *
- * My Day (P36) puts its header on the photo: solid brand navy at the very
- * top, fading through the greeting and icons to the bare photo just under
- * the header, then the usual white wash for the cards. The solid start
- * matters: iOS may paint the status bar itself in the theme colour (#0B1E3D)
- * rather than letting the page draw under it, and starting the shade on
- * that exact navy means there is no visible edge either way. The stops are in px
- * plus the status-bar inset so they track the header, not the viewport.
- *
- * AVIF on purpose: Next generates a blur preview (via sharp) at build time
- * for every static .jpg/.png/.webp import, and the Node 18 CI job has no
- * sharp (sharp 0.35 needs Node >= 20.9).
+ * My Day (P36) puts its greeting on the backdrop: solid brand navy at the
+ * very top, fading out just under the header. The solid start matters: iOS
+ * may paint the status bar itself in the theme colour (#0B1E3D) rather than
+ * letting the page draw under it, and starting the shade on that exact navy
+ * means there is no visible edge either way. The stops are in px plus the
+ * status-bar inset so they track the header, not the viewport.
  */
 export function PageBackdrop() {
-  const pathname = usePathname();
-  const hero = pathname === HERO_PATH;
-  const image = SECTION_IMAGES.find((s) => pathname.startsWith(s.prefix))?.image ?? DEFAULT_IMAGE;
+  const hero = usePathname() === HERO_PATH;
   return (
-    <div
-      className="pointer-events-none fixed inset-0 z-0 print:hidden"
-      aria-hidden="true"
-    >
-      <Image src={image} alt="" fill priority={hero} sizes="100vw" className="object-cover object-[70%_top] dark:hidden" />
+    <div className="pointer-events-none fixed inset-0 z-0 print:hidden" aria-hidden="true">
+      <div className="backdrop-tint absolute inset-0 dark:hidden" />
       <div className="backdrop-glow absolute inset-0 hidden dark:block" />
-      {hero ? (
+      {hero && (
         <>
           <div
-            className="absolute inset-0 dark:hidden"
+            className="absolute inset-0"
             style={{
               background:
-                'linear-gradient(180deg, rgb(11,30,61) 0, rgb(11,30,61) env(safe-area-inset-top), rgba(11,30,61,0.62) calc(env(safe-area-inset-top) + 48px), rgba(11,30,61,0.45) calc(env(safe-area-inset-top) + 96px), rgba(11,30,61,0) calc(env(safe-area-inset-top) + 150px), rgba(255,255,255,0.6) calc(env(safe-area-inset-top) + 230px), rgba(255,255,255,0.86) calc(env(safe-area-inset-top) + 380px), rgba(255,255,255,0.93) 100%)',
-            }}
-          />
-          {/* Dark: the same navy shade under the header, without the white wash. */}
-          <div
-            className="absolute inset-0 hidden dark:block"
-            style={{
-              background:
-                'linear-gradient(180deg, rgb(11,30,61) 0, rgb(11,30,61) env(safe-area-inset-top), rgba(11,30,61,0.62) calc(env(safe-area-inset-top) + 48px), rgba(11,30,61,0.45) calc(env(safe-area-inset-top) + 96px), rgba(11,30,61,0) calc(env(safe-area-inset-top) + 150px))',
+                'linear-gradient(180deg, rgb(11,30,61) 0, rgb(11,30,61) env(safe-area-inset-top), rgba(11,30,61,0.82) calc(env(safe-area-inset-top) + 48px), rgba(11,30,61,0.62) calc(env(safe-area-inset-top) + 96px), rgba(11,30,61,0) calc(env(safe-area-inset-top) + 170px))',
             }}
           />
           {/* Extra shade behind the greeting text on the left. */}
@@ -74,8 +47,6 @@ export function PageBackdrop() {
             }}
           />
         </>
-      ) : (
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.55)_0%,rgba(255,255,255,0.82)_38%,rgba(255,255,255,0.93)_100%)] dark:hidden" />
       )}
     </div>
   );

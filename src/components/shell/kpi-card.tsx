@@ -23,15 +23,15 @@ interface KpiCardProps {
  * cards. Shared by the Dashboard and Team overview. */
 export function KpiCard({ label, value, target, delta, hint }: KpiCardProps) {
   return (
-    <div className="space-y-1.5 rounded border border-line bg-panel px-3.5 py-3 shadow-card">
-      <p className="text-xs font-medium uppercase tracking-wide text-fg-3">{label}</p>
-      <p className="text-2xl font-bold font-mono tabular-nums tracking-tighter text-fg">{value}</p>
+    <div className="space-y-2 rounded border border-line bg-panel px-4 py-3.5 shadow-card">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-3">{label}</p>
+      <p className="font-mono text-[30px] font-semibold leading-none tabular-nums tracking-tighter text-fg">{value}</p>
       {target ? (
         <div className="space-y-1">
           <p className={cn('text-xs font-mono tabular-nums', attainmentColor(target.pct))}>
             / {target.value}
           </p>
-          <div className="h-1 w-full rounded-full bg-panel-2 overflow-hidden">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-hover">
             <div
               className={cn('h-full rounded-full', attainmentBar(target.pct))}
               style={{ width: `${Math.min(100, Math.max(0, target.pct))}%` }}

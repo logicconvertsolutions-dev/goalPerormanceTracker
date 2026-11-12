@@ -48,15 +48,18 @@
 
   --shadow-lift: 0 1px 3px 0 rgba(11, 30, 61, 0.1), 0 1px 2px -1px rgba(11, 30, 61, 0.08);
   --shadow-float: 0 8px 24px -4px rgba(11, 30, 61, 0.16), 0 2px 8px -2px rgba(11, 30, 61, 0.1);
-  --shadow-card: 0 14px 32px -8px rgba(11, 30, 61, 0.2), 0 4px 12px -2px rgba(11, 30, 61, 0.12);
+  --shadow-card: 0 1px 2px rgba(11, 30, 61, 0.06), 0 10px 24px -14px rgba(11, 30, 61, 0.22);
   --focus-ring: #0B1E3D;
 
   /* Glass cards (.shadow-card below): a translucent pane over the page
      backdrop with a bright top edge. */
-  --card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.6));
-  --card-border: rgba(255, 255, 255, 0.85);
-  --card-hi: rgba(255, 255, 255, 0.95);
-  --card-head: rgba(255, 255, 255, 0.45);
+  --card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.8));
+  --card-sheen: none;
+  /* A navy hairline, not a white one: on a pale ground the edge is what
+     defines the card, so the shadow can stay short. */
+  --card-border: rgba(11, 30, 61, 0.12);
+  --card-hi: rgba(255, 255, 255, 1);
+  --card-head: rgba(11, 30, 61, 0.035);
   --card-solid: #FFFFFF;
   --gloss: rgba(255, 255, 255, 0.22);
   --pop-glow: 0 6px 16px rgba(156, 124, 26, 0.32);
@@ -125,15 +128,15 @@
 
   --shadow-lift: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-float: 0 10px 28px rgba(0, 0, 0, 0.5);
-  --shadow-card: 0 14px 40px rgba(0, 0, 0, 0.38);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 28px -14px rgba(0, 0, 0, 0.6);
   --focus-ring: #8FB4FF;
 
-  /* Dark glass adds a diagonal sheen band across each pane. */
-  --card-bg:
-    linear-gradient(115deg, transparent 58%, rgba(255, 255, 255, 0.06) 58%, rgba(255, 255, 255, 0.012) 82%, transparent 82%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.05));
+  /* Dark glass. The diagonal sheen band goes on full cards only (below);
+     repeated on every small tile it reads as a stamp. */
+  --card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.045));
+  --card-sheen: linear-gradient(115deg, transparent 58%, rgba(255, 255, 255, 0.05) 58%, rgba(255, 255, 255, 0.01) 82%, transparent 82%);
   --card-border: rgba(255, 255, 255, 0.16);
-  --card-hi: rgba(255, 255, 255, 0.4);
+  --card-hi: rgba(255, 255, 255, 0.32);
   --card-head: rgba(255, 255, 255, 0.05);
   --card-solid: #151B28;
   --gloss: rgba(255, 255, 255, 0.34);
@@ -235,9 +238,20 @@ button:active:focus-visible {
   backdrop-filter: blur(18px) saturate(140%);
 }
 
+/* A tile in a warning state: red edge and a faint red wash over the glass. */
+.shadow-card.tile-warn {
+  border-color: rgb(var(--c-bad) / 0.55);
+  box-shadow: inset 0 1px 0 var(--card-hi), inset 0 0 0 999px rgb(var(--c-bad) / 0.06), var(--shadow-card);
+}
+
 /* Linked tiles (My Day KPI row): the pane brightens on hover. */
 a.shadow-card:hover {
   filter: brightness(1.05);
+}
+
+/* Full cards (16px corners) carry the sheen; 12px tiles do not. */
+.shadow-card.rounded-lg:not([class*='bg-acc']):not([class*='bg-warn']):not([class*='bg-bad']):not([class*='bg-ok']):not([class*='bg-gold']) {
+  background-image: var(--card-sheen), var(--card-bg);
 }
 
 /* Table headers inside a glass card: a tint, not an opaque band. */
@@ -254,6 +268,34 @@ a.shadow-card:hover {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), var(--pop-glow);
 }
 
+/* The header bar is the same chrome as the rail and tab bar. Full-bleed on
+   phones, where it also colours the iPhone status-bar strip; a floating
+   rounded bar beside the rail from tablet up. */
+.header-chrome {
+  background: var(--side-bg);
+  border-bottom: 1px solid var(--side-border);
+  box-shadow: var(--side-shadow);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(22px) saturate(150%);
+}
+
+@media (min-width: 768px) {
+  .header-chrome {
+    border: 1px solid var(--side-border);
+    box-shadow: inset 0 1px 0 var(--side-hi), var(--side-shadow);
+  }
+}
+
+/* Light page backdrop (page-backdrop.tsx): a pale navy-tinted ground with
+   faint navy glows -- the light counterpart of .backdrop-glow. No photo. */
+.backdrop-tint {
+  background:
+    radial-gradient(60vw 50vh at 8% 0%, rgba(11, 30, 61, 0.1), transparent 70%),
+    radial-gradient(50vw 50vh at 100% 10%, rgba(60, 100, 190, 0.13), transparent 70%),
+    radial-gradient(60vw 60vh at 70% 100%, rgba(11, 30, 61, 0.07), transparent 70%),
+    linear-gradient(160deg, #F4F6FB, #EAEEF6);
+}
+
 /* Dark page backdrop (page-backdrop.tsx): low navy glows on a near-black
    ground, fixed behind everything. Kept dim on purpose -- a bright glow
    behind a glass card drags secondary text below 4.5:1. */
@@ -268,7 +310,8 @@ a.shadow-card:hover {
 
 /* People who ask the OS for less transparency get solid chrome. */
 @media (prefers-reduced-transparency: reduce) {
-  .nav-chrome {
+  .nav-chrome,
+  .header-chrome {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
     background: #0B1E3D;

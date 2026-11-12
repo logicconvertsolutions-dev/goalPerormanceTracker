@@ -18,7 +18,7 @@ export function TabBar({ role }: { role: AppRole }) {
     <nav
       // A floating glass bar (globals.css .nav-chrome), clear of the home
       // indicator. (app)/layout.tsx pads <main> so content can scroll past it.
-      className="nav-chrome fixed bottom-[calc(10px+env(safe-area-inset-bottom))] left-3 right-3 z-40 flex gap-0.5 rounded-[24px] p-1.5 md:hidden print:hidden"
+      className="nav-chrome fixed bottom-[calc(10px+env(safe-area-inset-bottom))] left-3 right-3 z-40 flex gap-0.5 rounded-lg p-1.5 md:hidden print:hidden"
       aria-label="Primary"
     >
       {items.map((item) => {
@@ -26,7 +26,7 @@ export function TabBar({ role }: { role: AppRole }) {
         const Icon = item.icon;
         const isLogActivity = item.href === '/log';
         const className = cn(
-          'flex min-h-[48px] min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-[18px] border border-transparent py-1.5 text-[10px] leading-none transition-smooth',
+          'flex min-h-[48px] min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded border border-transparent py-1.5 text-[10px] leading-none transition-smooth',
           current && 'nav-current font-medium'
         );
         const inner = (

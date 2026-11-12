@@ -166,7 +166,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             <div className="order-4 lg:order-none">
               <div className="space-y-3">
                 <SectionHeader title="Recent activity" action={{ label: 'View all', href: '/logs' }} />
-                <div className="rounded-[24px] border border-line bg-panel px-4 shadow-card">
+                <div className="rounded-lg border border-line bg-panel px-4 shadow-card">
                   {recentActivity.length === 0 ? (
                     <p className="flex items-center gap-2 py-4 text-sm text-fg-3">
                       <Clock className="h-4 w-4" aria-hidden="true" />

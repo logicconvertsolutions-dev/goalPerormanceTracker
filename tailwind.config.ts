@@ -83,13 +83,13 @@ const config = {
       // menus, and cards — every rounded-sm/DEFAULT/lg usage in the app
       // picks this up automatically (rounded-full elements are unaffected).
       borderRadius: {
-        sm: '10px',
-        DEFAULT: '14px',
-        lg: '20px',
-        // Extra step for buttons specifically (see button.tsx) — deliberately
-        // not part of the sm/DEFAULT/lg cascade so it doesn't touch cards,
-        // inputs, or menus.
-        xl: '28px',
+        // One scale (03-ui.md "Crisp pass"): 8 inputs and small controls,
+        // 12 buttons and tiles, 16 cards. Pills (rounded-full) are for chips
+        // and navigation only. Do not add arbitrary rounded-[Npx] values.
+        sm: '8px',
+        DEFAULT: '12px',
+        lg: '16px',
+        xl: '16px',
       },
       boxShadow: {
         // Everyday card/button elevation — a touch stronger than a hairline so

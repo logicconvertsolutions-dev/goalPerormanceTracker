@@ -20,7 +20,7 @@ import { ThemeSwitch } from './theme-switch';
 // 212px wide plus a 12px margin each side -- PageBackdrop and StatusBarBand
 // no longer depend on that width, the backdrop now runs behind the rail.
 const RAIL =
-  'nav-chrome hidden md:sticky md:top-[calc(env(safe-area-inset-top)+0.75rem)] md:z-[1] md:m-3 md:mt-[calc(env(safe-area-inset-top)+0.75rem)] md:flex md:h-[calc(100vh-1.5rem-env(safe-area-inset-top))] md:w-[212px] md:shrink-0 md:flex-col md:gap-0.5 md:overflow-y-auto md:rounded-[22px] md:p-3 print:hidden';
+  'nav-chrome hidden md:sticky md:top-[calc(env(safe-area-inset-top)+0.75rem)] md:z-[1] md:m-3 md:mt-[calc(env(safe-area-inset-top)+0.75rem)] md:flex md:h-[calc(100vh-1.5rem-env(safe-area-inset-top))] md:w-[212px] md:shrink-0 md:flex-col md:gap-0.5 md:overflow-y-auto md:rounded-lg md:p-3 print:hidden';
 const RAIL_RULE = 'my-2 border-t border-white/15';
 
 function NavLink({ item, current }: { item: NavItem; current: boolean }) {
