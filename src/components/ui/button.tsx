@@ -11,7 +11,8 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: 'gloss bg-acc text-bg hover:bg-acc-2',
+        // Gold with a navy label: the one colour on a page that pops (03-ui.md).
+        primary: 'gloss border border-pop-edge/70 bg-pop font-semibold text-pop-ink hover:bg-pop-2',
         secondary:
           'bg-panel-2 text-fg border border-line-2 shadow-lift hover:bg-hover',
         // Tinted navy — a middle weight between ghost and primary for

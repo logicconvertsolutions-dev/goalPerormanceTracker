@@ -36,7 +36,7 @@ const config = {
         // fg-4: a washed-out fg-3 for the most muted/disabled labels. Carries
         // its own alpha, so it takes no opacity modifier.
         'fg-4': 'var(--c-fg-4)',
-        // Accent — primary actions; never gold (see brand-mark exception below).
+        // Accent — navy ink and quiet fills (active chips, avatar, the matrix).
         // As a *text* colour it resolves to --c-acc-text instead (textColor
         // below): navy in light, a lighter blue in dark where navy ink would
         // vanish into the ground.
@@ -44,11 +44,16 @@ const config = {
         'acc-2': v('c-acc-2'),
         'acc-dim': 'var(--c-acc-dim)',
         'acc-line': 'var(--c-acc-line)',
-        // Brand mark & "filed/complete" status only — never a general accent/button color
+        // Brand mark & "filed/complete" status. The primary button uses `pop` below.
         gold: v('c-gold'),
         'gold-dark': v('c-gold-dark'),
         'gold-light': v('c-gold-light'),
         // Brand constants: the same navy in both themes (header bar, rail).
+        // The pop: primary button only (Button variant="primary"). See 03-ui.md.
+        pop: v('c-pop'),
+        'pop-2': v('c-pop-2'),
+        'pop-ink': v('c-pop-ink'),
+        'pop-edge': v('c-pop-edge'),
         navy: '#0B1E3D',
         'navy-2': '#122A54',
         canvas: v('c-bg'),

@@ -17,8 +17,10 @@
   --c-hover: 244 244 245;
   --c-fg: 20 33 61;
   --c-fg-2: 92 101 128;
-  --c-fg-3: 148 160 184;
-  --c-fg-4: rgba(148, 160, 184, 0.7);
+  /* fg-3/fg-4 carry labels people read (KPI labels, table headers, hints):
+     both clear 4.5:1 on a white card. */
+  --c-fg-3: 102 112 137;
+  --c-fg-4: rgb(107, 118, 144);
   --c-acc: 11 30 61;
   --c-acc-2: 18 42 84;
   --c-acc-text: 11 30 61;
@@ -26,11 +28,17 @@
   --c-acc-dim: rgba(11, 30, 61, 0.07);
   --c-acc-line: rgba(11, 30, 61, 0.28);
   --c-gold: 201 162 39;
-  --c-gold-dark: 156 124 26;
+  --c-gold-dark: 122 95 12;
   --c-gold-light: 251 243 217;
+  /* The one colour that pops: the primary button, and nothing else. Navy
+     label on gold in both themes (6.9:1). */
+  --c-pop: 201 162 39;
+  --c-pop-2: 212 175 55;
+  --c-pop-ink: 11 30 61;
+  --c-pop-edge: 156 124 26;
   --c-ok: 27 122 67;
   --c-ok-dim: 228 245 234;
-  --c-warn: 156 106 10;
+  --c-warn: 133 88 5;
   --c-warn-dim: 251 240 218;
   --c-bad: 176 57 42;
   --c-bad-dim: 251 230 226;
@@ -51,7 +59,7 @@
   --card-head: rgba(255, 255, 255, 0.45);
   --card-solid: #FFFFFF;
   --gloss: rgba(255, 255, 255, 0.22);
-  --acc-glow: 0 6px 16px rgba(11, 30, 61, 0.28);
+  --pop-glow: 0 6px 16px rgba(156, 124, 26, 0.32);
 
   /* Navigation chrome (desktop rail, phone tab bar): navy in light, glass in
      dark. Its ink is light in both themes. */
@@ -93,14 +101,16 @@
   --c-hover: 32 40 58;
   --c-fg: 238 241 247;
   --c-fg-2: 174 184 204;
-  --c-fg-3: 125 137 160;
-  --c-fg-4: rgba(125, 137, 160, 0.7);
-  /* Fills keep white labels (4.5:1+); ink uses the lighter --c-acc-text. */
-  --c-acc: 47 98 214;
-  --c-acc-2: 58 110 226;
-  --c-acc-text: 143 180 255;
-  --c-acc-dim: rgba(108, 155, 245, 0.14);
-  --c-acc-line: rgba(108, 155, 245, 0.4);
+  --c-fg-3: 154 166 189;
+  --c-fg-4: rgb(140, 153, 178);
+  /* Accent is the quiet partner of the ground, not a second pop: a muted
+     slate-blue fill that keeps white labels at 5:1, and a pale ink for
+     accent-coloured text. Gold (--c-pop) is the only saturated colour. */
+  --c-acc: 86 106 153;
+  --c-acc-2: 76 95 140;
+  --c-acc-text: 180 198 236;
+  --c-acc-dim: rgba(180, 198, 236, 0.12);
+  --c-acc-line: rgba(180, 198, 236, 0.35);
   --c-gold-dark: 230 196 92;
   --c-gold-light: 58 47 12;
   --c-ok: 99 201 139;
@@ -127,7 +137,7 @@
   --card-head: rgba(255, 255, 255, 0.05);
   --card-solid: #151B28;
   --gloss: rgba(255, 255, 255, 0.34);
-  --acc-glow: 0 0 18px rgba(72, 130, 255, 0.5);
+  --pop-glow: 0 0 18px rgba(201, 162, 39, 0.35);
 
   --side-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04));
   --side-border: rgba(255, 255, 255, 0.16);
@@ -197,12 +207,14 @@ button:active:focus-visible {
 }
 
 .nav-current {
+  /* Neutral glass, not a colour: the primary button is the only thing on a
+     page allowed to pop. */
   background:
-    radial-gradient(120% 90% at 50% -10%, rgba(255, 255, 255, 0.38), transparent 60%),
-    linear-gradient(180deg, #4A7BE8, #1F49AE);
-  border-color: rgba(160, 195, 255, 0.55);
+    radial-gradient(120% 90% at 50% -10%, rgba(255, 255, 255, 0.22), transparent 60%),
+    rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.32);
   color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 0 18px rgba(72, 130, 255, 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
 /* Glass cards. Every card-style surface already carries the `shadow-card`
@@ -235,21 +247,22 @@ a.shadow-card:hover {
   background-color: var(--card-head);
 }
 
-/* Accent fills (primary button, quote card): a soft highlight from the top
-   edge and a lift, so they read as glossy rather than flat. */
+/* The primary button: a soft highlight from the top edge and a warm lift,
+   so the one gold thing on the page reads as glossy rather than flat. */
 .gloss {
   background-image: radial-gradient(120% 90% at 50% -10%, var(--gloss), transparent 60%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), var(--acc-glow);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), var(--pop-glow);
 }
 
-/* Dark page backdrop (page-backdrop.tsx): colour glows on a near-black
-   ground, fixed behind everything. */
+/* Dark page backdrop (page-backdrop.tsx): low navy glows on a near-black
+   ground, fixed behind everything. Kept dim on purpose -- a bright glow
+   behind a glass card drags secondary text below 4.5:1. */
 .backdrop-glow {
   background:
-    radial-gradient(circle at 66% -4%, rgba(72, 130, 255, 0.7) 0, rgba(72, 130, 255, 0.4) 7vw, transparent 15vw),
-    radial-gradient(circle at 98% 14%, rgba(72, 130, 255, 0.45) 0, rgba(40, 84, 190, 0.3) 12vw, transparent 26vw),
-    radial-gradient(circle at -3% 60%, rgba(72, 130, 255, 0.5) 0, rgba(72, 130, 255, 0.25) 8vw, transparent 17vw),
-    radial-gradient(circle at 78% 108%, rgba(40, 84, 190, 0.42) 0, transparent 24vw),
+    radial-gradient(circle at 66% -4%, rgba(52, 92, 190, 0.42) 0, rgba(52, 92, 190, 0.22) 7vw, transparent 15vw),
+    radial-gradient(circle at 98% 14%, rgba(40, 72, 160, 0.3) 0, rgba(30, 58, 140, 0.18) 12vw, transparent 26vw),
+    radial-gradient(circle at -3% 60%, rgba(52, 92, 190, 0.3) 0, rgba(52, 92, 190, 0.14) 8vw, transparent 17vw),
+    radial-gradient(circle at 78% 108%, rgba(30, 58, 140, 0.26) 0, transparent 24vw),
     linear-gradient(160deg, #0C1220, #05070C);
 }
 
