@@ -45,7 +45,7 @@ export default async function AdminFeedbackPage() {
   }));
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <div className="space-y-4">
       <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Feedback</h1>
       <p className="text-sm text-fg-3">
         Bug reports, issues, and feedback submitted from the account menu. Every organization.

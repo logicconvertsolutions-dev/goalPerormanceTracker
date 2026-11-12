@@ -2,7 +2,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ContactsLoading() {
   return (
-    <div className="max-w-3xl space-y-5">
+    <div className="space-y-5">
       <div className="flex items-start justify-between gap-3">
         <Skeleton className="h-9 w-32" />
         <div className="flex gap-2">

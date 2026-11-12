@@ -1,6 +1,9 @@
 import type { Config } from 'tailwindcss';
 import animate from 'tailwindcss-animate';
 
+/** A theme-aware colour: an RGB triplet in a CSS variable, alpha left to Tailwind. */
+const v = (name: string) => `rgb(var(--${name}) / <alpha-value>)`;
+
 const config = {
   darkMode: ['class'],
   content: [
@@ -11,57 +14,65 @@ const config = {
   theme: {
     extend: {
       colors: {
-        // Values are kept as literal hex (not var(--x)) so Tailwind's built-in opacity
-        // modifiers (bg-ok/15, bg-bad/20, ...) keep working — Tailwind can only derive
-        // an alpha-channel variant from a color it can parse itself, not from an opaque
-        // var() reference. The same values are declared as CSS custom properties in
-        // globals.css :root as the source of truth / for use outside Tailwind classes.
+        // Every theme-dependent colour is an RGB triplet held in a CSS custom
+        // property (globals.css: `:root` = light, `.dark` = dark) and wrapped
+        // here as `rgb(var(--x) / <alpha-value>)`. Tailwind substitutes the
+        // alpha itself, so opacity modifiers (bg-ok/15, bg-acc/10, ...) keep
+        // working — the reason these used to be literal hex — while the value
+        // now follows the Auto / Light / Dark setting (03-ui.md "Theme rule").
+        // globals.css is the single source of truth for the values.
         //
-        // Ground — page background & chrome now match the white surface tone.
-        // hover/sunken stay a hair off pure white so row-hover feedback and
-        // input fields remain visible against a white page.
-        bg: '#FFFFFF',
-        'bg-2': '#FFFFFF',
-        panel: '#FFFFFF',
-        'panel-2': '#FFFFFF',
-        hover: '#F4F4F5',
-        sunken: '#F4F4F5',
+        // Ground
+        bg: v('c-bg'),
+        'bg-2': v('c-bg'),
+        panel: v('c-panel'),
+        'panel-2': v('c-panel'),
+        hover: v('c-hover'),
+        sunken: v('c-hover'),
         // Text
-        fg: '#14213D',
-        'fg-2': '#5C6580',
-        'fg-3': '#94A0B8',
-        // fg-4: no --text-4 token in the spec; derived as a washed-out --text-3 for the
-        // most muted/disabled labels (e.g. strikethrough list items).
-        'fg-4': 'rgba(148, 160, 184, 0.7)',
-        // Accent — primary actions use navy, never gold (see brand-mark exception below)
-        acc: '#0B1E3D',
-        'acc-2': '#122A54',
-        // acc-dim/acc-line: no dedicated tokens given; derived from --navy at low opacity,
-        // same pattern the spec already uses for warn-dim/bad-dim.
-        'acc-dim': 'rgba(11, 30, 61, 0.07)',
-        'acc-line': 'rgba(11, 30, 61, 0.28)',
+        fg: v('c-fg'),
+        'fg-2': v('c-fg-2'),
+        'fg-3': v('c-fg-3'),
+        // fg-4: a washed-out fg-3 for the most muted/disabled labels. Carries
+        // its own alpha, so it takes no opacity modifier.
+        'fg-4': 'var(--c-fg-4)',
+        // Accent — primary actions; never gold (see brand-mark exception below).
+        // As a *text* colour it resolves to --c-acc-text instead (textColor
+        // below): navy in light, a lighter blue in dark where navy ink would
+        // vanish into the ground.
+        acc: v('c-acc'),
+        'acc-2': v('c-acc-2'),
+        'acc-dim': 'var(--c-acc-dim)',
+        'acc-line': 'var(--c-acc-line)',
         // Brand mark & "filed/complete" status only — never a general accent/button color
-        gold: '#C9A227',
-        'gold-dark': '#9C7C1A',
-        'gold-light': '#FBF3D9',
+        gold: v('c-gold'),
+        'gold-dark': v('c-gold-dark'),
+        'gold-light': v('c-gold-light'),
+        // Brand constants: the same navy in both themes (header bar, rail).
         navy: '#0B1E3D',
         'navy-2': '#122A54',
-        canvas: '#FFFFFF',
-        surface: '#FFFFFF',
+        canvas: v('c-bg'),
+        surface: v('c-panel'),
         // Attainment
-        ok: '#1B7A43',
-        'ok-dim': '#E4F5EA',
-        warn: '#9C6A0A',
-        'warn-dim': '#FBF0DA',
-        bad: '#B0392A',
-        'bad-dim': '#FBE6E2',
+        ok: v('c-ok'),
+        'ok-dim': v('c-ok-dim'),
+        warn: v('c-warn'),
+        'warn-dim': v('c-warn-dim'),
+        bad: v('c-bad'),
+        'bad-dim': v('c-bad-dim'),
+      },
+      textColor: {
+        // See `acc` above.
+        acc: v('c-acc-text'),
+        // `text-bg` is only ever the label on an accent fill (primary button,
+        // avatar, active filter chip): white in both themes, not the page ground.
+        bg: v('c-on-acc'),
       },
       borderColor: {
-        line: '#E7E2D3',
-        // line-2/line-3: no escalated-emphasis border tokens given; derived from --text-1
-        // (navy-ish) at increasing opacity, mirroring the acc-dim/acc-line derivation above.
-        'line-2': 'rgba(20, 33, 61, 0.14)',
-        'line-3': 'rgba(20, 33, 61, 0.22)',
+        line: v('c-line'),
+        // line-2/line-3: escalating emphasis, each with its own alpha.
+        'line-2': 'var(--c-line-2)',
+        'line-3': 'var(--c-line-3)',
       },
       // Bumped up for a softer, more rounded feel across buttons, inputs,
       // menus, and cards — every rounded-sm/DEFAULT/lg usage in the app
@@ -78,16 +89,16 @@ const config = {
       boxShadow: {
         // Everyday card/button elevation — a touch stronger than a hairline so
         // surfaces read as raised off the canvas instead of flat cutouts.
-        lift: '0 1px 3px 0 rgba(11, 30, 61, 0.10), 0 1px 2px -1px rgba(11, 30, 61, 0.08)',
+        lift: 'var(--shadow-lift)',
         // Heavier elevation for things that should visually float above the
         // page — popovers, dropdowns, toasts, the mobile tab bar.
-        float: '0 8px 24px -4px rgba(11, 30, 61, 0.16), 0 2px 8px -2px rgba(11, 30, 61, 0.10)',
+        float: 'var(--shadow-float)',
         // Pronounced "floating card" elevation — every Card and card-style
         // surface (KPI tiles, the Next Up card, list/table containers).
         // Deliberately heavier than `float` per an explicit request for more
         // shadow on cards specifically, without changing buttons, menus, or
         // toasts, which stay on `lift`/`float`.
-        card: '0 14px 32px -8px rgba(11, 30, 61, 0.20), 0 4px 12px -2px rgba(11, 30, 61, 0.12)',
+        card: 'var(--shadow-card)',
       },
       fontFamily: {
         ui: [

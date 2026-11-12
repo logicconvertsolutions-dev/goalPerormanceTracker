@@ -6,26 +6,114 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: light;
+
+  /* Theme tokens: RGB triplets, consumed by tailwind.config.ts as
+     rgb(var(--c-x) / <alpha-value>). Light values here, dark under `.dark`
+     below. The `dark` class is put on <html> by the theme script in
+     app/layout.tsx (Auto / Light / Dark -- 03-ui.md "Theme rule"). */
+  --c-bg: 255 255 255;
+  --c-panel: 255 255 255;
+  --c-hover: 244 244 245;
+  --c-fg: 20 33 61;
+  --c-fg-2: 92 101 128;
+  --c-fg-3: 148 160 184;
+  --c-fg-4: rgba(148, 160, 184, 0.7);
+  --c-acc: 11 30 61;
+  --c-acc-2: 18 42 84;
+  --c-acc-text: 11 30 61;
+  --c-on-acc: 255 255 255;
+  --c-acc-dim: rgba(11, 30, 61, 0.07);
+  --c-acc-line: rgba(11, 30, 61, 0.28);
+  --c-gold: 201 162 39;
+  --c-gold-dark: 156 124 26;
+  --c-gold-light: 251 243 217;
+  --c-ok: 27 122 67;
+  --c-ok-dim: 228 245 234;
+  --c-warn: 156 106 10;
+  --c-warn-dim: 251 240 218;
+  --c-bad: 176 57 42;
+  --c-bad-dim: 251 230 226;
+  --c-line: 231 226 211;
+  --c-line-2: rgba(20, 33, 61, 0.14);
+  --c-line-3: rgba(20, 33, 61, 0.22);
+
+  --shadow-lift: 0 1px 3px 0 rgba(11, 30, 61, 0.1), 0 1px 2px -1px rgba(11, 30, 61, 0.08);
+  --shadow-float: 0 8px 24px -4px rgba(11, 30, 61, 0.16), 0 2px 8px -2px rgba(11, 30, 61, 0.1);
+  --shadow-card: 0 14px 32px -8px rgba(11, 30, 61, 0.2), 0 4px 12px -2px rgba(11, 30, 61, 0.12);
+  --focus-ring: #0B1E3D;
+
+  /* Navigation chrome (desktop rail, phone tab bar): navy in light, glass in
+     dark. Its ink is light in both themes. */
+  --side-bg: linear-gradient(180deg, rgba(18, 42, 84, 0.95), rgba(11, 30, 61, 0.95));
+  --side-border: rgba(255, 255, 255, 0.16);
+  --side-hi: rgba(255, 255, 255, 0.18);
+  --side-shadow: 0 12px 32px rgba(11, 30, 61, 0.28);
+  --side-ink: #F1F4FA;
+  --side-muted: #C3CEE3;
+
+  /* Older names, kept for anything outside Tailwind's reach. */
   --navy: #0B1E3D;
   --navy-2: #122A54;
-  --canvas: #FFFFFF;
-  --surface: #FFFFFF;
-  --gold: #C9A227;
-  --gold-dark: #9C7C1A;
-  --gold-light: #FBF3D9;
-  --border: #E7E2D3;
-  --text-1: #14213D;
-  --text-2: #5C6580;
-  --text-3: #94A0B8;
-  --ok-fg: #1B7A43;
-  --ok-bg: #E4F5EA;
-  --warn-fg: #9C6A0A;
-  --warn-bg: #FBF0DA;
-  --bad-fg: #B0392A;
-  --bad-bg: #FBE6E2;
+  --canvas: rgb(var(--c-bg));
+  --surface: rgb(var(--c-panel));
+  --gold: rgb(var(--c-gold));
+  --gold-dark: rgb(var(--c-gold-dark));
+  --gold-light: rgb(var(--c-gold-light));
+  --border: rgb(var(--c-line));
+  --text-1: rgb(var(--c-fg));
+  --text-2: rgb(var(--c-fg-2));
+  --text-3: rgb(var(--c-fg-3));
+  --ok-fg: rgb(var(--c-ok));
+  --ok-bg: rgb(var(--c-ok-dim));
+  --warn-fg: rgb(var(--c-warn));
+  --warn-bg: rgb(var(--c-warn-dim));
+  --bad-fg: rgb(var(--c-bad));
+  --bad-bg: rgb(var(--c-bad-dim));
 
   --font-ui: 'Plus Jakarta Sans', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --c-bg: 10 13 20;
+  --c-panel: 21 27 40;
+  --c-hover: 32 40 58;
+  --c-fg: 238 241 247;
+  --c-fg-2: 174 184 204;
+  --c-fg-3: 125 137 160;
+  --c-fg-4: rgba(125, 137, 160, 0.7);
+  /* Fills keep white labels (4.5:1+); ink uses the lighter --c-acc-text. */
+  --c-acc: 47 98 214;
+  --c-acc-2: 58 110 226;
+  --c-acc-text: 143 180 255;
+  --c-acc-dim: rgba(108, 155, 245, 0.14);
+  --c-acc-line: rgba(108, 155, 245, 0.4);
+  --c-gold-dark: 230 196 92;
+  --c-gold-light: 58 47 12;
+  --c-ok: 99 201 139;
+  --c-ok-dim: 20 50 34;
+  --c-warn: 230 180 80;
+  --c-warn-dim: 58 44 14;
+  --c-bad: 240 130 115;
+  --c-bad-dim: 64 26 22;
+  --c-line: 44 52 70;
+  --c-line-2: rgba(255, 255, 255, 0.14);
+  --c-line-3: rgba(255, 255, 255, 0.22);
+
+  --shadow-lift: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-float: 0 10px 28px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 14px 40px rgba(0, 0, 0, 0.38);
+  --focus-ring: #8FB4FF;
+
+  --side-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04));
+  --side-border: rgba(255, 255, 255, 0.16);
+  --side-hi: rgba(255, 255, 255, 0.4);
+  --side-shadow: 0 14px 40px rgba(0, 0, 0, 0.38);
+  --side-ink: #E6ECF7;
+  --side-muted: #AEBBD3;
 }
 
 * {
@@ -47,14 +135,14 @@ body {
 /* Custom utility for the signature lift effect (kept in sync with the
    `lift` boxShadow token in tailwind.config.ts) */
 .lift {
-  box-shadow: 0 1px 3px 0 rgba(11, 30, 61, 0.1), 0 1px 2px -1px rgba(11, 30, 61, 0.08);
+  box-shadow: var(--shadow-lift);
 }
 
 /* Focus ring styling */
 *:focus-visible {
   outline: 2px solid var(--surface);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px var(--navy);
+  box-shadow: 0 0 0 4px var(--focus-ring);
 }
 
 /* Disable outline on active focus for buttons */
@@ -74,6 +162,46 @@ button:active:focus-visible {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Navigation chrome: the desktop rail and the phone tab bar share one
+   surface and one "current page" pill (rail-nav.tsx, tab-bar.tsx). */
+.nav-chrome {
+  background: var(--side-bg);
+  border: 1px solid var(--side-border);
+  box-shadow: inset 0 1px 0 var(--side-hi), var(--side-shadow);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(22px) saturate(150%);
+  color: var(--side-muted);
+}
+
+.nav-current {
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(255, 255, 255, 0.38), transparent 60%),
+    linear-gradient(180deg, #4A7BE8, #1F49AE);
+  border-color: rgba(160, 195, 255, 0.55);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 0 18px rgba(72, 130, 255, 0.55);
+}
+
+/* Dark page backdrop (page-backdrop.tsx): colour glows on a near-black
+   ground, fixed behind everything. */
+.backdrop-glow {
+  background:
+    radial-gradient(circle at 66% -4%, rgba(72, 130, 255, 0.7) 0, rgba(72, 130, 255, 0.4) 7vw, transparent 15vw),
+    radial-gradient(circle at 98% 14%, rgba(72, 130, 255, 0.45) 0, rgba(40, 84, 190, 0.3) 12vw, transparent 26vw),
+    radial-gradient(circle at -3% 60%, rgba(72, 130, 255, 0.5) 0, rgba(72, 130, 255, 0.25) 8vw, transparent 17vw),
+    radial-gradient(circle at 78% 108%, rgba(40, 84, 190, 0.42) 0, transparent 24vw),
+    linear-gradient(160deg, #0C1220, #05070C);
+}
+
+/* People who ask the OS for less transparency get solid chrome. */
+@media (prefers-reduced-transparency: reduce) {
+  .nav-chrome {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: #0B1E3D;
+  }
 }
 
 /* Smooth transitions */

@@ -16,7 +16,9 @@ export function TabBar({ role }: { role: AppRole }) {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex border-t border-line bg-bg-2 shadow-float pb-[env(safe-area-inset-bottom)] print:hidden"
+      // A floating glass bar (globals.css .nav-chrome), clear of the home
+      // indicator. (app)/layout.tsx pads <main> so content can scroll past it.
+      className="nav-chrome fixed bottom-[calc(10px+env(safe-area-inset-bottom))] left-3 right-3 z-40 flex gap-0.5 rounded-[24px] p-1.5 md:hidden print:hidden"
       aria-label="Primary"
     >
       {items.map((item) => {
@@ -24,16 +26,13 @@ export function TabBar({ role }: { role: AppRole }) {
         const Icon = item.icon;
         const isLogActivity = item.href === '/log';
         const className = cn(
-          'relative flex flex-1 flex-col items-center justify-center gap-1 py-2.5 min-h-[44px] text-[11px] leading-none transition-smooth',
-          current ? 'font-medium text-fg' : 'text-fg-3'
+          'flex min-h-[48px] min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-[18px] border border-transparent py-1.5 text-[10px] leading-none transition-smooth',
+          current && 'nav-current font-medium'
         );
         const inner = (
           <>
-            {current && (
-              <span className="absolute top-0 h-[3px] w-8 rounded-full bg-gold" aria-hidden="true" />
-            )}
-            <Icon className={cn('h-5 w-5', current ? 'text-acc' : 'text-fg-3')} aria-hidden="true" />
-            {item.label}
+            <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+            <span className="max-w-full truncate">{item.label}</span>
           </>
         );
         return isLogActivity ? (

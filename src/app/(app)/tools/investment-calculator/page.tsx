@@ -24,7 +24,7 @@ export default async function InvestmentCalculatorPage({
   const initial = parseInvestParams(await searchParams);
 
   return (
-    <div className="space-y-4 max-w-6xl">
+    <div className="space-y-4">
       <PageHeader
         title="Investment Calculator"
         subtitle="See how a lump sum and monthly contributions could grow, compared across growth rates."

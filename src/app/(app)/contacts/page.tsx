@@ -36,7 +36,7 @@ export default async function ContactsPage({
   const pages = pageCount(total);
 
   return (
-    <div className="max-w-3xl space-y-5">
+    <div className="space-y-5">
       <PageHeader
         title="Contacts"
         action={

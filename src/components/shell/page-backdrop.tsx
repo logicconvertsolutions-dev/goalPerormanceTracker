@@ -15,9 +15,12 @@ const DEFAULT_IMAGE = mountain;
  * App-wide page background (P30, every page since P31): a photo behind the
  * content, washed toward white further down so the white cards float on it
  * and long lists stay readable. Fixed, so it holds still while the page
- * scrolls. Starts after the 212px desktop/tablet rail (rail-nav.tsx) so the
- * navigation stays plain; the sticky header (z-20) and mobile tab bar (z-40)
- * sit above it.
+ * scrolls. Runs behind the floating desktop/tablet rail too (rail-nav.tsx);
+ * the sticky header (z-20) and mobile tab bar (z-40) sit above it.
+ *
+ * Dark theme: no photo and no white wash -- colour glows on a near-black
+ * ground instead (globals.css .backdrop-glow). The My Day navy shade is kept
+ * in both themes; it is what the white greeting sits on.
  *
  * My Day (P36) puts its header on the photo: solid brand navy at the very
  * top, fading through the greeting and icons to the bare photo just under
@@ -37,17 +40,26 @@ export function PageBackdrop() {
   const image = SECTION_IMAGES.find((s) => pathname.startsWith(s.prefix))?.image ?? DEFAULT_IMAGE;
   return (
     <div
-      className="pointer-events-none fixed inset-y-0 left-0 right-0 z-0 md:left-[212px] print:hidden"
+      className="pointer-events-none fixed inset-0 z-0 print:hidden"
       aria-hidden="true"
     >
-      <Image src={image} alt="" fill priority={hero} sizes="100vw" className="object-cover object-[70%_top]" />
+      <Image src={image} alt="" fill priority={hero} sizes="100vw" className="object-cover object-[70%_top] dark:hidden" />
+      <div className="backdrop-glow absolute inset-0 hidden dark:block" />
       {hero ? (
         <>
           <div
-            className="absolute inset-0"
+            className="absolute inset-0 dark:hidden"
             style={{
               background:
                 'linear-gradient(180deg, rgb(11,30,61) 0, rgb(11,30,61) env(safe-area-inset-top), rgba(11,30,61,0.62) calc(env(safe-area-inset-top) + 48px), rgba(11,30,61,0.45) calc(env(safe-area-inset-top) + 96px), rgba(11,30,61,0) calc(env(safe-area-inset-top) + 150px), rgba(255,255,255,0.6) calc(env(safe-area-inset-top) + 230px), rgba(255,255,255,0.86) calc(env(safe-area-inset-top) + 380px), rgba(255,255,255,0.93) 100%)',
+            }}
+          />
+          {/* Dark: the same navy shade under the header, without the white wash. */}
+          <div
+            className="absolute inset-0 hidden dark:block"
+            style={{
+              background:
+                'linear-gradient(180deg, rgb(11,30,61) 0, rgb(11,30,61) env(safe-area-inset-top), rgba(11,30,61,0.62) calc(env(safe-area-inset-top) + 48px), rgba(11,30,61,0.45) calc(env(safe-area-inset-top) + 96px), rgba(11,30,61,0) calc(env(safe-area-inset-top) + 150px))',
             }}
           />
           {/* Extra shade behind the greeting text on the left. */}
@@ -63,7 +75,7 @@ export function PageBackdrop() {
           />
         </>
       ) : (
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.55)_0%,rgba(255,255,255,0.82)_38%,rgba(255,255,255,0.93)_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.55)_0%,rgba(255,255,255,0.82)_38%,rgba(255,255,255,0.93)_100%)] dark:hidden" />
       )}
     </div>
   );

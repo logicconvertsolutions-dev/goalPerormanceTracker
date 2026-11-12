@@ -14,6 +14,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { signOutAction } from '@/app/(app)/logout/actions';
 import { formatVersion } from '@/lib/version';
 import { SECONDARY_NAV, LEADER_SECONDARY_NAV } from './nav-items';
+import { ThemeSwitch } from './theme-switch';
 
 function initials(name: string) {
   return name
@@ -78,6 +79,11 @@ export function AccountMenu({
         <DropdownMenuItem asChild className="md:hidden">
           <Link href="/help">How to</Link>
         </DropdownMenuItem>
+        {/* Theme: the rail carries this switch on desktop; phones have no rail. */}
+        <DropdownMenuSeparator className="md:hidden" />
+        <div className="px-2 py-1.5 md:hidden">
+          <ThemeSwitch />
+        </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => startTransition(() => signOutAction())}>
           Sign out

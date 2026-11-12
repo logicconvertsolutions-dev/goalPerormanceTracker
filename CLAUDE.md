@@ -15,11 +15,13 @@ email).
 build-out. `package.json` is the source of truth if this drifts again.)
 **Themes: Auto / Light / Dark**, chosen by the user with a three-way switch
 (Auto follows the OS `prefers-color-scheme`). Decided 2026-11-12; supersedes
-the light-only rule that was in force from August 2026. **Not built yet** —
-the live app still ships the light theme only until the redesign lands. See
-`.github/Spec Sheets/03-ui.md` → "Theme rule". Every new surface must be
-specified in both light and dark; do not add a fourth mode or per-page
-themes without asking.
+the light-only rule that was in force from August 2026. The switch, the dark
+tokens and the navigation chrome are built; individual screens have not been
+checked in dark yet (see `.github/Spec Sheets/03-ui.md` → "Theme rule" for
+what is and isn't done). Colours are CSS variables in `globals.css` (`:root`
+light, `.dark` dark) — never hard-code a hex or `bg-white` in a component.
+Every new surface must work in both themes; do not add a fourth mode or
+per-page themes without asking.
 
 ## Environments
 - `master` → production (Vercel production deployment + Supabase production project). Protected: requires a PR and passing `ci (18.x)`/`ci (20.x)` checks — no direct pushes, no bypass, including for admins.

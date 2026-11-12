@@ -29,7 +29,7 @@ export default async function TeamAuditPage() {
   }));
 
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-[28px] font-bold leading-[34px] tracking-heading-tight text-fg">Audit</h1>
         <BackLink href="/team" label="Team" />

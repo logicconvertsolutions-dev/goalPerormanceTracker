@@ -103,7 +103,7 @@ export default async function AppointmentsPage({
   if (statusFilter) chips.push({ key: 'status', label: statusFilter.replace('_', ' ') });
 
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-4">
       <PageHeader
         title="Appointments"
         action={

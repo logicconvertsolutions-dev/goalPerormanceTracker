@@ -18,7 +18,7 @@ export default async function ClientSnapshotPage() {
   }
 
   return (
-    <div className="space-y-4 max-w-7xl">
+    <div className="space-y-4">
       <PageHeader
         title="Client Snapshot"
         subtitle="Capture income, savings, debts and expenses, then see the monthly balance, net worth and next steps."

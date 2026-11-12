@@ -85,7 +85,7 @@ export default async function NotesPage({
   }
 
   return (
-    <div className={contact ? 'space-y-4 max-w-4xl' : 'space-y-4 max-w-2xl'}>
+    <div className={contact ? 'space-y-4' : 'space-y-4 max-w-2xl'}>
       <PageHeader
         title="Meeting Notes"
         className="print:hidden"

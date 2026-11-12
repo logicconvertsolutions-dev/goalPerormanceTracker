@@ -57,7 +57,7 @@ export default async function AdminPilotPage() {
   }
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <div className="space-y-4">
       <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Pilot</h1>
       <p className="text-sm text-fg-3">
         Daily active loggers over the last {WINDOW_DAYS} business days. Signups don&apos;t matter

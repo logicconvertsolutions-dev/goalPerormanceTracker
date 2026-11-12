@@ -117,7 +117,7 @@ export default async function LogsPage({
   if (sourceFilter) chips.push({ key: 'source', label: CALL_SOURCE_LABELS[sourceFilter] });
 
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-4">
       <PageHeader
         title="Activity Logs"
         action={

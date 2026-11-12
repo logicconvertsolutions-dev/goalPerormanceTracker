@@ -98,7 +98,7 @@ export function AppHeader({
           // Other pages: the navy bar My Day pins to once scrolled. A white bar
           // made iOS paint the status bar white at rest (it takes its colour
           // from the top of the page), so every page now reads navy there.
-          hero ? 'pointer-events-none text-white' : 'bg-acc text-white shadow-[0_2px_12px_rgba(11,30,61,0.25)]'
+          hero ? 'pointer-events-none text-white' : 'bg-navy text-white shadow-[0_2px_12px_rgba(11,30,61,0.25)]'
         )}
       >
         <div className="flex h-16 items-center justify-between gap-3">

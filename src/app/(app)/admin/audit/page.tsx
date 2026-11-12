@@ -27,7 +27,7 @@ export default async function AdminAuditPage() {
   }));
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <div className="space-y-4">
       <h1 className="text-xl font-semibold tracking-heading-tight text-fg">Audit</h1>
       <p className="text-sm text-fg-3">Everything, every organization. Who, what, when.</p>
       <AuditLogTable rows={rows} title="Recent activity" viewerTimeZone={session.agent!.time_zone} />

@@ -18,8 +18,9 @@ export function StatusBarBand() {
   return (
     <div
       className={cn(
-        'pointer-events-none fixed left-0 top-0 z-[60] h-[env(safe-area-inset-top)] bg-acc print:hidden',
-        onHero ? 'hidden w-[212px] md:block' : 'right-0'
+        'pointer-events-none fixed left-0 top-0 z-[60] h-[env(safe-area-inset-top)] bg-navy print:hidden',
+        // On My Day it only covers the rail (212px + its 12px margins).
+        onHero ? 'hidden w-[236px] md:block' : 'right-0'
       )}
       aria-hidden="true"
     />

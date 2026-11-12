@@ -59,7 +59,7 @@ export default async function RecruitingPage({
   if (statusFilter) chips.push({ key: 'status', label: statusFilter });
 
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-4">
       <PageHeader
         title="Recruiting"
         action={

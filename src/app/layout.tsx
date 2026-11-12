@@ -3,6 +3,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/sonner';
 import { StatusBarBand } from '@/components/shell/status-bar-band';
 import { ServiceWorkerRegistration } from '@/components/shell/service-worker-registration';
+import { THEME_INIT_SCRIPT } from '@/lib/theme';
 
 export const metadata: Metadata = {
   title: 'Kautis',
@@ -42,7 +43,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: the theme script below adds `dark` to <html>
+    // before React hydrates, which the server render cannot know about.
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Auto / Light / Dark, applied before first paint (lib/theme.ts). */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="bg-bg pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] text-fg font-ui antialiased">
         <StatusBarBand />
         {children}

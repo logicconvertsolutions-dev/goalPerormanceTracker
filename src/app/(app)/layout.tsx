@@ -117,7 +117,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             }
           />
           <AnnouncementBanner announcements={visibleAnnouncements} />
-          <main className="flex-1 px-4 py-6 pb-24 md:px-6 md:pb-6 print:p-0">{children}</main>
+          <main className="flex-1 px-4 py-6 pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:px-6 md:pb-6 print:p-0">{children}</main>
         </div>
         <TabBar role={role} />
         <OfflineSync />

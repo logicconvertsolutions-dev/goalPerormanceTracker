@@ -64,7 +64,7 @@ export default async function SalesPage({
   const exportParams = new URLSearchParams({ from, to, ...(search ? { search } : {}) });
 
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-4">
       <PageHeader
         title="Sales"
         action={

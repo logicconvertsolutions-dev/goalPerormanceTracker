@@ -4,7 +4,7 @@ export default function TodayLoading() {
   return (
     // The greeting lives in the app header (P36), which stays up while this
     // shows -- so this starts at the KPI strip.
-    <div className="mx-auto -mt-3 max-w-lg space-y-7">
+    <div className="mx-auto -mt-3 max-w-lg space-y-7 lg:max-w-none">
       <div className="flex gap-2.5">
         <Skeleton className="h-[84px] flex-1 rounded" />
         <Skeleton className="h-[84px] flex-1 rounded" />

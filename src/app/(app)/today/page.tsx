@@ -116,7 +116,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <div className="mx-auto -mt-3 max-w-lg space-y-4 lg:max-w-6xl">
+      <div className="mx-auto -mt-3 max-w-lg space-y-4 lg:max-w-none">
 
         <div className="flex gap-2.5">
           <KpiStat

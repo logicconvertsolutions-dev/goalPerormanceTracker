@@ -44,7 +44,7 @@ export default async function ClientsPage({
   const rows = clients ?? [];
 
   return (
-    <div className="max-w-3xl space-y-5">
+    <div className="space-y-5">
       <PageHeader
         title="Clients"
         subtitle="Contacts with at least one recorded sale"

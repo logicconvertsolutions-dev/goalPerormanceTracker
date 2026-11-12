@@ -26,7 +26,7 @@ export default async function TaxCalculatorPage({
   const initial = parseTaxParams(await searchParams);
 
   return (
-    <div className="space-y-4 max-w-6xl">
+    <div className="space-y-4">
       <PageHeader
         title="Tax Calculator"
         subtitle={`Estimate ${TAX_YEAR} income tax, CPP/QPP and EI, after-tax income and your refund or balance owing.`}
